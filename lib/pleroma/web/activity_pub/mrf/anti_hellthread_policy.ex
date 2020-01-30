@@ -24,7 +24,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiHellthreadPolicy do
   defp is_remote_or_displaying_local?(%User{local: false}), do: true
 
   defp is_remote_or_displaying_local?(_),
-    do: Pleroma.Config.get([:mrf_blockpolicy, :display_local])
+    do: Pleroma.Config.get([:mrf_anti_hellthread_policy, :display_local])
 
   @impl true
   def filter(message) do
@@ -34,7 +34,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiHellthreadPolicy do
          true <- recipient.local,
          true <- is_remote_or_displaying_local?(actor),
          false <- User.blocks_user?(recipient, actor) do
-      bot_user = Pleroma.Config.get([:mrf_blockpolicy, :user])
+      bot_user = Pleroma.Config.get([:mrf_anti_hellthread_policy, :user])
 
       _reply =
         CommonAPI.post(User.get_by_nickname(bot_user), %{
