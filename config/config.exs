@@ -326,7 +326,8 @@ config :pleroma, :activitypub,
   unfollow_blocked: true,
   outgoing_blocks: true,
   follow_handshake_timeout: 500,
-  sign_object_fetches: true
+  sign_object_fetches: true,
+  authorized_fetch_mode: false
 
 config :pleroma, :streamer,
   workers: 3,
@@ -480,13 +481,15 @@ config :pleroma, Oban,
     transmogrifier: 20,
     scheduled_activities: 10,
     background: 5,
-    attachments_cleanup: 5
+    attachments_cleanup: 5,
+    new_users_digest: 1
   ],
   crontab: [
     {"0 0 * * *", Pleroma.Workers.Cron.ClearOauthTokenWorker},
     {"0 * * * *", Pleroma.Workers.Cron.StatsWorker},
     {"* * * * *", Pleroma.Workers.Cron.PurgeExpiredActivitiesWorker},
-    {"0 0 * * 0", Pleroma.Workers.Cron.DigestEmailsWorker}
+    {"0 0 * * 0", Pleroma.Workers.Cron.DigestEmailsWorker},
+    {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker}
   ]
 
 config :pleroma, :workers,
@@ -560,6 +563,8 @@ config :pleroma, Pleroma.Emails.UserEmail,
     text_muted_color: "#b9b9ba"
   }
 
+config :pleroma, Pleroma.Emails.NewUsersDigestEmail, enabled: false
+
 config :prometheus, Pleroma.Web.Endpoint.MetricsExporter, path: "/api/pleroma/app_metrics"
 
 config :pleroma, Pleroma.ScheduledActivity,
@@ -611,6 +616,8 @@ config :pleroma, :web_cache_ttl,
 config :pleroma, :modules, runtime_dir: "instance/modules"
 
 config :pleroma, configurable_from_database: false
+
+config :pleroma, Pleroma.Repo, parameters: [gin_fuzzy_search_limit: "500"]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
