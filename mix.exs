@@ -159,7 +159,7 @@ defmodule Pleroma.Mixfile do
       {:quack, "~> 0.1.1"},
       {:joken, "~> 2.0"},
       {:benchee, "~> 1.0"},
-      {:esshd, "~> 0.1.0", runtime: Application.get_env(:esshd, :enabled, false)},
+      {:esshd, "~> 0.1.0", runtime: Application.get_env(:esshd, :enabled, true)},
       {:ex_const, "~> 0.2"},
       {:plug_static_index_html, "~> 1.0.0"},
       {:excoveralls, "~> 0.12.1", only: :test},
