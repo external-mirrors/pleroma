@@ -16,7 +16,7 @@ defmodule Pleroma.Mixfile do
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: ["coveralls.html": :test],
       # Docs
-      name: "Fedora Tipper 9000",
+      name: "m\'lady",
       homepage_url: "https://pleroma.social/",
       source_url: "https://git.pleroma.social/sjw/pleroma",
       docs: [
