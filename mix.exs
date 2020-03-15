@@ -16,7 +16,7 @@ defmodule Pleroma.Mixfile do
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: ["coveralls.html": :test],
       # Docs
-      name: "mastodon",
+      name: "Pleroma",
       homepage_url: "https://pleroma.social/",
       source_url: "https://git.pleroma.social/sjw/pleroma",
       docs: [
