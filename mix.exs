@@ -16,13 +16,13 @@ defmodule Pleroma.Mixfile do
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: ["coveralls.html": :test],
       # Docs
-      name: "Pleroma",
+      name: "Fedora Tipper 9000",
       homepage_url: "https://pleroma.social/",
       source_url: "https://git.pleroma.social/sjw/pleroma",
       docs: [
         source_url_pattern:
           "https://git.pleroma.social/sjw/pleroma/blob/develop/%{path}#L%{line}",
-        logo: "priv/static/static/logo.png",
+        logo: "instance/static/static/panda.png",
         extras: ["README.md", "CHANGELOG.md"] ++ Path.wildcard("docs/**/*.md"),
         groups_for_extras: [
           "Installation manuals": Path.wildcard("docs/installation/*.md"),
