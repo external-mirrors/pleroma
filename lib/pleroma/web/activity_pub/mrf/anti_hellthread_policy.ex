@@ -50,4 +50,3 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiHellthreadPolicy do
   @impl true
   def describe, do: {:ok, %{}}
 end
-

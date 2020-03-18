@@ -1,4 +1,4 @@
-alias Pleroma.{User,Repo}
+alias Pleroma.{User, Repo}
 
 import Ecto.Query
 import Ecto.Changeset
@@ -9,7 +9,8 @@ from(
   update: [
     set: [info: nil]
   ]
-) |> Repo.update_all([])
+)
+|> Repo.update_all([])
 
 User
 |> where([user], fragment("? ->> 'id' IS NULL", user.info))
