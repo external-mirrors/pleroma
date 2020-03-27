@@ -25,9 +25,9 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
     :ok
   end
 
-  clear_config_all([:instance, :federating],
-    do: Pleroma.Config.put([:instance, :federating], true)
-  )
+  clear_config_all([:instance, :federating]) do
+    Pleroma.Config.put([:instance, :federating], true)
+  end
 
   describe "/relay" do
     clear_config([:instance, :allow_relay])
@@ -577,7 +577,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
     end
   end
 
-  describe "/users/:nickname/outbox" do
+  describe "GET /users/:nickname/outbox" do
     test "it will not bomb when there is no activity", %{conn: conn} do
       user = insert(:user)
 
@@ -614,7 +614,9 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
 
       assert response(conn, 200) =~ announce_activity.data["object"]
     end
+  end
 
+  describe "POST /users/:nickname/outbox" do
     test "it rejects posts from other users", %{conn: conn} do
       data = File.read!("test/fixtures/activitypub-client-post-activity.json") |> Poison.decode!()
       user = insert(:user)
@@ -775,7 +777,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
       assert result["first"]["orderedItems"] == [user.ap_id]
     end
 
-    test "it returns returns a uri if the user has 'hide_followers' set", %{conn: conn} do
+    test "it returns a uri if the user has 'hide_followers' set", %{conn: conn} do
       user = insert(:user)
       user_two = insert(:user, hide_followers: true)
       User.follow(user, user_two)
@@ -1008,7 +1010,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
     end
   end
 
-  describe "Additionnal ActivityPub C2S endpoints" do
+  describe "Additional ActivityPub C2S endpoints" do
     test "/api/ap/whoami", %{conn: conn} do
       user = insert(:user)
 
@@ -1045,6 +1047,67 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
       assert object["name"] == desc
       assert object["type"] == "Document"
       assert object["actor"] == user.ap_id
+    end
+  end
+
+  describe "when instance is not federating," do
+    clear_config([:instance, :federating]) do
+      Pleroma.Config.put([:instance, :federating], false)
+    end
+
+    test "returns 404 for GET routes", %{conn: conn} do
+      user = insert(:user)
+      conn = put_req_header(conn, "accept", "application/json")
+
+      get_uris = [
+        "/users/#{user.nickname}",
+        "/internal/fetch",
+        "/relay",
+        "/relay/following",
+        "/relay/followers"
+      ]
+
+      for get_uri <- get_uris do
+        conn
+        |> get(get_uri)
+        |> json_response(404)
+
+        conn
+        |> assign(:user, user)
+        |> get(get_uri)
+        |> json_response(404)
+      end
+    end
+
+    test "returns 404 for activity-related POST routes", %{conn: conn} do
+      user = insert(:user)
+
+      conn =
+        conn
+        |> assign(:valid_signature, true)
+        |> put_req_header("content-type", "application/activity+json")
+
+      post_activity_data =
+        "test/fixtures/mastodon-post-activity.json"
+        |> File.read!()
+        |> Poison.decode!()
+
+      post_activity_uris = [
+        "/inbox",
+        "/relay/inbox",
+        "/users/#{user.nickname}/inbox"
+      ]
+
+      for post_activity_uri <- post_activity_uris do
+        conn
+        |> post(post_activity_uri, post_activity_data)
+        |> json_response(404)
+
+        conn
+        |> assign(:user, user)
+        |> post(post_activity_uri, post_activity_data)
+        |> json_response(404)
+      end
     end
   end
 end
