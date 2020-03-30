@@ -585,7 +585,6 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Plugs.EnsureUserKeyPlug)
   end
 
-  # Note: propagate _any_ updates to `@client_to_server_actions` in `ActivityPubController`
   scope "/", Pleroma.Web.ActivityPub do
     pipe_through([:activitypub_client])
 
@@ -615,8 +614,8 @@ defmodule Pleroma.Web.Router do
       post("/inbox", ActivityPubController, :inbox)
     end
 
-    get("/following", ActivityPubController, :following, assigns: %{relay: true})
-    get("/followers", ActivityPubController, :followers, assigns: %{relay: true})
+    get("/following", ActivityPubController, :relay_following)
+    get("/followers", ActivityPubController, :relay_followers)
   end
 
   scope "/internal/fetch", Pleroma.Web.ActivityPub do

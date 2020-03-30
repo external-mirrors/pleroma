@@ -22,14 +22,29 @@ defmodule Pleroma.Plugs.EnsureAuthenticatedPlug do
       ) do
     conn
     |> render_error(:forbidden, "Two-factor authentication enabled, you must use a access token.")
-    |> halt
+    |> halt()
   end
 
   def call(%{assigns: %{user: %User{}}} = conn, _), do: conn
 
-  def call(conn, _) do
+  def call(conn, options) do
+    perform =
+      cond do
+        options[:if_func] -> options[:if_func].()
+        options[:unless_func] -> !options[:unless_func].()
+        true -> true
+      end
+
+    if perform do
+      fail(conn)
+    else
+      conn
+    end
+  end
+
+  def fail(conn) do
     conn
     |> render_error(:forbidden, "Invalid credentials.")
-    |> halt
+    |> halt()
   end
 end
