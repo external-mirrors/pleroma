@@ -19,8 +19,7 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
     key: "_test",
     signing_salt: "cooldude"
   ]
-
-  clear_config([:instance, :account_activation_required])
+  setup do: clear_config([:instance, :account_activation_required])
 
   describe "in OAuth consumer mode, " do
     setup do
@@ -33,12 +32,7 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
       ]
     end
 
-    clear_config([:auth, :oauth_consumer_strategies]) do
-      Pleroma.Config.put(
-        [:auth, :oauth_consumer_strategies],
-        ~w(twitter facebook)
-      )
-    end
+    setup do: clear_config([:auth, :oauth_consumer_strategies], ~w(twitter facebook))
 
     test "GET /oauth/authorize renders auth forms, including OAuth consumer form", %{
       app: app,
@@ -583,7 +577,7 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
       # In case scope param is missing, expecting _all_ app-supported scopes to be granted
       for user <- [non_admin, admin],
           {requested_scopes, expected_scopes} <-
-            %{scopes_subset => scopes_subset, nil => app_scopes} do
+            %{scopes_subset => scopes_subset, nil: app_scopes} do
         conn =
           post(
             build_conn(),
@@ -1021,7 +1015,7 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
   end
 
   describe "POST /oauth/token - refresh token" do
-    clear_config([:oauth2, :issue_new_refresh_token])
+    setup do: clear_config([:oauth2, :issue_new_refresh_token])
 
     test "issues a new access token with keep fresh token" do
       Pleroma.Config.put([:oauth2, :issue_new_refresh_token], true)

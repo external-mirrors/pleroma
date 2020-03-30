@@ -26,12 +26,10 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
     :ok
   end
 
-  clear_config([:instance, :federating]) do
-    Config.put([:instance, :federating], true)
-  end
+  setup do: clear_config([:instance, :federating], true)
 
   describe "/relay" do
-    clear_config([:instance, :allow_relay])
+    setup do: clear_config([:instance, :allow_relay])
 
     test "with the relay active, it returns the relay user", %{conn: conn} do
       res =
@@ -409,6 +407,44 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
 
       assert "ok" == json_response(conn, 200)
       assert Instances.reachable?(sender_url)
+    end
+
+    test "accept follow activity", %{conn: conn} do
+      Pleroma.Config.put([:instance, :federating], true)
+      relay = Relay.get_actor()
+
+      assert {:ok, %Activity{} = activity} = Relay.follow("https://relay.mastodon.host/actor")
+
+      followed_relay = Pleroma.User.get_by_ap_id("https://relay.mastodon.host/actor")
+      relay = refresh_record(relay)
+
+      accept =
+        File.read!("test/fixtures/relay/accept-follow.json")
+        |> String.replace("{{ap_id}}", relay.ap_id)
+        |> String.replace("{{activity_id}}", activity.data["id"])
+
+      assert "ok" ==
+               conn
+               |> assign(:valid_signature, true)
+               |> put_req_header("content-type", "application/activity+json")
+               |> post("/inbox", accept)
+               |> json_response(200)
+
+      ObanHelpers.perform(all_enqueued(worker: ReceiverWorker))
+
+      assert Pleroma.FollowingRelationship.following?(
+               relay,
+               followed_relay
+             )
+
+      Mix.shell(Mix.Shell.Process)
+
+      on_exit(fn ->
+        Mix.shell(Mix.Shell.IO)
+      end)
+
+      :ok = Mix.Tasks.Pleroma.Relay.run(["list"])
+      assert_receive {:mix_shell, :info, ["relay.mastodon.host"]}
     end
 
     test "without valid signature, " <>
@@ -1189,8 +1225,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
       |> json_response(403)
     end
 
-    clear_config([:media_proxy])
-    clear_config([Pleroma.Upload])
+    setup do: clear_config([:media_proxy])
+    setup do: clear_config([Pleroma.Upload])
 
     test "POST /api/ap/upload_media", %{conn: conn} do
       user = insert(:user)

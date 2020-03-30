@@ -8,9 +8,8 @@ defmodule Pleroma.Web.StaticFE.StaticFEControllerTest do
 
   import Pleroma.Factory
 
-  clear_config_all([:static_fe, :enabled]) do
-    Config.put([:static_fe, :enabled], true)
-  end
+  setup_all do: clear_config([:static_fe, :enabled], true)
+  setup do: clear_config([:instance, :federating], true)
 
   setup %{conn: conn} do
     conn = put_req_header(conn, "accept", "text/html")
@@ -70,6 +69,10 @@ defmodule Pleroma.Web.StaticFE.StaticFEControllerTest do
       refute html =~ ">test20<"
       refute html =~ ">test29<"
     end
+
+    test "it requires authentication if instance is NOT federating", %{conn: conn, user: user} do
+      ensure_federating_or_authenticated(conn, "/users/#{user.nickname}", user)
+    end
   end
 
   describe "notice html" do
@@ -82,6 +85,19 @@ defmodule Pleroma.Web.StaticFE.StaticFEControllerTest do
       assert html =~ "<header>"
       assert html =~ user.nickname
       assert html =~ "testing a thing!"
+    end
+
+    test "filters HTML tags", %{conn: conn} do
+      user = insert(:user)
+      {:ok, activity} = CommonAPI.post(user, %{"status" => "<script>alert('xss')</script>"})
+
+      conn =
+        conn
+        |> put_req_header("accept", "text/html")
+        |> get("/notice/#{activity.id}")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s[&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;]
     end
 
     test "shows the whole thread", %{conn: conn, user: user} do
@@ -152,6 +168,12 @@ defmodule Pleroma.Web.StaticFE.StaticFEControllerTest do
       conn = get(conn, "/notice/#{activity.id}")
 
       assert html_response(conn, 302) =~ "redirected"
+    end
+
+    test "it requires authentication if instance is NOT federating", %{conn: conn, user: user} do
+      {:ok, activity} = CommonAPI.post(user, %{"status" => "testing a thing!"})
+
+      ensure_federating_or_authenticated(conn, "/notice/#{activity.id}", user)
     end
   end
 end
