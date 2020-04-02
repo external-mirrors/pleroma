@@ -43,7 +43,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
       id: to_string(user.id),
       acct: user.nickname,
       username: username_from_nickname(user.nickname),
-      url: user.uri || user.ap_id
+      url: User.profile_url(user)
     }
   end
 
@@ -207,7 +207,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
       following_count: following_count,
       statuses_count: user.note_count,
       note: user.bio || "",
-      url: user.uri || user.ap_id,
+      url: User.profile_url(user),
       avatar: image,
       avatar_static: image,
       header: header,

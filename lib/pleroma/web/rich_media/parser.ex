@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.RichMedia.Parser do
-  @options [
+  @hackney_options [
     pool: :media,
-    max_body: 2_000_000
+    recv_timeout: 2_000,
+    max_body: 2_000_000,
+    with_body: true
   ]
 
   defp parsers do
@@ -75,18 +77,8 @@ defmodule Pleroma.Web.RichMedia.Parser do
   end
 
   defp parse_url(url) do
-    opts =
-      if Application.get_env(:tesla, :adapter) == Tesla.Adapter.Hackney do
-        Keyword.merge(@options,
-          recv_timeout: 2_000,
-          with_body: true
-        )
-      else
-        @options
-      end
-
     try do
-      {:ok, %Tesla.Env{body: html}} = Pleroma.HTTP.get(url, [], adapter: opts)
+      {:ok, %Tesla.Env{body: html}} = Pleroma.HTTP.get(url, [], adapter: @hackney_options)
 
       html
       |> parse_html()
