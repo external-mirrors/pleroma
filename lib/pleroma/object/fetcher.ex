@@ -141,7 +141,7 @@ defmodule Pleroma.Object.Fetcher do
         date: date
       })
 
-    [{"signature", signature}]
+    [{:Signature, signature}]
   end
 
   defp sign_fetch(headers, id, date) do
@@ -154,7 +154,7 @@ defmodule Pleroma.Object.Fetcher do
 
   defp maybe_date_fetch(headers, date) do
     if Pleroma.Config.get([:activitypub, :sign_object_fetches]) do
-      headers ++ [{"date", date}]
+      headers ++ [{:Date, date}]
     else
       headers
     end
@@ -166,7 +166,7 @@ defmodule Pleroma.Object.Fetcher do
     date = Pleroma.Signature.signed_date()
 
     headers =
-      [{"accept", "application/activity+json"}]
+      [{:Accept, "application/activity+json"}]
       |> maybe_date_fetch(date)
       |> sign_fetch(id, date)
 
