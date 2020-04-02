@@ -393,7 +393,8 @@ config :pleroma, Pleroma.Web.Metadata,
     Pleroma.Web.Metadata.Providers.TwitterCard,
     Pleroma.Web.Metadata.Providers.RelMe,
     Pleroma.Web.Metadata.Providers.Feed,
-    Pleroma.Web.Metadata.Providers.Instance
+    Pleroma.Web.Metadata.Providers.Instance,
+    Pleroma.Web.Metadata.Providers.User
   ],
   unfurl_nsfw: false
 
