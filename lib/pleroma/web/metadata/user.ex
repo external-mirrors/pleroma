@@ -11,16 +11,12 @@ defmodule Pleroma.Web.Metadata.Providers.User do
 
   @impl Provider
   def build_tags(params) do
-    IO.inspect(params, label: "the build tag _params")
-
     []
     |> build_accounts_tag(params)
     |> build_relationships_tag(params)
   end
 
   def build_accounts_tag(acc \\ [], %{user: user}) do
-    IO.inspect(user.id, label: "the user id")
-
     "show.json"
     |> AccountView.render(%{user: user, for: user})
     |> Jason.encode!()

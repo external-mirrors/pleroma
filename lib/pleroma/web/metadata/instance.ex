@@ -17,10 +17,22 @@ defmodule Pleroma.Web.Metadata.Providers.Instance do
     |> build_nodeinfo_tag()
   end
 
+  def build_info_tag(acc \\ []) do
+    "show.json"
+    |> InstanceView.render(%{})
+    |> Jason.encode!()
+    |> check_for_empty()
+    |> case do
+      "" ->
+        acc
+
+      safe_data ->
+        [make_tag("instance:info", safe_data) | acc]
+    end
+  end
+
   def build_panel_tag(acc \\ []) do
-    instance_path =
-      Path.join(:code.priv_dir(:pleroma), "static/instance/panel.html")
-      |> IO.inspect()
+    instance_path = Path.join(:code.priv_dir(:pleroma), "static/instance/panel.html")
 
     if File.exists?(instance_path) do
       instance_path
@@ -34,20 +46,6 @@ defmodule Pleroma.Web.Metadata.Providers.Instance do
       end
     else
       acc
-    end
-  end
-
-  def build_info_tag(acc \\ []) do
-    "show.json"
-    |> InstanceView.render(%{})
-    |> Jason.encode!()
-    |> check_for_empty()
-    |> case do
-      "" ->
-        acc
-
-      safe_data ->
-        [make_tag("instance:info", safe_data) | acc]
     end
   end
 
