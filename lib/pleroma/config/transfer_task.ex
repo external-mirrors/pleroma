@@ -5,7 +5,6 @@
 defmodule Pleroma.Config.TransferTask do
   use Task
 
-  alias Pleroma.Config
   alias Pleroma.ConfigDB
   alias Pleroma.Repo
 
@@ -19,9 +18,7 @@ defmodule Pleroma.Config.TransferTask do
     {:pleroma, Oban},
     {:pleroma, :rate_limit},
     {:pleroma, :markup},
-    {:pleroma, :streamer},
-    {:pleroma, :pools},
-    {:pleroma, :connections_pool}
+    {:plerome, :streamer}
   ]
 
   @reboot_time_subkeys [
@@ -35,33 +32,45 @@ defmodule Pleroma.Config.TransferTask do
     {:pleroma, :gopher, [:enabled]}
   ]
 
+  @reject [nil, :prometheus]
+
   def start_link(_) do
     load_and_update_env()
-    if Config.get(:env) == :test, do: Ecto.Adapters.SQL.Sandbox.checkin(Repo)
+    if Pleroma.Config.get(:env) == :test, do: Ecto.Adapters.SQL.Sandbox.checkin(Repo)
     :ignore
   end
 
-  @spec load_and_update_env([ConfigDB.t()], boolean()) :: :ok
-  def load_and_update_env(deleted_settings \\ [], restart_pleroma? \\ true) do
-    with {_, true} <- {:configurable, Config.get(:configurable_from_database)} do
+  @spec load_and_update_env([ConfigDB.t()]) :: :ok | false
+  def load_and_update_env(deleted \\ [], restart_pleroma? \\ true) do
+    with {:configurable, true} <-
+           {:configurable, Pleroma.Config.get(:configurable_from_database)},
+         true <- Ecto.Adapters.SQL.table_exists?(Repo, "config"),
+         started_applications <- Application.started_applications() do
       # We need to restart applications for loaded settings take effect
 
-      # TODO: some problem with prometheus after restart!
-      reject_restart =
-        if restart_pleroma? do
-          [nil, :prometheus]
+      in_db = Repo.all(ConfigDB)
+
+      with_deleted = in_db ++ deleted
+
+      reject_for_restart = if restart_pleroma?, do: @reject, else: [:pleroma | @reject]
+
+      applications =
+        with_deleted
+        |> Enum.map(&merge_and_update(&1))
+        |> Enum.uniq()
+        # TODO: some problem with prometheus after restart!
+        |> Enum.reject(&(&1 in reject_for_restart))
+
+      # to be ensured that pleroma will be restarted last
+      applications =
+        if :pleroma in applications do
+          List.delete(applications, :pleroma) ++ [:pleroma]
         else
-          [:pleroma, nil, :prometheus]
+          Restarter.Pleroma.rebooted()
+          applications
         end
 
-      started_applications = Application.started_applications()
-
-      (Repo.all(ConfigDB) ++ deleted_settings)
-      |> Enum.map(&merge_and_update/1)
-      |> Enum.uniq()
-      |> Enum.reject(&(&1 in reject_restart))
-      |> maybe_set_pleroma_last()
-      |> Enum.each(&restart(started_applications, &1, Config.get(:env)))
+      Enum.each(applications, &restart(started_applications, &1, Pleroma.Config.get(:env)))
 
       :ok
     else
@@ -69,54 +78,42 @@ defmodule Pleroma.Config.TransferTask do
     end
   end
 
-  defp maybe_set_pleroma_last(apps) do
-    # to be ensured that pleroma will be restarted last
-    if :pleroma in apps do
-      apps
-      |> List.delete(:pleroma)
-      |> List.insert_at(-1, :pleroma)
-    else
-      Restarter.Pleroma.rebooted()
-      apps
-    end
-  end
-
-  defp group_for_restart(:logger, key, _, merged_value) do
-    # change logger configuration in runtime, without restart
-    if Keyword.keyword?(merged_value) and
-         key not in [:compile_time_application, :backends, :compile_time_purge_matching] do
-      Logger.configure_backend(key, merged_value)
-    else
-      Logger.configure([{key, merged_value}])
-    end
-
-    nil
-  end
-
-  defp group_for_restart(group, _, _, _) when group != :pleroma, do: group
-
-  defp group_for_restart(group, key, value, _) do
-    if pleroma_need_restart?(group, key, value), do: group
-  end
-
   defp merge_and_update(setting) do
     try do
       key = ConfigDB.from_string(setting.key)
       group = ConfigDB.from_string(setting.group)
 
-      default = Config.Holder.default_config(group, key)
+      default = Pleroma.Config.Holder.default_config(group, key)
       value = ConfigDB.from_binary(setting.value)
 
       merged_value =
-        cond do
-          Ecto.get_meta(setting, :state) == :deleted -> default
-          can_be_merged?(default, value) -> ConfigDB.merge_group(group, key, default, value)
-          true -> value
+        if Ecto.get_meta(setting, :state) == :deleted do
+          default
+        else
+          if can_be_merged?(default, value) do
+            ConfigDB.merge_group(group, key, default, value)
+          else
+            value
+          end
         end
 
       :ok = update_env(group, key, merged_value)
 
-      group_for_restart(group, key, value, merged_value)
+      if group != :logger do
+        if group != :pleroma or pleroma_need_restart?(group, key, value) do
+          group
+        end
+      else
+        # change logger configuration in runtime, without restart
+        if Keyword.keyword?(merged_value) and
+             key not in [:compile_time_application, :backends, :compile_time_purge_matching] do
+          Logger.configure_backend(key, merged_value)
+        else
+          Logger.configure([{key, merged_value}])
+        end
+
+        nil
+      end
     rescue
       error ->
         error_msg =
