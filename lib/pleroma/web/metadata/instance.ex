@@ -63,7 +63,7 @@ defmodule Pleroma.Web.Metadata.Providers.Instance do
 
   defp check_for_empty(data) do
     if data != "" and data != "\u200B" do
-      "“" <> data <> "”"
+      data
     else
       ""
     end
