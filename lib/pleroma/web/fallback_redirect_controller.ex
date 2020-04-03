@@ -7,6 +7,7 @@ defmodule Fallback.RedirectController do
   require Logger
   alias Pleroma.User
   alias Pleroma.Web.Metadata
+  alias Pleroma.Web.Preload
 
   def api_not_implemented(conn, _params) do
     conn
@@ -30,6 +31,8 @@ defmodule Fallback.RedirectController do
   end
 
   def redirector_with_meta(conn, %{"maybe_nickname_or_id" => maybe_nickname_or_id} = params) do
+    IO.inspect(conn, label: "inspect the conn")
+
     with %User{} = user <- User.get_cached_by_nickname_or_id(maybe_nickname_or_id) do
       redirector_with_meta(conn, %{user: user})
     else
@@ -40,29 +43,19 @@ defmodule Fallback.RedirectController do
 
   def redirector_with_meta(conn, params) do
     {:ok, index_content} = File.read(index_file_path())
+    IO.inspect(conn, label: "inspect the conn")
 
-    tags =
-      try do
-        Metadata.build_tags(params)
-      rescue
-        e ->
-          Logger.error(
-            "Metadata rendering for #{conn.request_path} failed.\n" <>
-              Exception.format(:error, e, __STACKTRACE__)
-          )
+    tags = build_tags(conn, params)
+    preloads = preload_data(conn, params)
 
-          ""
-      end
-
-    response = String.replace(index_content, "<!--server-generated-meta-->", tags)
+    response =
+      index_content
+      |> String.replace("<!--server-generated-meta-->", tags)
+      |> String.replace("<!--server-generated-initial-data-->", preloads)
 
     conn
     |> put_resp_content_type("text/html")
     |> send_resp(200, response)
-  end
-
-  def index_file_path do
-    Pleroma.Plugs.InstanceStatic.file_path("index.html")
   end
 
   def registration_page(conn, params) do
@@ -73,5 +66,37 @@ defmodule Fallback.RedirectController do
     conn
     |> put_status(204)
     |> text("")
+  end
+
+  defp index_file_path do
+    Pleroma.Plugs.InstanceStatic.file_path("index.html")
+  end
+
+  defp build_tags(conn, params) do
+    try do
+      Metadata.build_tags(params)
+    rescue
+      e ->
+        Logger.error(
+          "Metadata rendering for #{conn.request_path} failed.\n" <>
+            Exception.format(:error, e, __STACKTRACE__)
+        )
+
+        ""
+    end
+  end
+
+  defp preload_data(conn, params) do
+    try do
+      Preload.build_tags(params)
+    rescue
+      e ->
+        Logger.error(
+          "Preloading for #{conn.request_path} failed.\n" <>
+            Exception.format(:error, e, __STACKTRACE__)
+        )
+
+        ""
+    end
   end
 end
