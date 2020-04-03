@@ -2,80 +2,36 @@
 # Copyright © 2017-2020 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
-defmodule Pleroma.Web.Metadata.Providers.InstanceTest do
+defmodule Pleroma.Web.Preload.Providers.InstanceTest do
   use Pleroma.DataCase
-  alias Pleroma.Web.Metadata.Providers.Instance
+  alias Pleroma.Web.Preload.Providers.Instance
 
-  setup do: clear_config([Pleroma.Web.Metadata, :unfurl_nsfw])
+  setup do: {:ok, Instance.generate_terms()}
 
-  test "it renders the info" do
-    result = Instance.build_tags(%{})
-
-    %{
-      "description" => description,
-      "email" => "admin@example.com",
-      "registrations" => true
-    } =
-      case Enum.find(result, nil, &find_tag(&1, "instance:info")) do
-        nil ->
-          %{}
-
-        {:meta, properties, []} ->
-          properties
-          |> Keyword.get(:content, "")
-          |> Jason.decode!()
-      end
+  test "it renders the info", %{"/api/v1/instance": info} do
+    assert %{
+             description: description,
+             email: "admin@example.com",
+             registrations: true
+           } = info
 
     assert String.equivalent?(description, "A Pleroma instance, an alternative fediverse server")
   end
 
-  test "it renders the panel" do
-    result = Instance.build_tags(%{})
-
-    html_panel =
-      case Enum.find(result, nil, &find_tag(&1, "instance:panel")) do
-        nil ->
-          %{}
-
-        {:meta, properties, []} ->
-          properties
-          |> Keyword.get(:content, "")
-      end
-
+  test "it renders the panel", %{"/instance/panel.html": panel} do
     assert String.contains?(
-             html_panel,
+             panel,
              "<p>Welcome to <a href=\"https://pleroma.social\" target=\"_blank\">Pleroma!</a></p>"
            )
   end
 
-  test "it renders the node_info" do
-    result = Instance.build_tags(%{})
-
+  test "it renders the node_info", %{"/nodeinfo/2.0": nodeinfo} do
     %{
-      "metadata" => metadata,
-      "version" => "2.0"
-    } =
-      case Enum.find(result, nil, &find_tag(&1, "instance:nodeinfo")) do
-        nil ->
-          %{}
+      metadata: metadata,
+      version: "2.0"
+    } = nodeinfo
 
-        {:meta, properties, []} ->
-          properties
-          |> Keyword.get(:content, "")
-          |> Jason.decode!()
-      end
-
-    assert metadata["private"] == false
-    assert metadata["suggestions"] == %{"enabled" => false}
-  end
-
-  def find_tag(tag, property) do
-    with {:meta, properties, []} <- tag,
-         prop_name <- Keyword.get(properties, :property, false) do
-      String.equivalent?(prop_name, property)
-    else
-      _ ->
-        false
-    end
+    assert metadata.private == false
+    assert metadata.suggestions == %{enabled: false}
   end
 end
