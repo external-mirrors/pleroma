@@ -3,9 +3,15 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.Preload.Providers.Instance do
+<<<<<<< HEAD
   alias Pleroma.Web.MastodonAPI.InstanceView
   alias Pleroma.Web.Nodeinfo.Nodeinfo
   alias Pleroma.Web.Preload.Providers.Provider
+=======
+  alias Pleroma.Web.Preload.Providers.Provider
+  alias Pleroma.Web.MastodonAPI.InstanceView
+  alias Pleroma.Web.Nodeinfo.Nodeinfo
+>>>>>>> 8025e21a4... adapt dat structures
 
   @behaviour Provider
 
