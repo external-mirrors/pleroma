@@ -414,9 +414,14 @@ config :pleroma, Pleroma.Web.Metadata,
     Pleroma.Web.Metadata.Providers.OpenGraph,
     Pleroma.Web.Metadata.Providers.TwitterCard,
     Pleroma.Web.Metadata.Providers.RelMe,
-    Pleroma.Web.Metadata.Providers.Feed,
-    Pleroma.Web.Metadata.Providers.Instance,
-    Pleroma.Web.Metadata.Providers.User
+    Pleroma.Web.Metadata.Providers.Feed
+  ],
+  unfurl_nsfw: false
+
+config :pleroma, Pleroma.Web.Preload,
+  providers: [
+    Pleroma.Web.Preload.Providers.Instance,
+    Pleroma.Web.Preload.Providers.User
   ],
   unfurl_nsfw: false
 
