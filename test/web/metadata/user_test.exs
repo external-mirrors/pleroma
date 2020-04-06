@@ -14,16 +14,16 @@ defmodule Pleroma.Web.Preload.Providers.UserTest do
   end
 
   test "it renders the accounts", %{"api/v1/accounts": accounts} do
-    assert %{"acct" => username, "username" => username} = accounts
+    assert %{acct: username, username: username} = accounts
   end
 
   test "it renders the relationships", %{"api/v1/accounts/relationships": relationships} do
     [
       %{
-        "blocked_by" => false,
-        "blocking" => false,
-        "showing_reblogs" => true,
-        "subscribing" => false
+        blocked_by: false,
+        blocking: false,
+        showing_reblogs: true,
+        subscribing: false
       }
     ] = relationships
   end
