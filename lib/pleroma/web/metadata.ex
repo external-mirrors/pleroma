@@ -13,7 +13,6 @@ defmodule Pleroma.Web.Metadata do
         |> Enum.map(&to_tag/1)
         |> Enum.map(&HTML.safe_to_string/1)
         |> Enum.join()
-        |> IO.inspect(label: "data for #{inspect(parser)}")
 
       acc <> rendered_html
     end)
