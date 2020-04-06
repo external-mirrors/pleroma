@@ -55,8 +55,12 @@ defmodule Pleroma.Web.Nodeinfo.Nodeinfo do
         end,
         if Config.get([:instance, :safe_dm_mentions]) do
           "safe_dm_mentions"
+<<<<<<< HEAD
         end,
         "pleroma_emoji_reactions"
+=======
+        end
+>>>>>>> 68b95896aeca086317f63533fdd54b7050c63231
       ]
       |> Enum.filter(& &1)
 
