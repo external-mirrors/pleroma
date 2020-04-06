@@ -14,11 +14,7 @@ defmodule Pleroma.Web.Preload.Providers.UserTest do
   end
 
   test "it renders the accounts", %{"api/v1/accounts": accounts} do
-<<<<<<< HEAD
     assert %{acct: username, username: username} = accounts
-=======
-    assert %{"acct" => username, "username" => username} = accounts
->>>>>>> 8025e21a4... adapt dat structures
   end
 
   test "it renders the relationships", %{"api/v1/accounts/relationships": relationships} do
