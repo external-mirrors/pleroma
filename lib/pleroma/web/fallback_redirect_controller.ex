@@ -31,7 +31,7 @@ defmodule Fallback.RedirectController do
   end
 
   def redirector_with_meta(conn, %{"maybe_nickname_or_id" => maybe_nickname_or_id} = params) do
-    IO.inspect(conn, label: "inspect the conn")
+    #    IO.inspect(conn, label: "inspect the conn")
 
     with %User{} = user <- User.get_cached_by_nickname_or_id(maybe_nickname_or_id) do
       redirector_with_meta(conn, %{user: user})
@@ -43,9 +43,9 @@ defmodule Fallback.RedirectController do
 
   def redirector_with_meta(conn, params) do
     {:ok, index_content} = File.read(index_file_path())
-    IO.inspect(conn, label: "inspect the conn")
 
     tags = build_tags(conn, params)
+
     preloads = preload_data(conn, params)
 
     response =
@@ -88,7 +88,7 @@ defmodule Fallback.RedirectController do
 
   defp preload_data(conn, params) do
     try do
-      Preload.build_tags(params)
+      Preload.build_tags(conn, params)
     rescue
       e ->
         Logger.error(

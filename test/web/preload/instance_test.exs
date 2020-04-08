@@ -6,7 +6,7 @@ defmodule Pleroma.Web.Preload.Providers.InstanceTest do
   use Pleroma.DataCase
   alias Pleroma.Web.Preload.Providers.Instance
 
-  setup do: {:ok, Instance.generate_terms()}
+  setup do: {:ok, Instance.generate_terms(nil, nil)}
 
   test "it renders the info", %{"/api/v1/instance": info} do
     assert %{

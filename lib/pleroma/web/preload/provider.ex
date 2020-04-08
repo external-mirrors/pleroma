@@ -3,5 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.Preload.Providers.Provider do
-  @callback generate_terms(map()) :: map()
+  alias Pleroma.User
+
+  @callback generate_terms(%User{}, map()) :: map()
 end
