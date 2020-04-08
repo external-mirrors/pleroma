@@ -68,8 +68,8 @@ defmodule Pleroma.Web.Router do
     plug(:fetch_session)
     plug(Pleroma.Plugs.OAuthPlug)
     plug(Pleroma.Plugs.BasicAuthDecoderPlug)
-    plug(Pleroma.Plugs.UserFetcherPlug)
     plug(Pleroma.Plugs.SessionAuthenticationPlug)
+    plug(Pleroma.Plugs.UserFetcherPlug)
     plug(Pleroma.Plugs.LegacyAuthenticationPlug)
     plug(Pleroma.Plugs.AuthenticationPlug)
     plug(Pleroma.Plugs.UserEnabledPlug)
@@ -665,7 +665,15 @@ defmodule Pleroma.Web.Router do
 
   scope "/", Fallback do
     get("/registration/:token", RedirectController, :registration_page)
+  end
+
+  scope "/", Fallback do
+    pipe_through(:mastodon_html)
+
     get("/:maybe_nickname_or_id", RedirectController, :redirector_with_meta)
+  end
+
+  scope "/", Fallback do
     get("/api*path", RedirectController, :api_not_implemented)
     get("/*path", RedirectController, :redirector)
 

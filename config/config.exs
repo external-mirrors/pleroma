@@ -399,7 +399,8 @@ config :pleroma, Pleroma.Web.Metadata,
 config :pleroma, Pleroma.Web.Preload,
   providers: [
     Pleroma.Web.Preload.Providers.Instance,
-    Pleroma.Web.Preload.Providers.User
+    Pleroma.Web.Preload.Providers.User,
+    Pleroma.Web.Preload.Providers.Timelines
   ],
   unfurl_nsfw: false
 

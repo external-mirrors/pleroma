@@ -4,16 +4,24 @@
 
 defmodule Pleroma.Web.Preload do
   alias Phoenix.HTML
+  require Logger
 
-  def build_tags(params) do
+  def build_tags(%{assigns: %{user: auth_user}}, params) do
+    if not is_nil(auth_user) do
+      Logger.error("we have a user")
+    end
+
+    IO.inspect(params.user.id)
+
     preload_data =
       Enum.reduce(Pleroma.Config.get([__MODULE__, :providers], []), %{}, fn parser, acc ->
-        Map.merge(acc, parser.generate_terms(params))
+        Map.merge(acc, parser.generate_terms(auth_user, params))
       end)
 
     rendered_html =
       preload_data
-      |> IO.inspect(label: "data for preload", pretty: true)
+      #      |> IO.inspect(label: "data for preload", pretty: true)
+      #   |> IO.inspect(pretty: true)
       |> Jason.encode!()
       |> build_script_tag()
       |> HTML.safe_to_string()
