@@ -665,15 +665,7 @@ defmodule Pleroma.Web.Router do
 
   scope "/", Fallback do
     get("/registration/:token", RedirectController, :registration_page)
-  end
-
-  scope "/", Fallback do
-    pipe_through(:mastodon_html)
-
     get("/:maybe_nickname_or_id", RedirectController, :redirector_with_meta)
-  end
-
-  scope "/", Fallback do
     get("/api*path", RedirectController, :api_not_implemented)
     get("/*path", RedirectController, :redirector)
 
