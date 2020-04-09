@@ -8,6 +8,9 @@ defmodule Pleroma.Web.Preload.Providers.Instance do
   alias Pleroma.Web.Preload.Providers.Provider
 
   @behaviour Provider
+  @instance_url :"/api/v1/instance"
+  @panel_url :"/instance/panel.html"
+  @nodeinfo_url :"/nodeinfo/2.0"
 
   @impl Provider
   def generate_terms(_auth_user, _params) do
@@ -20,7 +23,7 @@ defmodule Pleroma.Web.Preload.Providers.Instance do
   defp build_info_tag(acc) do
     info_data = InstanceView.render("show.json", %{})
 
-    Map.put(acc, :"/api/v1/instance", info_data)
+    Map.put(acc, @instance_url, info_data)
   end
 
   defp build_panel_tag(acc) do
@@ -28,7 +31,7 @@ defmodule Pleroma.Web.Preload.Providers.Instance do
 
     if File.exists?(instance_path) do
       panel_data = File.read!(instance_path)
-      Map.put(acc, :"/instance/panel.html", panel_data)
+      Map.put(acc, @panel_url, panel_data)
     else
       acc
     end
@@ -40,7 +43,7 @@ defmodule Pleroma.Web.Preload.Providers.Instance do
         acc
 
       nodeinfo_data ->
-        Map.put(acc, :"/nodeinfo/2.0", nodeinfo_data)
+        Map.put(acc, @nodeinfo_url, nodeinfo_data)
     end
   end
 end

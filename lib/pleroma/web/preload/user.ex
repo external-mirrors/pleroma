@@ -7,29 +7,16 @@ defmodule Pleroma.Web.Preload.Providers.User do
   alias Pleroma.Web.Preload.Providers.Provider
 
   @behaviour Provider
+  @account_url :"/api/v1/accounts"
 
   @impl Provider
   def generate_terms(auth_user, %{user: user}) do
     %{}
     |> build_accounts_tag(auth_user, user)
-    |> build_relationships_tag(auth_user, user)
   end
 
-  def generate_terms(_auth_user, _), do: %{}
-
-  def build_accounts_tag(acc, nil, _user) do
-    Map.put(acc, :"api/v1/accounts", %{})
-  end
-
-  def build_accounts_tag(acc, auth_user, user) do
-    account_data = AccountView.render("show.json", %{user: user, for: auth_user})
-    Map.put(acc, :"api/v1/accounts", account_data)
-  end
-
-  def build_relationships_tag(acc, auth_user, user) do
-    relationship_data =
-      AccountView.render("relationships.json", %{user: auth_user, targets: [user]})
-
-    Map.put(acc, :"api/v1/accounts/relationships", relationship_data)
+  def build_accounts_tag(acc, _auth_user, user) do
+    account_data = AccountView.render("show.json", %{user: user, for: user})
+    Map.put(acc, @account_url, account_data)
   end
 end

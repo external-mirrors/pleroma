@@ -9,8 +9,8 @@ defmodule Pleroma.Web.Preload.Providers.Timelines do
   alias Pleroma.Web.Preload.Providers.Provider
 
   @behaviour Provider
-  @public_url :"api/v1/timelines/public"
-  @home_url :"api/v1/timelines/home"
+  @public_url :"/api/v1/timelines/public"
+  @home_url :"/api/v1/timelines/home"
 
   @impl Provider
   def generate_terms(auth_user, %{user: user}) do
@@ -21,17 +21,21 @@ defmodule Pleroma.Web.Preload.Providers.Timelines do
 
   def generate_terms(auth_user, _), do: generate_terms(auth_user, %{user: nil})
 
-  def build_public_tag(acc, _auth_user, nil) do
-    Map.put(acc, @public_url, %{})
+  def build_public_tag(acc, _auth_user, nil), do: acc
+
+  def build_public_tag(acc, nil, user) do
+    if Pleroma.Config.get([:restrict_unauthenticated, :timelines, :federated], true) do
+      acc
+    else
+      Map.put(acc, @public_url, public_timeline(user))
+    end
   end
 
-  def build_public_tag(acc, auth_user, user) do
-    Map.put(acc, @public_url, get_public_timeline(auth_user, user))
+  def build_public_tag(acc, _auth_user, user) do
+    Map.put(acc, @public_url, public_timeline(user))
   end
 
-  def build_home_tag(acc, _auth_user, nil) do
-    Map.put(acc, @home_url, %{})
-  end
+  def build_home_tag(acc, auth_user, user) when is_nil(auth_user) or is_nil(user), do: acc
 
   def build_home_tag(acc, auth_user, user) do
     params = create_timeline_params(user)
@@ -46,21 +50,7 @@ defmodule Pleroma.Web.Preload.Providers.Timelines do
     home_timeline =
       StatusView.render("index.json", activities: activities, for: auth_user, as: :activity)
 
-    Map.put(acc, :"api/v1/timelines/home", home_timeline)
-  end
-
-  defp get_public_timeline(nil, user) do
-    restrict? = Pleroma.Config.get([:restrict_unauthenticated, :timelines, :federated], true)
-
-    if restrict? do
-      %{}
-    else
-      public_timeline(user)
-    end
-  end
-
-  defp get_public_timeline(_auth_user, user) do
-    public_timeline(user)
+    Map.put(acc, @home_url, home_timeline)
   end
 
   defp public_timeline(user) do
