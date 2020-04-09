@@ -6,16 +6,10 @@ defmodule Pleroma.Web.Preload do
   alias Phoenix.HTML
   require Logger
 
-  def build_tags(%{assigns: %{user: auth_user}}, params) do
-    if not is_nil(auth_user) do
-      Logger.error("we have a user")
-    end
-
-    IO.inspect(params.user.id)
-
+  def build_tags(_conn, params) do
     preload_data =
       Enum.reduce(Pleroma.Config.get([__MODULE__, :providers], []), %{}, fn parser, acc ->
-        Map.merge(acc, parser.generate_terms(auth_user, params))
+        Map.merge(acc, parser.generate_terms(nil, params))
       end)
 
     rendered_html =
