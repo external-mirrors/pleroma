@@ -82,17 +82,26 @@ defmodule Pleroma.Web.ActivityPub.Visibility do
   end
 
   def half_conversation?(%Activity{} = activity, recipients, user, following) do
-    recipients = MapSet.delete(recipients, user)
+    recipients =
+      recipients
+      |> MapSet.delete(user)
+      |> MapSet.delete(activity.actor)
+
     # Can we get a regular list of following so we don't need this stupid replace?
     following =
       following
       |> Enum.map(fn f -> String.replace(f, "/followers", "") end)
       |> MapSet.new()
 
-    not (MapSet.disjoint?(following, recipients) ||
-           Map.has_key?(activity.object.data, "inReplyTo") ||
-           activity.data.type == "Announce" ||
-           activity.actor == user)
+    MapSet.disjoint?(following, recipients) &&
+      # If recipients is now empty then it must be a self-reply, so don't remove
+      not Enum.empty?(recipients) &&
+      # If it's not a reply then don't remove
+      activity.object.data["inReplyTo"] != nil &&
+      # Don't remove boosts
+      activity.data["type"] != "Announce" &&
+      # Anything you posted yourself shouldn't be removed
+      activity.actor != user
   end
 
   def get_visibility(object) do
