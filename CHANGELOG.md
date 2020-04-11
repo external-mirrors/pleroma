@@ -18,6 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Mastodon API: Added `/api/v1/notifications/:id/dismiss` endpoint.
 </details>
 
+### Fixed
+- Support pagination in conversations API
+
+## [unreleased-patch]
+
 ## [2.0.2] - 2020-04-08
 ### Added
 - Support for Funkwhale's `Audio` activity
