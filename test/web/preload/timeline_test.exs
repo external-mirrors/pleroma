@@ -13,9 +13,10 @@ defmodule Pleroma.Web.Preload.Providers.TimelineTest do
     user = insert(:user)
 
     svd_config = Pleroma.Config.get([:restrict_unauthenticated, :timelines])
-    on_exit fn ->
+
+    on_exit(fn ->
       Pleroma.Config.put([:restrict_unauthenticated, :timelines], svd_config)
-    end
+    end)
 
     {:ok, %{user: user}}
   end
