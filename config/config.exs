@@ -403,13 +403,6 @@ config :pleroma, Pleroma.Web.Preload,
     Pleroma.Web.Preload.Providers.Timelines
   ]
 
-config :pleroma, Pleroma.Web.Preload,
-  providers: [
-    Pleroma.Web.Preload.Providers.Instance,
-    Pleroma.Web.Preload.Providers.User
-  ],
-  unfurl_nsfw: false
-
 config :pleroma, :http_security,
   enabled: true,
   sts: false,
