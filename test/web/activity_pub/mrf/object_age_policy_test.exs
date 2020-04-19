@@ -33,9 +33,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicyTest do
       |> Map.get("object")
       |> Map.put("published", DateTime.utc_now() |> DateTime.to_iso8601())
 
-    _new_message =
-      old_message
-      |> Map.put("object", new_object)
+    old_message
+    |> Map.put("object", new_object)
   end
 
   describe "with reject action" do
@@ -44,7 +43,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicyTest do
 
       data = get_old_message()
 
-      {:reject, _} = ObjectAgePolicy.filter(data)
+      assert match?({:reject, _}, ObjectAgePolicy.filter(data))
     end
 
     test "it allows a new post" do
@@ -52,7 +51,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicyTest do
 
       data = get_new_message()
 
-      {:ok, _} = ObjectAgePolicy.filter(data)
+      assert match?({:ok, _}, ObjectAgePolicy.filter(data))
     end
   end
 
@@ -76,7 +75,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicyTest do
 
       {:ok, _user} = User.get_or_fetch_by_ap_id(data["actor"])
 
-      {:ok, ^data} = ObjectAgePolicy.filter(data)
+      assert match?({:ok, ^data}, ObjectAgePolicy.filter(data))
     end
   end
 
@@ -101,7 +100,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicyTest do
 
       {:ok, _u} = User.get_or_fetch_by_ap_id(data["actor"])
 
-      {:ok, ^data} = ObjectAgePolicy.filter(data)
+      assert match?({:ok, ^data}, ObjectAgePolicy.filter(data))
     end
   end
 end
