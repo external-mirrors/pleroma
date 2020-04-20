@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Configuration: `:restrict_unauthenticated` setting, restrict access for unauthenticated users to timelines (public and federate), user profiles and statuses.
 - New HTTP adapter [gun](https://github.com/ninenines/gun). Gun adapter requires minimum OTP version of 22.2 otherwise Pleroma won’t start. For hackney OTP update is not required.
 - Mix task to create trusted OAuth App.
+- Notifications: Added `follow_request` notification type (configurable, see `[:notifications, :enable_follow_request_notifications]` setting).
 <details>
   <summary>API Changes</summary>
 - Mastodon API: Support for `include_types` in `/api/v1/notifications`.
@@ -27,8 +28,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - Logger configuration through AdminFE
 - HTTP Basic Authentication permissions issue
+- ObjectAgePolicy didn't filter out old messages
 
 ### Added
+- NodeInfo: ObjectAgePolicy settings to the `federation` list.
 <details>
   <summary>API Changes</summary>
 - Admin API: `GET /api/pleroma/admin/need_reboot`.
