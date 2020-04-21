@@ -347,7 +347,8 @@ config :pleroma, :mrf_simple,
   reject: [],
   accept: [],
   avatar_removal: [],
-  banner_removal: []
+  banner_removal: [],
+  reject_deletes: []
 
 config :pleroma, :mrf_keyword,
   reject: [],
@@ -571,6 +572,8 @@ config :pleroma, :email_notifications,
     interval: 7,
     inactivity_threshold: 7
   }
+
+config :pleroma, :notifications, enable_follow_request_notifications: false
 
 config :pleroma, :oauth2,
   token_expires_in: 600,
