@@ -150,9 +150,9 @@ config :pleroma, Pleroma.Web.Endpoint,
   ]
 
 config :pleroma, :fed_sockets,
-  enabled: true,
+  enabled: false,
   ping_interval: :timer.seconds(15),
-  connection_duration: :timer.hours(1),
+  connection_duration: :timer.hours(8),
   rejection_duration: :timer.hours(1),
   fed_socket_fetches: [
     default: 12_000,
