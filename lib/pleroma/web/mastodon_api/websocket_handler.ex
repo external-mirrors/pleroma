@@ -12,6 +12,13 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
 
   @behaviour :cowboy_websocket
 
+  # Cowboy timeout period.
+  @timeout :timer.seconds(60)
+  # Keepalive timer.
+  @keepalive_interval :timer.seconds(30)
+  # Hibernate every X messages
+  @hibernate_every 100
+
   @streams [
     "public",
     "public:local",
@@ -24,9 +31,6 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
     "hashtag"
   ]
   @anonymous_streams ["public", "public:local", "hashtag"]
-
-  # Handled by periodic keepalive in Pleroma.Web.Streamer.Ping.
-  @timeout :infinity
 
   def init(%{qs: qs} = req, state) do
     with params <- :cow_qs.parse_qs(qs),
@@ -42,7 +46,10 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
           req
         end
 
-      {:cowboy_websocket, req, %{user: user, topic: topic}, %{idle_timeout: @timeout}}
+      {:ok, timer} = keepalive_timer()
+
+      {:cowboy_websocket, req, %{user: user, topic: topic, count: 0, timer: timer},
+       %{idle_timeout: @timeout}}
     else
       {:error, code} ->
         Logger.debug("#{__MODULE__} denied connection: #{inspect(code)} - #{inspect(req)}")
@@ -73,12 +80,36 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
       }, topic #{state.topic}"
     )
 
-    Streamer.add_socket(state.topic, streamer_socket(state))
+    Streamer.add_socket(state.topic, state.assigns.user)
     {:ok, state}
   end
 
+  def websocket_info(:keepalive, state) do
+    {:ok, timer} = keepalive_timer()
+    {:reply, {:text, ""}, %{state | timer: timer, count: 0}, :hibernate}
+  end
+
+  def websocket_info({:render_with_user, view, template, item}, state) do
+    user = %User{} = User.get_cached_by_ap_id(state.user.ap_id)
+
+    unless Pleroma.Streamer.filtered_by_user?(user, item) do
+      websocket_info({:text, view.render(template, user, item)}, %{state | user: user})
+    else
+      {:ok, state}
+    end
+  end
+
   def websocket_info({:text, message}, state) do
-    {:reply, {:text, message}, state}
+    # Cancel the current keep-alive timer, and re-queue one.
+    Process.cancel_timer(state.timer, async: true)
+    {:ok, timer} = keepalive_timer()
+    # If the websocket processed X messages, force an hibernate/GC.
+    # We don't hibernate at every message to balance CPU usage/latency with RAM usage.
+    if state.count > @hibernate_every do
+      {:reply, {:text, message}, %{state | count: 0, timer: timer}, :hibernate}
+    else
+      {:reply, {:text, message}, %{state | count: state.count + 1, timer: timer}}
+    end
   end
 
   def terminate(reason, _req, state) do
@@ -88,7 +119,8 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
       }, topic #{state.topic || "?"}: #{inspect(reason)}"
     )
 
-    Streamer.remove_socket(state.topic, streamer_socket(state))
+    if state.timer, do: Process.cancel_timer(state.timer)
+    Streamer.remove_socket(state.topic)
     :ok
   end
 
@@ -137,7 +169,7 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
 
   defp expand_topic(topic, _), do: topic
 
-  defp streamer_socket(state) do
-    %{transport_pid: self(), assigns: state}
+  defp keepalive_timer() do
+    Process.send_after(self(), :keepalive, @keepalive_interval)
   end
 end
