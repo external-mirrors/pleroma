@@ -36,7 +36,7 @@ defmodule Pleroma.Web.MastodonAPI.FilterController do
       phrase: phrase,
       context: context,
       hide: Map.get(params, "irreversible", false),
-      whole_word: Map.get(params, "boolean", true)
+      whole_word: Map.get(params, "whole_word", true)
       # expires_at
     }
 
@@ -63,7 +63,7 @@ defmodule Pleroma.Web.MastodonAPI.FilterController do
       phrase: phrase,
       context: context,
       hide: Map.get(params, "irreversible", nil),
-      whole_word: Map.get(params, "boolean", true)
+      whole_word: Map.get(params, "whole_word", true)
       # expires_at
     }
 
