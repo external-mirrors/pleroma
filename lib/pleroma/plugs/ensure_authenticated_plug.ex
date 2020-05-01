@@ -5,13 +5,17 @@
 defmodule Pleroma.Plugs.EnsureAuthenticatedPlug do
   import Plug.Conn
   import Pleroma.Web.TranslationHelpers
+
   alias Pleroma.User
+
+  use Pleroma.Web, :plug
 
   def init(options) do
     options
   end
 
-  def call(
+  @impl true
+  def perform(
         %{
           assigns: %{
             auth_credentials: %{password: _},
@@ -25,9 +29,11 @@ defmodule Pleroma.Plugs.EnsureAuthenticatedPlug do
     |> halt()
   end
 
-  def call(%{assigns: %{user: %User{}}} = conn, _), do: conn
+  def perform(%{assigns: %{user: %User{}}} = conn, _) do
+    conn
+  end
 
-  def call(conn, options) do
+  def perform(conn, options) do
     perform =
       cond do
         options[:if_func] -> options[:if_func].()
