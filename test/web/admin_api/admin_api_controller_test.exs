@@ -1380,9 +1380,9 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
 
       {:ok, %{id: report_id}} =
         CommonAPI.report(reporter, %{
-          "account_id" => target_user.id,
-          "comment" => "I feel offended",
-          "status_ids" => [activity.id]
+          account_id: target_user.id,
+          comment: "I feel offended",
+          status_ids: [activity.id]
         })
 
       response =
@@ -1407,16 +1407,16 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
 
       {:ok, %{id: report_id}} =
         CommonAPI.report(reporter, %{
-          "account_id" => target_user.id,
-          "comment" => "I feel offended",
-          "status_ids" => [activity.id]
+          account_id: target_user.id,
+          comment: "I feel offended",
+          status_ids: [activity.id]
         })
 
       {:ok, %{id: second_report_id}} =
         CommonAPI.report(reporter, %{
-          "account_id" => target_user.id,
-          "comment" => "I feel very offended",
-          "status_ids" => [activity.id]
+          account_id: target_user.id,
+          comment: "I feel very offended",
+          status_ids: [activity.id]
         })
 
       %{
@@ -1556,9 +1556,9 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
 
       {:ok, %{id: report_id}} =
         CommonAPI.report(reporter, %{
-          "account_id" => target_user.id,
-          "comment" => "I feel offended",
-          "status_ids" => [activity.id]
+          account_id: target_user.id,
+          comment: "I feel offended",
+          status_ids: [activity.id]
         })
 
       response =
@@ -1580,15 +1580,15 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
 
       {:ok, %{id: first_report_id}} =
         CommonAPI.report(reporter, %{
-          "account_id" => target_user.id,
-          "comment" => "I feel offended",
-          "status_ids" => [activity.id]
+          account_id: target_user.id,
+          comment: "I feel offended",
+          status_ids: [activity.id]
         })
 
       {:ok, %{id: second_report_id}} =
         CommonAPI.report(reporter, %{
-          "account_id" => target_user.id,
-          "comment" => "I don't like this user"
+          account_id: target_user.id,
+          comment: "I don't like this user"
         })
 
       CommonAPI.update_report_state(second_report_id, "closed")
@@ -3464,9 +3464,9 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
 
       {:ok, %{id: report_id}} =
         CommonAPI.report(reporter, %{
-          "account_id" => target_user.id,
-          "comment" => "I feel offended",
-          "status_ids" => [activity.id]
+          account_id: target_user.id,
+          comment: "I feel offended",
+          status_ids: [activity.id]
         })
 
       post(conn, "/api/pleroma/admin/reports/#{report_id}/notes", %{
