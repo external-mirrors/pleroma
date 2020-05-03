@@ -70,6 +70,8 @@ defmodule Pleroma.Web.TwitterAPI.RemoteFollowController do
 
   # POST  /ostatus_subscribe
   #
+  # adds a remote account in followers if user already is signed in.
+  #
   def do_follow(%{assigns: %{user: %User{} = user}} = conn, %{"user" => %{"id" => id}}) do
     with {:fetch_user, %User{} = followee} <- {:fetch_user, User.get_cached_by_id(id)},
          {:ok, _, _, _} <- CommonAPI.follow(user, followee) do
@@ -80,10 +82,15 @@ defmodule Pleroma.Web.TwitterAPI.RemoteFollowController do
     end
   end
 
+  # POST  /ostatus_subscribe
+  #
+  # step 1.
+  # checks login\password and displays step 2 form of MFA if need.
+  #
   def do_follow(conn, %{"authorization" => %{"name" => _, "password" => _, "id" => id}}) do
-    with {:fetch_user, %User{} = followee} <- {:fetch_user, User.get_cached_by_id(id)},
+    with {_, %User{} = followee} <- {:fetch_user, User.get_cached_by_id(id)},
          {_, {:ok, user}, _} <- {:auth, Authenticator.get_user(conn), followee},
-         {:mfa_required, _, _, false} <- {:mfa_required, followee, user, MFA.require?(user)},
+         {_, _, _, false} <- {:mfa_required, followee, user, MFA.require?(user)},
          {:ok, _, _, _} <- CommonAPI.follow(user, followee) do
       redirect(conn, to: "/users/#{followee.id}")
     else
@@ -92,11 +99,15 @@ defmodule Pleroma.Web.TwitterAPI.RemoteFollowController do
     end
   end
 
+  # POST  /ostatus_subscribe
+  #
+  # step 2
+  # checks TOTP code. otherwise displays form with errors
+  #
   def do_follow(conn, %{"mfa" => %{"code" => code, "token" => token, "id" => id}}) do
-    with {:fetch_user, %User{} = followee} <- {:fetch_user, User.get_cached_by_id(id)},
-         {:mfa_token, _, {:ok, %{user: user}}} <-
-           {:mfa_token, followee, MFA.Token.validate(token)},
-         {:verify_mfa_code, _, _, {:ok, _}} <-
+    with {_, %User{} = followee} <- {:fetch_user, User.get_cached_by_id(id)},
+         {_, _, {:ok, %{user: user}}} <- {:mfa_token, followee, MFA.Token.validate(token)},
+         {_, _, _, {:ok, _}} <-
            {:verify_mfa_code, followee, token, TOTPAuthenticator.verify(code, user)},
          {:ok, _, _, _} <- CommonAPI.follow(user, followee) do
       redirect(conn, to: "/users/#{followee.id}")
