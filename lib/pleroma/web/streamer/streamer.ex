@@ -14,26 +14,23 @@ defmodule Pleroma.Web.Streamer do
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI
-  alias Pleroma.Web.Streamer.State
-  alias Pleroma.Web.Streamer.StreamerSocket
   alias Pleroma.Web.StreamerView
 
-  @timeout 60_000
   @mix_env Mix.env()
   @registry Pleroma.Web.StreamerRegistry
 
-  def registry(), do: @registry
+  def registry, do: @registry
 
-  def add_socket(topic, user = %User{}) do
-    Registry.register(@registry, user_topic(topic, user), true)
+  def add_socket(topic, %User{} = user) do
+    if should_env_send?(), do: Registry.register(@registry, user_topic(topic, user), true)
   end
 
   def add_socket(topic, _) do
-    Registry.register(@registry, topic, false)
+    if should_env_send?(), do: Registry.register(@registry, topic, false)
   end
 
   def remove_socket(topic) do
-    Registry.unregister(topic)
+    if should_env_send?(), do: Registry.unregister(@registry, topic)
   end
 
   def stream(topics, item) when is_list(topics) do
@@ -213,23 +210,27 @@ defmodule Pleroma.Web.Streamer do
     end
   end
 
-  defp should_env_send? do
-    handle_should_send(@mix_env)
+  # In test environement, only return true if the registry is started.
+  # In benchmark environment, returns false.
+  # In any other environment, always returns true.
+  cond do
+    @mix_env == :test ->
+      def should_env_send? do
+        case Process.whereis(@registry) do
+          nil ->
+            false
+
+          pid ->
+            Process.alive?(pid)
+        end
+      end
+
+    @mix_env == :benchmark ->
+      def should_env_send?, do: false
+
+    true ->
+      def should_env_send?, do: true
   end
-
-  defp handle_should_send(:test) do
-    case Process.whereis(@registry) do
-      nil ->
-        false
-
-      pid ->
-        Process.alive?(pid)
-    end
-  end
-
-  defp handle_should_send(:benchmark), do: false
-
-  defp handle_should_send(_), do: true
 
   defp user_topic(topic, user)
        when topic in ~w[user user:notification direct] do
