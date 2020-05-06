@@ -2303,6 +2303,7 @@ config :pleroma, :config_description, [
         children: [
           %{
             key: :active,
+            label: "Enabled",
             type: :boolean,
             description: "Globally enable or disable digest emails"
           },
@@ -2326,20 +2327,6 @@ config :pleroma, :config_description, [
             suggestions: [7]
           }
         ]
-      }
-    ]
-  },
-  %{
-    group: :pleroma,
-    key: :notifications,
-    type: :group,
-    description: "Notification settings",
-    children: [
-      %{
-        key: :enable_follow_request_notifications,
-        type: :boolean,
-        description:
-          "Enables notifications on new follow requests (causes issues with older PleromaFE versions)."
       }
     ]
   },
@@ -3262,6 +3249,20 @@ config :pleroma, :config_description, [
             description: "Disallow view remote statuses."
           }
         ]
+      }
+    ]
+  },
+  %{
+    group: :pleroma,
+    key: Pleroma.Web.ApiSpec.CastAndValidate,
+    type: :group,
+    children: [
+      %{
+        key: :strict,
+        type: :boolean,
+        description:
+          "Enables strict input validation (useful in development, not recommended in production)",
+        suggestions: [false]
       }
     ]
   }

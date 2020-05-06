@@ -43,8 +43,8 @@ defmodule Pleroma.Web.CommonAPI do
   end
 
   def accept_follow_request(follower, followed) do
-    with {:ok, follower} <- User.follow(follower, followed),
-         %Activity{} = follow_activity <- Utils.fetch_latest_follow(follower, followed),
+    with %Activity{} = follow_activity <- Utils.fetch_latest_follow(follower, followed),
+         {:ok, follower} <- User.follow(follower, followed),
          {:ok, follow_activity} <- Utils.update_follow_state_for_all(follow_activity, "accept"),
          {:ok, _relationship} <- FollowingRelationship.update(follower, followed, :follow_accept),
          {:ok, _activity} <-
@@ -79,8 +79,8 @@ defmodule Pleroma.Web.CommonAPI do
            {:find_activity, Activity.get_by_id_with_object(activity_id)},
          %Object{} = object <- Object.normalize(activity),
          true <- User.superuser?(user) || user.ap_id == object.data["actor"],
-         {:ok, _} <- unpin(activity_id, user),
-         {:ok, delete} <- ActivityPub.delete(object) do
+         {:ok, delete_data, _} <- Builder.delete(user, object.data["id"]),
+         {:ok, delete, _} <- Pipeline.common_pipeline(delete_data, local: true) do
       {:ok, delete}
     else
       {:find_activity, _} -> {:error, :not_found}

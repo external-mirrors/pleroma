@@ -189,6 +189,7 @@ defmodule Pleroma.Web.Router do
     post("/reports/:id/notes", AdminAPIController, :report_notes_create)
     delete("/reports/:report_id/notes/:id", AdminAPIController, :report_notes_delete)
 
+    get("/statuses/:id", AdminAPIController, :status_show)
     put("/statuses/:id", AdminAPIController, :status_update)
     delete("/statuses/:id", AdminAPIController, :status_delete)
     get("/statuses", AdminAPIController, :list_statuses)
@@ -441,7 +442,7 @@ defmodule Pleroma.Web.Router do
     post("/statuses/:id/unmute", StatusController, :unmute_conversation)
 
     post("/push/subscription", SubscriptionController, :create)
-    get("/push/subscription", SubscriptionController, :get)
+    get("/push/subscription", SubscriptionController, :show)
     put("/push/subscription", SubscriptionController, :update)
     delete("/push/subscription", SubscriptionController, :delete)
 
@@ -600,6 +601,7 @@ defmodule Pleroma.Web.Router do
     post("/users/:nickname/outbox", ActivityPubController, :update_outbox)
     post("/api/ap/upload_media", ActivityPubController, :upload_media)
 
+    # The following two are S2S as well, see `ActivityPub.fetch_follow_information_for_user/1`:
     get("/users/:nickname/followers", ActivityPubController, :followers)
     get("/users/:nickname/following", ActivityPubController, :following)
   end
