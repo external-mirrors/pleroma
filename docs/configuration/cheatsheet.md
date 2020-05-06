@@ -8,6 +8,10 @@ For from source installations Pleroma configuration works by first importing the
 
 To add configuration to your config file, you can copy it from the base config. The latest version of it can be viewed [here](https://git.pleroma.social/pleroma/pleroma/blob/develop/config/config.exs). You can also use this file if you don't know how an option is supposed to be formatted.
 
+## :chat
+
+* `enabled` - Enables the backend chat. Defaults to `true`.
+
 ## :instance
 * `name`: The instance’s name.
 * `email`: Email used to reach an Administrator/Moderator of the instance.
@@ -925,3 +929,7 @@ Restrict access for unauthenticated users to timelines (public and federate), us
 * `activities` - statuses
   * `local`
   * `remote`
+
+## Pleroma.Web.ApiSpec.CastAndValidate
+
+* `:strict` a boolean, enables strict input validation (useful in development, not recommended in production). Defaults to `false`.
