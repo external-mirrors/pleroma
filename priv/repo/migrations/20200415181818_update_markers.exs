@@ -24,12 +24,15 @@ defmodule Pleroma.Repo.Migrations.UpdateMarkers do
         },
         group_by: [q.user_id]
       )
-      |> Repo.all()
-      |> Enum.map(fn %{last_read_id: last_read_id} = attrs ->
-        attrs
-        |> Map.put(:last_read_id, last_read_id || "")
-        |> Map.put_new(:inserted_at, now)
-        |> Map.put_new(:updated_at, now)
+      |> Enum.chunk_every(10_000)
+      |> Enum.each(fn ->
+        Repo.all()
+        |> Enum.map(fn %{last_read_id: last_read_id} = attrs ->
+          attrs
+          |> Map.put(:last_read_id, last_read_id || "")
+          |> Map.put_new(:inserted_at, now)
+          |> Map.put_new(:updated_at, now)
+        end)
       end)
 
     Repo.insert_all("markers", markers_attrs,
