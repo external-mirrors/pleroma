@@ -63,3 +63,4 @@ Just add a "/web" after your instance url (e.g. <https://pleroma.soycaf.com/web>
 The Mastodon interface is from the Glitch-soc fork. For more information on the Mastodon interface you can check the [Mastodon](https://docs.joinmastodon.org/) and [Glitch-soc](https://glitch-soc.github.io/docs/) documentation.
 
 Remember, what you see is only the frontend part of Mastodon, the backend is still Pleroma.
+1
