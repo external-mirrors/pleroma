@@ -468,3 +468,4 @@ Remember, what you see is only the frontend part of Mastodon, the backend is sti
 403
 404
 405
+406
