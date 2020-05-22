@@ -65,3 +65,4 @@ The Mastodon interface is from the Glitch-soc fork. For more information on the 
 Remember, what you see is only the frontend part of Mastodon, the backend is still Pleroma.
 1
 2
+3
