@@ -427,6 +427,13 @@ config :pleroma, Pleroma.Web.Metadata,
   ],
   unfurl_nsfw: false
 
+config :pleroma, Pleroma.Web.Preload,
+  providers: [
+    Pleroma.Web.Preload.Providers.Instance,
+    Pleroma.Web.Preload.Providers.User,
+    Pleroma.Web.Preload.Providers.Timelines
+  ]
+
 config :pleroma, :http_security,
   enabled: true,
   sts: false,
