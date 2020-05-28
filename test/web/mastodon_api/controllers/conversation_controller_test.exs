@@ -12,49 +12,83 @@ defmodule Pleroma.Web.MastodonAPI.ConversationControllerTest do
 
   setup do: oauth_access(["read:statuses"])
 
-  test "returns a list of conversations", %{user: user_one, conn: conn} do
-    user_two = insert(:user)
-    user_three = insert(:user)
+  describe "returns a list of conversations" do
+    setup(%{user: user_one, conn: conn}) do
+      user_two = insert(:user)
+      user_three = insert(:user)
 
-    {:ok, user_two} = User.follow(user_two, user_one)
+      {:ok, user_two} = User.follow(user_two, user_one)
 
-    assert User.get_cached_by_id(user_two.id).unread_conversation_count == 0
+      {:ok, %{user: user_one, user_two: user_two, user_three: user_three, conn: conn}}
+    end
 
-    {:ok, direct} =
-      CommonAPI.post(user_one, %{
-        status: "Hi @#{user_two.nickname}, @#{user_three.nickname}!",
-        visibility: "direct"
-      })
+    test "returns correct conversations", %{
+      user: user_one,
+      user_two: user_two,
+      user_three: user_three,
+      conn: conn
+    } do
+      assert User.get_cached_by_id(user_two.id).unread_conversation_count == 0
 
-    assert User.get_cached_by_id(user_two.id).unread_conversation_count == 1
+      {:ok, direct} =
+        CommonAPI.post(user_one, %{
+          status: "Hi @#{user_two.nickname}, @#{user_three.nickname}!",
+          visibility: "direct"
+        })
 
-    {:ok, _follower_only} =
-      CommonAPI.post(user_one, %{
-        status: "Hi @#{user_two.nickname}!",
-        visibility: "private"
-      })
+      assert User.get_cached_by_id(user_two.id).unread_conversation_count == 1
 
-    res_conn = get(conn, "/api/v1/conversations")
+      {:ok, _follower_only} =
+        CommonAPI.post(user_one, %{
+          status: "Hi @#{user_two.nickname}!",
+          visibility: "private"
+        })
 
-    assert response = json_response_and_validate_schema(res_conn, 200)
+      res_conn = get(conn, "/api/v1/conversations")
 
-    assert [
-             %{
-               "id" => res_id,
-               "accounts" => res_accounts,
-               "last_status" => res_last_status,
-               "unread" => unread
-             }
-           ] = response
+      assert response = json_response_and_validate_schema(res_conn, 200)
 
-    account_ids = Enum.map(res_accounts, & &1["id"])
-    assert length(res_accounts) == 2
-    assert user_two.id in account_ids
-    assert user_three.id in account_ids
-    assert is_binary(res_id)
-    assert unread == false
-    assert res_last_status["id"] == direct.id
-    assert User.get_cached_by_id(user_one.id).unread_conversation_count == 0
+      assert [
+               %{
+                 "id" => res_id,
+                 "accounts" => res_accounts,
+                 "last_status" => res_last_status,
+                 "unread" => unread
+               }
+             ] = response
+
+      account_ids = Enum.map(res_accounts, & &1["id"])
+      assert length(res_accounts) == 2
+      assert user_two.id in account_ids
+      assert user_three.id in account_ids
+      assert is_binary(res_id)
+      assert unread == false
+      assert res_last_status["id"] == direct.id
+      assert User.get_cached_by_id(user_one.id).unread_conversation_count == 0
+    end
+
+    test "observes limit params", %{
+      user: user_one,
+      user_two: user_two,
+      user_three: user_three,
+      conn: conn
+    } do
+      {:ok, _} = create_direct_message(user_one, [user_two, user_three])
+      {:ok, _} = create_direct_message(user_two, [user_one, user_three])
+      {:ok, _} = create_direct_message(user_three, [user_two, user_one])
+
+      res_conn = get(conn, "/api/v1/conversations?limit=1")
+
+      assert response = json_response_and_validate_schema(res_conn, 200)
+
+      assert Enum.count(response) == 1
+
+      res_conn = get(conn, "/api/v1/conversations?limit=2")
+
+      assert response = json_response_and_validate_schema(res_conn, 200)
+
+      assert Enum.count(response) == 2
+    end
   end
 
   test "filters conversations by recipients", %{user: user_one, conn: conn} do
@@ -204,5 +238,17 @@ defmodule Pleroma.Web.MastodonAPI.ConversationControllerTest do
     res_conn = get(conn, "/api/v1/statuses/#{direct.id}/context")
 
     assert %{"ancestors" => [], "descendants" => []} == json_response(res_conn, 200)
+  end
+
+  defp create_direct_message(sender, recips) do
+    hellos =
+      recips
+      |> Enum.map(fn s -> "@#{s.nickname}" end)
+      |> Enum.join(", ")
+
+    CommonAPI.post(sender, %{
+      status: "Hi #{hellos}!",
+      visibility: "direct"
+    })
   end
 end
