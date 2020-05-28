@@ -29,12 +29,7 @@ defmodule Pleroma.Web.MastodonAPI.ConversationControllerTest do
       conn: conn
     } do
       assert User.get_cached_by_id(user_two.id).unread_conversation_count == 0
-
-      {:ok, direct} =
-        CommonAPI.post(user_one, %{
-          status: "Hi @#{user_two.nickname}, @#{user_three.nickname}!",
-          visibility: "direct"
-        })
+      {:ok, direct} = create_direct_message(user_one, [user_two, user_three])
 
       assert User.get_cached_by_id(user_two.id).unread_conversation_count == 1
 
@@ -94,36 +89,11 @@ defmodule Pleroma.Web.MastodonAPI.ConversationControllerTest do
   test "filters conversations by recipients", %{user: user_one, conn: conn} do
     user_two = insert(:user)
     user_three = insert(:user)
-
-    {:ok, direct1} =
-      CommonAPI.post(user_one, %{
-        status: "Hi @#{user_two.nickname}!",
-        visibility: "direct"
-      })
-
-    {:ok, _direct2} =
-      CommonAPI.post(user_one, %{
-        status: "Hi @#{user_three.nickname}!",
-        visibility: "direct"
-      })
-
-    {:ok, direct3} =
-      CommonAPI.post(user_one, %{
-        status: "Hi @#{user_two.nickname}, @#{user_three.nickname}!",
-        visibility: "direct"
-      })
-
-    {:ok, _direct4} =
-      CommonAPI.post(user_two, %{
-        status: "Hi @#{user_three.nickname}!",
-        visibility: "direct"
-      })
-
-    {:ok, direct5} =
-      CommonAPI.post(user_two, %{
-        status: "Hi @#{user_one.nickname}!",
-        visibility: "direct"
-      })
+    {:ok, direct1} = create_direct_message(user_one, [user_two])
+    {:ok, _direct2} = create_direct_message(user_one, [user_three])
+    {:ok, direct3} = create_direct_message(user_one, [user_two, user_three])
+    {:ok, _direct4} = create_direct_message(user_two, [user_three])
+    {:ok, direct5} = create_direct_message(user_two, [user_one])
 
     assert [conversation1, conversation2] =
              conn
@@ -143,12 +113,7 @@ defmodule Pleroma.Web.MastodonAPI.ConversationControllerTest do
 
   test "updates the last_status on reply", %{user: user_one, conn: conn} do
     user_two = insert(:user)
-
-    {:ok, direct} =
-      CommonAPI.post(user_one, %{
-        status: "Hi @#{user_two.nickname}",
-        visibility: "direct"
-      })
+    {:ok, direct} = create_direct_message(user_one, [user_two])
 
     {:ok, direct_reply} =
       CommonAPI.post(user_two, %{
@@ -167,12 +132,7 @@ defmodule Pleroma.Web.MastodonAPI.ConversationControllerTest do
 
   test "the user marks a conversation as read", %{user: user_one, conn: conn} do
     user_two = insert(:user)
-
-    {:ok, direct} =
-      CommonAPI.post(user_one, %{
-        status: "Hi @#{user_two.nickname}",
-        visibility: "direct"
-      })
+    {:ok, direct} = create_direct_message(user_one, [user_two])
 
     assert User.get_cached_by_id(user_one.id).unread_conversation_count == 0
     assert User.get_cached_by_id(user_two.id).unread_conversation_count == 1
@@ -228,12 +188,7 @@ defmodule Pleroma.Web.MastodonAPI.ConversationControllerTest do
 
   test "(vanilla) Mastodon frontend behaviour", %{user: user_one, conn: conn} do
     user_two = insert(:user)
-
-    {:ok, direct} =
-      CommonAPI.post(user_one, %{
-        status: "Hi @#{user_two.nickname}!",
-        visibility: "direct"
-      })
+    {:ok, direct} = create_direct_message(user_one, [user_two])
 
     res_conn = get(conn, "/api/v1/statuses/#{direct.id}/context")
 
