@@ -25,7 +25,7 @@ defmodule Pleroma.Static do
   def use_instance_static_files do
     case System.get_env("USE_INSTANCE_STATIC_FILES") do
       nil ->
-        Pleroma.Config.get(:use_instance_static_files, false)
+        Pleroma.Config.get([:instance, :use_instance_static_files], false)
       value -> value === "y" || value === "1" || value === "true"
     end
   end
