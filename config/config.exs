@@ -214,7 +214,7 @@ config :pleroma, :instance,
   quarantined_instances: [],
   managed_config: true,
   static_dir: "instance/static/",
-  use_instance_static_files: false,
+  use_instance_static_files: true,
   allowed_post_formats: [
     "text/plain",
     "text/html",
