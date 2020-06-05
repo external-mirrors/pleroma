@@ -9,6 +9,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   alias Pleroma.Constants
   alias Pleroma.Conversation
   alias Pleroma.Conversation.Participation
+  alias Pleroma.Maps
   alias Pleroma.Notification
   alias Pleroma.Object
   alias Pleroma.Object.Containment
