@@ -946,6 +946,13 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
         ),
       where:
         fragment(
+          "not (?->>'type' = 'Announce' and coalesce(?->'cc', '{}'::jsonb) \\?| ?)",
+          activity.data,
+          activity.data,
+          ^blocked_ap_ids
+        ),
+      where:
+        fragment(
           "(not (split_part(?, '/', 3) = ANY(?))) or ? = ANY(?)",
           activity.actor,
           ^domain_blocks,
