@@ -17,8 +17,8 @@ defmodule Pleroma.Mixfile do
       preferred_cli_env: ["coveralls.html": :test],
       # Docs
       name: "Pleroma",
-      homepage_url: "https://pleroma.social/",
-      source_url: "https://git.pleroma.social/sjw/pleroma",
+      homepage_url: "https://neckbeard.xyz/",
+      source_url: "https://git.mentality.rip/sjw/pleroma",
       docs: [
         source_url_pattern:
           "https://git.pleroma.social/sjw/pleroma/blob/develop/%{path}#L%{line}",
