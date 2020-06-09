@@ -6,8 +6,7 @@ defmodule Pleroma.Static do
   require Pleroma.Constants
 
   def static_only_files do
-    static_folder =
-      Pleroma.Config.get([:instance, :static_dir], "instance/static/")
+    static_folder = Pleroma.Config.get([:instance, :static_dir], "instance/static/")
 
     add =
       if Pleroma.Static.use_instance_static_files() do
@@ -26,7 +25,9 @@ defmodule Pleroma.Static do
     case System.get_env("USE_INSTANCE_STATIC_FILES") do
       nil ->
         Pleroma.Config.get([:instance, :use_instance_static_files], true)
-      value -> value === "y" || value === "1" || value === "true"
+
+      value ->
+        value in ["y", "1", "true"]
     end
   end
 end
