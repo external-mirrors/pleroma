@@ -12,7 +12,6 @@ defmodule Pleroma.Web.FedSockets.IncomingHandler do
   import HTTPSignatures, only: [validate_conn: 1, split_signature: 1]
 
   @behaviour :cowboy_websocket
-  @timeout :infinity
 
   def init(req, state) do
     shake = FedSocket.shake()
@@ -29,56 +28,53 @@ defmodule Pleroma.Web.FedSockets.IncomingHandler do
           :cowboy_req.set_resp_header("sec-websocket-protocol", sec_protocol, req)
         end
 
-      {:cowboy_websocket, req, %{origin: origin}, %{idle_timeout: @timeout}}
+      {:cowboy_websocket, req, %{origin: origin}, %{}}
     else
       _ ->
         {:ok, req, state}
     end
   end
 
-  def websocket_init(%{origin: origin} = state) do
-    sckt = SocketInfo.incoming(self(), origin)
+  def websocket_init(%{origin: origin}) do
+    case FedRegistry.add_fed_socket(origin) do
+      {:ok, socket_info} ->
+        {:ok, socket_info}
 
-    with {:connect, {:ok, fed_socket}} <- {:connect, FedSocket.connection_from_host(sckt)},
-         {:register, {:ok, fed_socket}} <- {:register, FedRegistry.add_fed_socket(fed_socket)} do
-      Logger.debug("incoming FedSocket created for - #{inspect(origin)}")
-      {:ok, Map.put(state, :fed_socket, fed_socket)}
-    else
-      {mode, {:error, e}} ->
-        Logger.error("FedSocket init failed in #{mode}- #{inspect(e)}")
-        {:error, inspect(e)}
-
-      {mode, e} ->
-        Logger.error("FedSocket init failed in #{mode} - #{inspect(e)}")
+      e ->
+        Logger.error("FedSocket websocket_init failed - #{inspect(e)}")
         {:error, inspect(e)}
     end
   end
 
-  # Replying to ping is handled by cowboy
-  def websocket_handle(:ping, state) do
-    {:ok, state}
+  # Use the ping to  check if the connection should be expired
+  def websocket_handle(:ping, socket_info) do
+    if SocketInfo.expired?(socket_info) do
+      {:stop, socket_info}
+    else
+      {:ok, socket_info}
+    end
   end
 
-  def websocket_handle(:pong, state) do
-    {:ok, state}
-  end
+  def websocket_handle({:text, data}, socket_info) do
+    socket_info = SocketInfo.touch(socket_info)
 
-  def websocket_handle({:text, data}, %{fed_socket: fed_socket} = state) do
-    case FedSocket.receive_package(fed_socket, data) do
+    case FedSocket.receive_package(socket_info, data) do
       {:noreply, _} ->
-        {:ok, state}
+        {:ok, socket_info}
 
       {:reply, reply} ->
-        {:reply, {:text, Jason.encode!(reply)}, state}
+        {:reply, {:text, Jason.encode!(reply)}, socket_info}
 
       {:error, reason} ->
         Logger.error("incoming error - receive_package: #{inspect(reason)}")
-        {:ok, state}
+        {:ok, socket_info}
     end
   end
 
-  def websocket_info({:send, message}, state) do
-    {:reply, {:text, message}, state}
+  def websocket_info({:send, message}, socket_info) do
+    socket_info = SocketInfo.touch(socket_info)
+
+    {:reply, {:text, message}, socket_info}
   end
 
   def websocket_info(:close, state) do
@@ -88,11 +84,5 @@ defmodule Pleroma.Web.FedSockets.IncomingHandler do
   def websocket_info(message, state) do
     Logger.debug("#{__MODULE__} unknown message #{inspect(message)}")
     {:ok, state}
-  end
-
-  def terminate(reason, _req, _state) do
-    Logger.debug("#{__MODULE__} terminating incoming connection for #{inspect(reason)}")
-
-    :ok
   end
 end

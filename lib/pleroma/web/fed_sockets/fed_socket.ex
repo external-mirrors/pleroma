@@ -10,17 +10,14 @@ defmodule Pleroma.Web.FedSockets.FedSocket do
   Normally outside modules will have no need to call the FedSocket module directly.
   """
 
-  defstruct origin: nil,
-            pid: nil,
-            type: nil
+  defstruct origin: nil, pid: nil, type: nil, conn_pid: nil
 
   alias Pleroma.Object
+  alias Pleroma.Object.Containment
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ObjectView
   alias Pleroma.Web.ActivityPub.UserView
   alias Pleroma.Web.ActivityPub.Visibility
-  alias Pleroma.Web.FedSockets.FedRegistry
-  alias Pleroma.Web.FedSockets.FedSocket
   alias Pleroma.Web.FedSockets.FetchRegistry
   alias Pleroma.Web.FedSockets.IngesterWorker
   alias Pleroma.Web.FedSockets.OutgoingHandler
@@ -31,34 +28,27 @@ defmodule Pleroma.Web.FedSockets.FedSocket do
   @shake "61dd18f7-f1e6-49a4-939a-a749fcdc1103"
 
   def connect_to_host(uri) do
-    case OutgoingHandler.start_link(uri) do
-      {:ok, %SocketInfo{} = socket_info} ->
-        {:ok, build_fed_socket(socket_info)}
+    origin = SocketInfo.origin(uri)
 
-      {:error, %{original: error}} ->
-        {:error, inspect(error)}
+    case OutgoingHandler.start_link(origin) do
+      {:ok, pid} ->
+        {:ok, pid}
 
-      {:error, %{message: message}} ->
-        {:error, message}
+      error ->
+        {:error, error}
     end
   end
 
-  def connection_from_host(%SocketInfo{} = socket_info),
-    do: {:ok, build_fed_socket(socket_info)}
-
-  def close(%FedSocket{pid: socket_pid}),
+  def close(%SocketInfo{pid: socket_pid}),
     do: Process.send(socket_pid, :close, [])
 
-  def ping(%FedSocket{pid: socket_pid}),
-    do: Process.send(socket_pid, :ping, [])
-
-  def publish(%FedSocket{pid: socket_pid}, json) do
+  def publish(%SocketInfo{pid: socket_pid}, json) do
     %{action: :publish, data: json}
     |> Jason.encode!()
     |> send_packet(socket_pid)
   end
 
-  def fetch(%FedSocket{pid: socket_pid}, id) do
+  def fetch(%SocketInfo{pid: socket_pid}, id) do
     fetch_uuid = FetchRegistry.register_fetch(id)
 
     %{action: :fetch, data: id, uuid: fetch_uuid}
@@ -68,9 +58,7 @@ defmodule Pleroma.Web.FedSockets.FedSocket do
     wait_for_fetch_to_return(fetch_uuid, 0)
   end
 
-  def receive_package(%FedSocket{} = fed_socket, json) do
-    FedRegistry.touch(fed_socket)
-
+  def receive_package(%SocketInfo{} = fed_socket, json) do
     json
     |> Jason.decode!()
     |> process_package(fed_socket)
@@ -83,6 +71,7 @@ defmodule Pleroma.Web.FedSockets.FedSocket do
         wait_for_fetch_to_return(uuid, cntr + 1)
 
       {:error, :missing} ->
+        Logger.error("FedSocket fetch timed out - #{inspect(uuid)}")
         {:error, :timeout}
 
       {:ok, _fr} ->
@@ -90,8 +79,11 @@ defmodule Pleroma.Web.FedSockets.FedSocket do
     end
   end
 
-  defp process_package(%{"action" => "publish", "data" => data}, _fed_socket) do
-    IngesterWorker.enqueue("ingest", %{"object" => data})
+  defp process_package(%{"action" => "publish", "data" => data}, %{origin: origin} = _fed_socket) do
+    if Containment.contain_origin(origin, data) do
+      IngesterWorker.enqueue("ingest", %{"object" => data})
+    end
+
     {:reply, %{"action" => "publish_reply", "status" => "processed"}}
   end
 
@@ -102,7 +94,6 @@ defmodule Pleroma.Web.FedSockets.FedSocket do
 
   defp process_package(%{"action" => "fetch", "uuid" => uuid, "data" => ap_id}, _fed_socket) do
     {:ok, data} = render_fetched_data(ap_id, uuid)
-    Logger.debug("fetch processed via FedSockets - #{inspect(uuid)}")
     {:reply, data}
   end
 
@@ -139,14 +130,6 @@ defmodule Pleroma.Web.FedSockets.FedSocket do
       user ->
         Phoenix.View.render_to_string(UserView, "user.json", user: user)
     end
-  end
-
-  defp build_fed_socket(%SocketInfo{origin: origin, pid: pid, type: type}) do
-    %FedSocket{
-      origin: origin,
-      pid: pid,
-      type: type
-    }
   end
 
   defp send_packet(data, socket_pid) do

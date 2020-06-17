@@ -15,27 +15,13 @@ defmodule Pleroma.Web.FedSockets.FedRegistry do
   Normally outside modules will have no need to call or use the FedRegistry themselves.
   """
 
-  defmodule RegistryData do
-    defstruct fed_socket: nil,
-              origin: nil,
-              rejected_at: nil,
-              created_at: nil,
-              last_message: nil,
-              process_ref: nil,
-              connected: false
-  end
-
-  use GenServer
-
   alias Pleroma.Web.FedSockets.FedSocket
+  alias Pleroma.Web.FedSockets.SocketInfo
 
   require Logger
 
-  @origins :fed_socket_origins
-
-  def start_link(_) do
-    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
-  end
+  @default_rejection_duration 15 * 60 * 1000
+  @rejections :fed_socket_rejections
 
   @doc """
   Retrieves a FedSocket from the Registry given it's origin.
@@ -52,68 +38,46 @@ defmodule Pleroma.Web.FedSockets.FedRegistry do
       {:error, reason} ->
         {:error, reason}
 
-      {:ok, %{rejected_at: rejected_at}} when not is_nil(rejected_at) ->
-        {:error, :rejected}
-
-      {:ok, %{connected: true, fed_socket: fed_socket}} ->
-        {:ok, fed_socket}
-
-      {:ok, %{fed_socket: fed_socket} = item} ->
-        Logger.warn("Registered fedsocket neither rejected nor connected - #{inspect(item)}")
-        {:ok, fed_socket}
+      {:ok, %{state: :connected} = socket_info} ->
+        {:ok, socket_info}
     end
   end
 
   @doc """
-  Adds a FedSocket to the Registry.
+  Adds a connected FedSocket to the Registry.
 
   Always returns {:ok, fed_socket}
   """
-  def add_fed_socket(%FedSocket{} = fed_socket) do
-    GenServer.call(__MODULE__, {:add_fed_socket, fed_socket})
+  def add_fed_socket(origin) do
+    origin
+    |> SocketInfo.build()
+    |> SocketInfo.connect()
+    |> add_socket_info
   end
 
-  @doc """
-  Indicates to the FedRegistry some activity related to the Given FedSocket.
-  This will prevent the connection from being timed out.
-
-  Always returns {:ok, fed_socket} or {:error, :missing} if the origin is unknown
-  """
-  def touch(%FedSocket{origin: origin}) do
-    case get_registry_data(origin) do
-      {:ok, %RegistryData{} = reg_data} ->
-        reg_data =
-          reg_data
-          |> update_last_message()
-          |> save_registry_data()
-
-        {:ok, reg_data}
-
-      {:error, _} ->
-        Logger.warn("tried to refresh missing host - #{origin}")
-        {:error, :missing}
-    end
+  def add_fed_socket(origin, pid) do
+    origin
+    |> SocketInfo.build(pid)
+    |> SocketInfo.connect()
+    |> add_socket_info
   end
 
-  @doc """
-  This deletes the given origin from the FedRegistry.
-  If there is an associated connection it will be closed.
+  defp add_socket_info(%{origin: origin, state: :connected} = socket_info) do
+    case Registry.register(FedSockets.Registry, origin, socket_info) do
+      {:ok, _owner} ->
+        clear_prior_rejection(origin)
+        Logger.debug("fedsocket added: #{inspect(origin)}")
 
-  Always returns :ok or :error if no deletion can be done
-  """
-  def delete_host(origin) do
-    case get_registry_data(origin) do
-      {:ok, %RegistryData{fed_socket: nil}} ->
-        delete_registry_data(origin)
-        :ok
+        {:ok, socket_info}
 
-      {:ok, %RegistryData{fed_socket: fed_socket}} ->
-        FedSocket.close(fed_socket)
-        :ok
+      {:error, {:already_registered, _pid}} ->
+        FedSocket.close(socket_info)
+        existing_socket_info = Registry.lookup(FedSockets.Registry, origin)
 
-      {:error, _} ->
-        Logger.warn("tried to delete missing host - #{origin}")
-        :error
+        {:ok, existing_socket_info}
+
+      _ ->
+        {:error, :error_adding_socket}
     end
   end
 
@@ -124,9 +88,10 @@ defmodule Pleroma.Web.FedSockets.FedRegistry do
 
   Always returns {:ok, new_reg_data}
   """
-  def set_host_rejected(origin) do
+  def set_host_rejected(uri) do
     new_reg_data =
-      origin
+      uri
+      |> SocketInfo.origin()
       |> get_or_create_registry_data()
       |> set_to_rejected()
       |> save_registry_data()
@@ -145,12 +110,17 @@ defmodule Pleroma.Web.FedSockets.FedRegistry do
     * {:error, :cache_error} indicating some low level runtime issues
   """
   def get_registry_data(origin) do
-    case Cachex.get(@origins, origin) do
-      {:ok, nil} ->
-        {:error, :missing}
+    case Registry.lookup(FedSockets.Registry, origin) do
+      [] ->
+        if is_rejected?(origin) do
+          Logger.debug("previously rejected fedsocket requested")
+          {:error, :rejected}
+        else
+          {:error, :missing}
+        end
 
-      {:ok, reg_data} ->
-        {:ok, reg_data}
+      [{_pid, %{state: :connected} = socket_info}] ->
+        {:ok, socket_info}
 
       _ ->
         {:error, :cache_error}
@@ -158,122 +128,65 @@ defmodule Pleroma.Web.FedSockets.FedRegistry do
   end
 
   @doc """
-  Retrieves all of the FedRegistryData from the Registry.
+  Retrieves a map of all sockets from the Registry. The keys are the origins and the values are the corresponding SocketInfo
   """
   def list_all do
-    Cachex.keys!(@origins)
-    |> Enum.map(&Cachex.get!(@origins, &1))
+    (list_all_connected() ++ list_all_rejected())
+    |> Enum.into(%{})
   end
 
-  def init(init_arg) do
-    {:ok, init_arg}
+  defp list_all_connected do
+    FedSockets.Registry
+    |> Registry.select([{{:"$1", :_, :"$3"}, [], [{{:"$1", :"$3"}}]}])
   end
 
-  def handle_call(
-        {:add_fed_socket, %FedSocket{origin: origin} = fed_socket},
-        _from,
-        state
-      ) do
-    reg_data =
-      origin
-      |> get_or_create_registry_data()
-      |> set_to_connected()
+  defp list_all_rejected do
+    {:ok, keys} = Cachex.keys(@rejections)
 
-    new_state = save_maybe_attach_process(state, reg_data, fed_socket)
+    {:ok, registry_data} =
+      Cachex.execute(@rejections, fn worker ->
+        Enum.map(keys, fn k -> {k, Cachex.get!(worker, k)} end)
+      end)
 
-    {:reply, {:ok, fed_socket}, new_state}
+    registry_data
   end
 
-  def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
-    new_state =
-      case Map.get(state, ref) do
-        nil ->
-          Logger.warn("DOWN reference received for missing process")
-          state
+  defp clear_prior_rejection(origin),
+    do: Cachex.del(@rejections, origin)
 
-        origin ->
-          delete_registry_data(origin)
-          Logger.debug("DOWN reference caused Registry deletion")
-
-          Map.delete(state, ref)
-      end
-
-    {:noreply, new_state}
-  end
-
-  defp get_or_create_registry_data(origin) do
-    case Cachex.get(@origins, origin) do
+  defp is_rejected?(origin) do
+    case Cachex.get(@rejections, origin) do
       {:ok, nil} ->
-        %RegistryData{
-          origin: origin,
-          created_at: :os.system_time(:millisecond)
-        }
+        false
 
-      {:ok, reg_data} ->
-        reg_data
+      {:ok, _} ->
+        true
     end
   end
 
-  defp save_maybe_attach_process(
-         state,
-         %RegistryData{fed_socket: nil, origin: origin} = reg_data,
-         %FedSocket{} = fed_socket
-       ) do
-    %RegistryData{process_ref: process_ref} =
-      reg_data
-      |> attach_and_monitor(fed_socket)
-      |> save_registry_data()
+  defp get_or_create_registry_data(origin) do
+    case get_registry_data(origin) do
+      {:error, :missing} ->
+        %SocketInfo{origin: origin}
 
-    Map.put(state, process_ref, origin)
+      {:ok, socket_info} ->
+        socket_info
+    end
   end
 
-  defp save_maybe_attach_process(
-         state,
-         %RegistryData{
-           fed_socket: %FedSocket{pid: old_pid} = old_fed_socket,
-           origin: origin,
-           process_ref: old_process_ref
-         } = reg_data,
-         %FedSocket{pid: socket_pid} = fed_socket
-       )
-       when old_pid != socket_pid do
-    Process.demonitor(old_process_ref, [:flush])
-    FedSocket.close(old_fed_socket)
-
-    state = Map.delete(state, old_process_ref)
-
-    %RegistryData{process_ref: process_ref} =
-      reg_data
-      |> attach_and_monitor(fed_socket)
-      |> save_registry_data()
-
-    Map.put(state, process_ref, origin)
+  defp save_registry_data(%SocketInfo{origin: origin, state: :connected} = socket_info) do
+    {:ok, true} = Registry.update_value(FedSockets.Registry, origin, fn _ -> socket_info end)
+    socket_info
   end
 
-  defp save_maybe_attach_process(state, reg_data, _fed_socket) do
-    save_registry_data(reg_data)
-    state
+  defp save_registry_data(%SocketInfo{origin: origin, state: :rejected} = socket_info) do
+    rejection_expiration =
+      Pleroma.Config.get([:fed_sockets, :rejection_duration], @default_rejection_duration)
+
+    {:ok, true} = Cachex.put(@rejections, origin, socket_info, ttl: rejection_expiration)
+    socket_info
   end
 
-  defp save_registry_data(%RegistryData{origin: origin} = reg_data) do
-    {:ok, true} = Cachex.put(@origins, origin, reg_data)
-    reg_data
-  end
-
-  defp attach_and_monitor(%RegistryData{} = reg_data, %FedSocket{pid: socket_pid} = fed_socket) do
-    process_ref = Process.monitor(socket_pid)
-    %RegistryData{reg_data | fed_socket: fed_socket, process_ref: process_ref}
-  end
-
-  defp delete_registry_data(origin),
-    do: {:ok, true} = Cachex.del(@origins, origin)
-
-  defp set_to_connected(%RegistryData{} = reg_data),
-    do: %RegistryData{reg_data | rejected_at: nil, connected: true}
-
-  defp set_to_rejected(%RegistryData{} = reg_data),
-    do: %RegistryData{reg_data | rejected_at: :os.system_time(:millisecond)}
-
-  defp update_last_message(%RegistryData{} = reg_data),
-    do: %RegistryData{reg_data | last_message: :os.system_time(:millisecond)}
+  defp set_to_rejected(%SocketInfo{} = socket_info),
+    do: %SocketInfo{socket_info | state: :rejected}
 end

@@ -130,7 +130,7 @@ config :pleroma, Pleroma.Web.Endpoint,
     dispatch: [
       {:_,
        [
-         {"/fedsocket", Pleroma.Web.FedSockets.IncomingHandler, []},
+         {"/api/fedsocket/v1", Pleroma.Web.FedSockets.IncomingHandler, []},
          {"/api/v1/streaming", Pleroma.Web.MastodonAPI.WebsocketHandler, []},
          {"/websocket", Phoenix.Endpoint.CowboyWebSocket,
           {Phoenix.Transports.WebSocket,
@@ -151,9 +151,8 @@ config :pleroma, Pleroma.Web.Endpoint,
 
 config :pleroma, :fed_sockets,
   enabled: false,
-  ping_interval: :timer.seconds(15),
   connection_duration: :timer.hours(8),
-  rejection_duration: :timer.hours(1),
+  rejection_duration: :timer.minutes(15),
   fed_socket_fetches: [
     default: 12_000,
     interval: 3_000,

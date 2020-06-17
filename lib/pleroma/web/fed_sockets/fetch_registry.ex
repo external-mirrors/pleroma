@@ -106,7 +106,7 @@ defmodule Pleroma.Web.FedSockets.FetchRegistry do
     %FetchRegistryData{
       uuid: UUID.generate(),
       sent_json: json,
-      sent_at: :os.system_time(:millisecond)
+      sent_at: :erlang.monotonic_time(:millisecond)
     }
   end
 
@@ -126,7 +126,7 @@ defmodule Pleroma.Web.FedSockets.FetchRegistry do
   defp set_fetch_received(%FetchRegistryData{} = reg_data, data),
     do: %FetchRegistryData{
       reg_data
-      | received_at: :os.system_time(:millisecond),
+      | received_at: :erlang.monotonic_time(:millisecond),
         received_json: data
     }
 

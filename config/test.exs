@@ -21,14 +21,8 @@ config :logger, :console,
 
 config :pleroma, :fed_sockets,
   enabled: false,
-  ping_interval: 100,
-  connection_duration: 500,
-  rejection_duration: 500,
-  fed_socket_fetches: [
-    default: 12_000,
-    interval: 3_000,
-    lazy: false
-  ]
+  connection_duration: 5,
+  rejection_duration: 5
 
 config :pleroma, :auth, oauth_consumer_strategies: []
 

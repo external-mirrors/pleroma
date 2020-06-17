@@ -3,44 +3,48 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.FedSockets.OutgoingHandler do
+  use GenServer
+
   require Logger
+
   alias Pleroma.Web.ActivityPub.InternalFetchActor
+  alias Pleroma.Web.FedSockets
   alias Pleroma.Web.FedSockets.FedRegistry
   alias Pleroma.Web.FedSockets.FedSocket
   alias Pleroma.Web.FedSockets.SocketInfo
 
   def start_link(origin) do
-    uri_string = SocketInfo.uri_for_origin(origin)
+    GenServer.start_link(__MODULE__, %{origin: origin})
+  end
+
+  def init(%{origin: origin}) do
+    uri_string = FedSockets.uri_for_origin(origin)
 
     case initiate_connection(uri_string) do
-      {:ok, socket_info} ->
-        {:ok, socket_info}
+      {:ok, conn_pid} ->
+        FedRegistry.add_fed_socket(uri_string, conn_pid)
 
       {:error, reason} ->
         Logger.debug("Outgoing connection failed - #{inspect(reason)}")
-        {:error, reason}
+        :ignore
     end
   end
 
-  def handle_frame({:text, data}, %{origin: origin} = state) do
-    {:ok, fs} = FedRegistry.get_fed_socket(origin)
+  def handle_info({:gun_ws, conn_pid, _ref, {:text, data}}, socket_info) do
+    socket_info = SocketInfo.touch(socket_info)
 
-    case FedSocket.receive_package(fs, data) do
+    case FedSocket.receive_package(socket_info, data) do
       {:noreply, _} ->
-        {:ok, state}
+        {:noreply, socket_info}
 
       {:reply, reply} ->
-        {:reply, {:text, Jason.encode!(reply)}, state}
+        :gun.ws_send(conn_pid, {:text, Jason.encode!(reply)})
+        {:noreply, socket_info}
 
       {:error, reason} ->
         Logger.error("incoming error - receive_package: #{inspect(reason)}")
-        {:ok, state}
+        {:noreply, socket_info}
     end
-  end
-
-  def handle_frame(other, state) do
-    Logger.warn("outgoing unknown handle_frame: #{inspect(other)}")
-    {:ok, state}
   end
 
   def handle_info(:close, state) do
@@ -48,64 +52,76 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
     {:close, state}
   end
 
-  def handle_info({:send, data}, state) do
-    {:reply, {:text, data}, state}
+  def handle_info({:gun_down, _pid, _prot, :closed, _}, state) do
+    {:stop, :normal, state}
   end
 
-  def handle_info(:ping, state), do: {:reply, :ping, state}
+  def handle_info({:send, data}, %{conn_pid: conn_pid} = socket_info) do
+    socket_info = SocketInfo.touch(socket_info)
+    :gun.ws_send(conn_pid, {:text, data})
+    {:noreply, socket_info}
+  end
 
-  def handle_info(_, state), do: {:ok, state}
+  def handle_info(msg, state) do
+    Logger.debug("#{__MODULE__} unhandled event #{inspect(msg)}")
+    {:noreply, state}
+  end
 
-  def handle_pong(_pong, state), do: {:ok, state}
+  def terminate(reason, state) do
+    Logger.debug(
+      "#{__MODULE__} terminating outgoing connection for #{inspect(state)} for #{inspect(reason)}"
+    )
 
-  def handle_ping(_ping, state), do: {:reply, :pong, state}
-
-  def handle_connect(_conn, state), do: {:ok, state}
-
-  def handle_disconnect(_conn, state), do: {:ok, state}
-
-  def terminate(_reason, state) do
-    Logger.error("#{__MODULE__} terminating outgoing connection for #{inspect(state)}")
-    exit(:normal)
+    {:ok, state}
   end
 
   def initiate_connection(uri_string) do
-    uri = %{host: host} = URI.parse(uri_string)
+    uri = %{host: host, port: port, path: path} = URI.parse(uri_string)
 
-    case WebSockex.start_link(uri_string, __MODULE__, %{origin: SocketInfo.origin(uri_string)},
-           extra_headers: build_headers(host),
-           socket_connect_timeout: 60_000,
-           socket_recv_timeout: 60_000
-         ) do
-      {:ok, pid} ->
-        {:ok, SocketInfo.outgoing(pid, uri)}
-
-      {:error, e} ->
+    with {:ok, conn_pid} <- :gun.open(to_charlist(host), port),
+         {:ok, _} <- :gun.await_up(conn_pid),
+         headers <- build_headers(uri),
+         ref <- :gun.ws_upgrade(conn_pid, to_charlist(path), headers) do
+      receive do
+        {:gun_upgrade, ^conn_pid, ^ref, [<<"websocket">>], _} ->
+          {:ok, conn_pid}
+      after
+        15_000 ->
+          Logger.debug("Fedsocket timeout connecting to #{inspect(uri)}")
+          {:error, :timeout}
+      end
+    else
+      e ->
+        Logger.debug("Fedsocket error connecting to #{inspect(uri)}")
         {:error, e}
     end
   end
 
-  defp build_headers(host) do
+  defp build_headers(%{host: host, port: nil}), do: build_headers("#{host}")
+  defp build_headers(%{host: host, port: port}), do: build_headers("#{host}:#{port}")
+
+  defp build_headers(host) when is_binary(host) do
     shake = FedSocket.shake()
     digest = "SHA-256=" <> (:crypto.hash(:sha256, shake) |> Base.encode64())
     date = Pleroma.Signature.signed_date()
+    shake_size = byte_size(shake)
 
     signature_opts = %{
       "(request-target)": shake,
-      host: host,
-      "content-length": byte_size(shake),
+      "content-length": to_charlist("#{shake_size}"),
+      date: date,
       digest: digest,
-      date: date
+      host: host
     }
 
     signature = Pleroma.Signature.sign(InternalFetchActor.get_actor(), signature_opts)
 
     [
-      {"signature", signature},
-      {"date", date},
-      {"digest", digest},
-      {"content-length", byte_size(shake)},
-      {"(request-target)", shake}
+      {'signature', to_charlist(signature)},
+      {'date', date},
+      {'digest', to_charlist(digest)},
+      {'content-length', to_charlist("#{shake_size}")},
+      {to_charlist("(request-target)"), to_charlist(shake)}
     ]
   end
 end

@@ -66,13 +66,15 @@ defmodule Pleroma.Web.FedSockets do
     lazy: false
   ]
     * enabled - turn FedSockets on or off with this flag. Can be toggled at runtime.
-    * ping_interval - How often messages are exchanged by FedSocket connections to avoid timeouts
     * connection_duration - How long a FedSocket can sit idle before it's culled.
     * rejection_duration - After failing to make a FedSocket connection a host will be excluded
     from further connections for this amount of time
-    * fed_socket_fetches - Use this paramteres to pass options to the Caches queue backing the FetchRegistry
+    * fed_socket_fetches - Use these parameters to pass options to the Cachex queue backing the FetchRegistry
+    * fed_socket_rejections - Use these parameters to pass options to the Cachex queue backing the FedRegistry
+
+    Cachex options are
       * default: the minimum amount of time a fetch can wait before it times out.
-      * interval: the interval between checks for timed out fetches. This plus the default represent the maximum time allowed
+      * interval: the interval between checks for timed out entries. This plus the default represent the maximum time allowed
       * lazy: leave at false for consistant and fast lookups, set to true for stricter timeout enforcement
 
   """
@@ -92,23 +94,26 @@ defmodule Pleroma.Web.FedSockets do
   but these are ignored as the FedSockets are organized by host and port info alone.
   """
   def get_or_create_fed_socket(address) do
-    origin = SocketInfo.origin(address)
-
     with {:cache, {:error, :missing}} <- {:cache, get_fed_socket(address)},
-         {:connect, {:ok, fed_socket}} <- {:connect, FedSocket.connect_to_host(origin)},
-         {:register, {:ok, fed_socket}} <- {:register, FedRegistry.add_fed_socket(fed_socket)} do
-      Logger.debug("#{inspect(self())} - FedSocket created for - #{address}")
+         {:connect, {:ok, _pid}} <- {:connect, FedSocket.connect_to_host(address)},
+         {:cache, {:ok, fed_socket}} <- {:cache, get_fed_socket(address)} do
+      Logger.debug("fedsocket created for - #{inspect(address)}")
       {:ok, fed_socket}
     else
       {:cache, {:ok, socket}} ->
+        Logger.debug("fedsocket found in cache - #{inspect(address)}")
         {:ok, socket}
 
       {:connect, {:error, _host}} ->
-        Logger.debug("set host rejected for - #{inspect(origin)}")
-        FedRegistry.set_host_rejected(origin)
+        Logger.debug("set host rejected for - #{inspect(address)}")
+        FedRegistry.set_host_rejected(address)
         {:error, :rejected}
 
+      {_, {:error, :disabled}} ->
+        {:error, :disabled}
+
       {_, {:error, reason}} ->
+        Logger.warn("get_or_create_fed_socket error - #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -124,14 +129,13 @@ defmodule Pleroma.Web.FedSockets do
 
     with {:config, true} <- {:config, Pleroma.Config.get([:fed_sockets, :enabled], false)},
          {:ok, socket} <- FedRegistry.get_fed_socket(origin) do
-      Logger.debug("FedSocket retrieved for - #{inspect(origin)}")
       {:ok, socket}
     else
       {:config, _} ->
         {:error, :disabled}
 
       {:error, :rejected} ->
-        Logger.debug("FedSocket previously rejected - #{inspect(origin)}")
+        Logger.error("FedSocket previously rejected - #{inspect(origin)}")
         {:error, :rejected}
 
       {:error, reason} ->
@@ -146,8 +150,7 @@ defmodule Pleroma.Web.FedSockets do
 
   the data is expected to be JSON encoded binary data.
   """
-  def publish(%FedSocket{} = fed_socket, json) do
-    FedRegistry.touch(fed_socket)
+  def publish(%SocketInfo{} = fed_socket, json) do
     FedSocket.publish(fed_socket, json)
   end
 
@@ -160,19 +163,8 @@ defmodule Pleroma.Web.FedSockets do
 
   the id is expected to be the URI of an ActivityPub object.
   """
-  def fetch(%FedSocket{} = fed_socket, id) do
-    FedRegistry.touch(fed_socket)
+  def fetch(%SocketInfo{} = fed_socket, id) do
     FedSocket.fetch(fed_socket, id)
-  end
-
-  @doc """
-  Closes the given FedSocket on both sides of the transfer.
-  Since idle transfer timeout and active transfers will just reconnect
-  it should not be necessary to call this under normal circumstances.
-  """
-  def close(%FedSocket{} = fed_socket) do
-    Logger.debug("closing socket")
-    FedSocket.close(fed_socket)
   end
 
   @doc """
@@ -184,4 +176,7 @@ defmodule Pleroma.Web.FedSockets do
     |> Process.whereis()
     |> Process.exit(:testing)
   end
+
+  def uri_for_origin(origin),
+    do: "ws://#{origin}/api/fedsocket/v1"
 end
