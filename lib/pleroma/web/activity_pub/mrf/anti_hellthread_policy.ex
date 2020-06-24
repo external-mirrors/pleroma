@@ -3,12 +3,14 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.MRF.AntiHellthreadPolicy do
-  alias Pleroma.User
-  alias Pleroma.Web.CommonAPI
 
   @moduledoc "Notify local users upon remote block."
-
   @behaviour Pleroma.Web.ActivityPub.MRF
+
+  alias Pleroma.Config
+  alias Pleroma.User
+  alias Pleroma.Web.ActivityPuub.MRF
+  alias Pleroma.Web.CommonAPI
 
   defp is_block_or_unblock(%{"type" => "Block", "object" => object}),
     do: {true, "blocked", object}
@@ -24,7 +26,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiHellthreadPolicy do
   defp is_remote_or_displaying_local?(%User{local: false}), do: true
 
   defp is_remote_or_displaying_local?(_),
-    do: Pleroma.Config.get([:mrf_anti_hellthread_policy, :display_local])
+    do: Config.get([:mrf_anti_hellthread_policy, :display_local])
 
   @impl true
   def filter(message) do
@@ -34,7 +36,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiHellthreadPolicy do
          true <- recipient.local,
          true <- is_remote_or_displaying_local?(actor),
          false <- User.blocks_user?(recipient, actor) do
-      bot_user = Pleroma.Config.get([:mrf_anti_hellthread_policy, :user])
+      bot_user = Config.get([:mrf_anti_hellthread_policy, :user])
 
       _reply =
         CommonAPI.post(User.get_by_nickname(bot_user), %{
