@@ -3,13 +3,11 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.MRF.AntiHellthreadPolicy do
-
   @moduledoc "Notify local users upon remote block."
   @behaviour Pleroma.Web.ActivityPub.MRF
 
   alias Pleroma.Config
   alias Pleroma.User
-  alias Pleroma.Web.ActivityPuub.MRF
   alias Pleroma.Web.CommonAPI
 
   defp is_block_or_unblock(%{"type" => "Block", "object" => object}),
