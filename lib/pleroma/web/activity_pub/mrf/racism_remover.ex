@@ -6,7 +6,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.RacismRemover do
   def filter(%{"type" => "Delete", "actor" => actor} = object) do
     actor_info = URI.parse(actor)
 
-    if actor_info.host == "neckbeard.xyz" do
+    if(actor_info.host == "neckbeard.xyz") do
       Logger.warn("DELETE from NB, not rejecting:  #{inspect(object)}")
       {:ok, object}
     else
