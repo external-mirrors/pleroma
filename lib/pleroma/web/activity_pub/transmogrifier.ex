@@ -62,15 +62,16 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   def fix_summary(object), do: Map.put(object, "summary", "")
 
   def fix_addressing_list(map, field) do
+    addrs = map[field]
     cond do
-      is_binary(map[field]) ->
-        Map.put(map, field, [map[field]])
+      is_list(addrs) ->
+        Map.put(map, field, Enum.filter(addrs, &is_binary/1))
 
-      is_nil(map[field]) ->
-        Map.put(map, field, [])
+      is_binary(addrs) ->
+        Map.put(map, field, [addrs])
 
       true ->
-        map
+        Map.put(map, field, [])
     end
   end
 
