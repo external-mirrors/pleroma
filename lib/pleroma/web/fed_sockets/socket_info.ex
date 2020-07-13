@@ -46,7 +46,7 @@ defmodule Pleroma.Web.FedSockets.SocketInfo do
   defp build_origin(%{host: host, port: port}),
     do: %SocketInfo{origin: "#{host}:#{port}"}
 
-  defp new_ttl() do
+  defp new_ttl do
     connection_duration =
       Pleroma.Config.get([:fed_sockets, :connection_duration], @default_connection_duration)
 
