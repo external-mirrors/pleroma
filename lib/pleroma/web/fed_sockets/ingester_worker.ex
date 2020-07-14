@@ -9,7 +9,7 @@ defmodule Pleroma.Web.FedSockets.IngesterWorker do
   alias Pleroma.Web.Federator
 
   @impl Oban.Worker
-  def perform(%{"op" => "ingest", "object" => ingestee}, _job) do
+  def perform(%Job{args: %{"op" => "ingest", "object" => ingestee}}) do
     try do
       ingestee
       |> Jason.decode!()
