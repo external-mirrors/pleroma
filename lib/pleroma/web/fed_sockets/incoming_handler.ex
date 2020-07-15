@@ -51,7 +51,7 @@ defmodule Pleroma.Web.FedSockets.IncomingHandler do
     if SocketInfo.expired?(socket_info) do
       {:stop, socket_info}
     else
-      {:ok, socket_info}
+      {:ok, socket_info, :hibernate}
     end
   end
 

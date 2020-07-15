@@ -62,6 +62,10 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
     {:noreply, socket_info}
   end
 
+  def handle_info({:gun_ws, _, _, :pong}, state) do
+    {:noreply, state, :hibernate}
+  end
+
   def handle_info(msg, state) do
     Logger.debug("#{__MODULE__} unhandled event #{inspect(msg)}")
     {:noreply, state}
@@ -81,7 +85,7 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
     with {:ok, conn_pid} <- :gun.open(to_charlist(host), port),
          {:ok, _} <- :gun.await_up(conn_pid),
          headers <- build_headers(uri),
-         ref <- :gun.ws_upgrade(conn_pid, to_charlist(path), headers) do
+         ref <- :gun.ws_upgrade(conn_pid, to_charlist(path), headers, %{silence_pings: false}) do
       receive do
         {:gun_upgrade, ^conn_pid, ^ref, [<<"websocket">>], _} ->
           {:ok, conn_pid}

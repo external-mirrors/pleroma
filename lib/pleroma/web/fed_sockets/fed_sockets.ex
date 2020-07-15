@@ -135,7 +135,7 @@ defmodule Pleroma.Web.FedSockets do
         {:error, :disabled}
 
       {:error, :rejected} ->
-        Logger.error("FedSocket previously rejected - #{inspect(origin)}")
+        Logger.debug("FedSocket previously rejected - #{inspect(origin)}")
         {:error, :rejected}
 
       {:error, reason} ->

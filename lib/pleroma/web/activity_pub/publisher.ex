@@ -72,14 +72,14 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
   end
 
   defp http_publish(inbox, actor, json, params) do
-    %{host: host, path: path} = URI.parse(inbox)
+    uri = %{path: path} = URI.parse(inbox)
     digest = "SHA-256=" <> (:crypto.hash(:sha256, json) |> Base.encode64())
 
     date = Pleroma.Signature.signed_date()
 
     signature =
       Pleroma.Signature.sign(actor, %{
-        "(request-target)": "post #{uri.path}",
+        "(request-target)": "post #{path}",
         host: signature_host(uri),
         "content-length": byte_size(json),
         digest: digest,
