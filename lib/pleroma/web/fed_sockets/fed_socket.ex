@@ -10,8 +10,6 @@ defmodule Pleroma.Web.FedSockets.FedSocket do
   Normally outside modules will have no need to call the FedSocket module directly.
   """
 
-  defstruct origin: nil, pid: nil, type: nil, conn_pid: nil
-
   alias Pleroma.Object
   alias Pleroma.Object.Containment
   alias Pleroma.User
