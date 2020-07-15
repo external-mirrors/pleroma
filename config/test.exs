@@ -19,6 +19,17 @@ config :logger, :console,
   level: :warn,
   format: "\n[$level] $message\n"
 
+config :pleroma, :fed_sockets,
+  enabled: false,
+  ping_interval: 100,
+  connection_duration: 500,
+  rejection_duration: 500,
+  fed_socket_fetches: [
+    default: 12_000,
+    interval: 3_000,
+    lazy: false
+  ]
+
 config :pleroma, :auth, oauth_consumer_strategies: []
 
 config :pleroma, Pleroma.Upload,
