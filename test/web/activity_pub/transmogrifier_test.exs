@@ -925,6 +925,20 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       assert modified["object"]["actor"] == modified["object"]["attributedTo"]
     end
 
+    test "it inlines blocks in undo objects" do
+      blocker = insert(:user)
+      blocked = insert(:user)
+
+      {:ok, block_activity} = CommonAPI.block(blocker, blocked)
+      {:ok, activity} = CommonAPI.unblock(blocker, blocked)
+
+      assert activity.data["type"] == "Undo"
+
+      {:ok, modified} = Transmogrifier.prepare_outgoing(activity.data)
+
+      assert modified["object"]["type"] == "Block"
+    end
+
     test "it turns mentions into tags" do
       user = insert(:user)
       other_user = insert(:user)

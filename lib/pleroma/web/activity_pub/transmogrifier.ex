@@ -883,6 +883,23 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
     {:ok, data}
   end
 
+  # Mastodon Undo requires the object to be inlined.
+  def prepare_outgoing(%{"type" => "Undo"} = data) do
+    with activity <- Activity.normalize(data["object"]) do
+      object =
+        activity.data
+        |> strip_internal_fields
+
+      data =
+        data
+        |> Map.put("object", object)
+        |> strip_internal_fields
+        |> Map.merge(Utils.make_json_ld_header())
+
+      {:ok, data}
+    end
+  end
+
   # Mastodon Accept/Reject requires a non-normalized object containing the actor URIs,
   # because of course it does.
   def prepare_outgoing(%{"type" => "Accept"} = data) do
