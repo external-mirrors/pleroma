@@ -4,11 +4,11 @@
 
 defmodule Pleroma.Web.FedSockets do
   @moduledoc """
-  This documents the FedSockets framework. A framework for transferring
+  This documents the FedSockets framework. A framework for federating
   ActivityPub objects between servers via persistant WebSocket connections.
 
   FedSockets allow servers to authenticate on first contact and maintain that
-  connection, eliminating the need to authenticate every time data needs to move.
+  connection, eliminating the need to authenticate every time data needs to be shared.
 
   ## Protocol
   FedSockets currently support 2 types of data transfer:

@@ -4,15 +4,15 @@
 
 defmodule Pleroma.Web.FedSockets.FedRegistry do
   @moduledoc """
-  The FedRegistry stores the active FedSockets for quick retrieval and cleans up after closed or broken connections.
+  The FedRegistry stores the active FedSockets for quick retrieval.
 
-  The storage and retrieval portion of the FedRegistry is done in process through ETS for maximum speed.
-  The FedRegistry goes out of process to start monitoring new FedSockets, so there is a slight one time delay.
+  The storage and retrieval portion of the FedRegistry is done in process through
+  elixir's `Registry` module for speed and its ability to monitor for terminated processes.
 
-  Dropped connections will be caught here and deleted from the registry. Since the next
-  message will initiate a new connection there is no reason to try and recononect at that point.
+  Dropped connections will be caught by `Registry` and deleted. Since the next
+  message will initiate a new connection there is no reason to try and reconnect at that point.
 
-  Normally outside modules will have no need to call or use the FedRegistry themselves.
+  Normally outside modules should have no need to call or use the FedRegistry themselves.
   """
 
   alias Pleroma.Web.FedSockets.FedSocket
@@ -48,14 +48,7 @@ defmodule Pleroma.Web.FedSockets.FedRegistry do
 
   Always returns {:ok, fed_socket}
   """
-  def add_fed_socket(origin) do
-    origin
-    |> SocketInfo.build()
-    |> SocketInfo.connect()
-    |> add_socket_info
-  end
-
-  def add_fed_socket(origin, pid) do
+  def add_fed_socket(origin, pid \\ nil) do
     origin
     |> SocketInfo.build(pid)
     |> SocketInfo.connect()

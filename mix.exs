@@ -161,13 +161,7 @@ defmodule Pleroma.Mixfile do
       {:timex, "~> 3.6"},
       {:ueberauth, "~> 0.4"},
       {:linkify, "~> 0.2.0"},
-<<<<<<< HEAD
       {:http_signatures, "~> 0.1.0"},
-=======
-      {:http_signatures,
-       git: "https://git.pleroma.social/pleroma/http_signatures.git",
-       ref: "293d77bb6f4a67ac8bde1428735c3b42f22cbb30"},
->>>>>>> df87a28ab... fix merge
       {:telemetry, "~> 0.3"},
       {:poolboy, "~> 1.5"},
       {:prometheus, "~> 4.6"},

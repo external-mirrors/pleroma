@@ -4,7 +4,8 @@
 
 defmodule Pleroma.Web.FedSockets.FedSocket do
   @moduledoc """
-  The FedSocket module encapsulates the structure of the data packages for both the sending and receiving connections.
+  The FedSocket module abstracts the actions to be taken taken on connections regardless of
+  whether the connection started as inbound or outbound.
 
 
   Normally outside modules will have no need to call the FedSocket module directly.

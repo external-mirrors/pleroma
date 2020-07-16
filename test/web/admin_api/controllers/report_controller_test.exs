@@ -280,17 +280,7 @@ defmodule Pleroma.Web.AdminAPI.ReportControllerTest do
 
       assert %{"total" => 0, "reports" => []} ==
                conn
-<<<<<<< HEAD
-<<<<<<< HEAD
                |> get(report_path(conn, :index, %{state: "resolved"}))
-=======
-               |> get("/api/pleroma/admin/reports?state=resolved", %{})
->>>>>>> 601d52754... fix test locally
-=======
-               |> get("/api/pleroma/admin/reports?state=resolved", %{
-                 "" => ""
-               })
->>>>>>> 4861a5139... don’t change format
                |> json_response_and_validate_schema(:ok)
     end
 

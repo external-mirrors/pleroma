@@ -6,10 +6,21 @@ defmodule Pleroma.Web.FedSockets.FetchRegistry do
   @moduledoc """
   The FetchRegistry acts as a broker for fetch requests and return values.
   This allows calling processes to block while waiting for a reply.
-  It doesn't impose it's own process instead using ETS to handle fetches in process, allowing
+  It doesn't impose it's own process instead using `Cachex` to handle fetches in process, allowing
   multi threaded processes to avoid bottlenecking.
 
   Normally outside modules will have no need to call or use the FetchRegistry themselves.
+
+  The `Cachex` parameters can be controlled from the config. Since exact timeout intervals
+  aren't necessary the following settings are used by default:
+
+  config :pleroma, :fed_sockets,
+    fed_socket_fetches: [
+      default: 12_000,
+      interval: 3_000,
+      lazy: false
+    ]
+
   """
 
   defmodule FetchRegistryData do
