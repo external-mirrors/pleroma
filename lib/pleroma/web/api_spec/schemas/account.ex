@@ -106,6 +106,10 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Account do
             format: :uri,
             nullable: true,
             description: "Favicon image of the user's instance"
+          },
+          admin_data: %Schema{
+            type: :map,
+            description: "Custom data set by the server admin"
           }
         }
       },
