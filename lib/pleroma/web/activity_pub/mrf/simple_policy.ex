@@ -93,20 +93,26 @@ defmodule Pleroma.Web.ActivityPub.MRF.SimplePolicy do
 
     object =
       with true <- MRF.subdomain_match?(timeline_removal, actor_host),
-           user <- User.get_cached_by_ap_id(object["actor"]),
-           true <- Pleroma.Constants.as_public() in object["to"] do
-        to = List.delete(object["to"], Pleroma.Constants.as_public()) ++ [user.follower_address]
-
-        cc = List.delete(object["cc"], user.follower_address) ++ [Pleroma.Constants.as_public()]
-
-        object
-        |> Map.put("to", to)
-        |> Map.put("cc", cc)
+           user <- User.get_cached_by_ap_id(object["actor"]) do
+        do_ftl_removal(object, user)
       else
         _ -> object
       end
 
     {:ok, object}
+  end
+
+  defp do_ftl_removal(object, user) do
+    if Pleroma.Constants.as_public() in object["to"] do
+      to = List.delete(object["to"], Pleroma.Constants.as_public()) ++ [user.follower_address]
+      cc = List.delete(object["cc"], user.follower_address) ++ [Pleroma.Constants.as_public()]
+
+      object
+      |> Map.put("to", to)
+      |> Map.put("cc", cc)
+    else
+      object
+    end
   end
 
   defp check_followers_only(%{host: actor_host} = _actor_info, object) do
@@ -117,21 +123,37 @@ defmodule Pleroma.Web.ActivityPub.MRF.SimplePolicy do
     object =
       with true <- MRF.subdomain_match?(followers_only, actor_host),
            user <- User.get_cached_by_ap_id(object["actor"]) do
-        # Don't use Map.get/3 intentionally, these must not be nil
-        fixed_to = object["to"] || []
-        fixed_cc = object["cc"] || []
-
-        to = FollowingRelationship.followers_ap_ids(user, fixed_to)
-        cc = FollowingRelationship.followers_ap_ids(user, fixed_cc)
-
-        object
-        |> Map.put("to", [user.follower_address] ++ to)
-        |> Map.put("cc", cc)
+        do_followers_only(object, user)
       else
         _ -> object
       end
 
     {:ok, object}
+  end
+
+  defp do_followers_only(%{"to" => to, "cc" => cc} = object, user)
+       when is_list(to) and is_list(cc) do
+    %{"to" => to, "cc" => cc} = object = do_ftl_removal(object, user)
+
+    recipients = to ++ cc
+
+    whitelist =
+      [user.follower_address] ++ FollowingRelationship.followers_ap_ids(user, recipients)
+
+    to = Enum.filter(to, fn ap_id -> Enum.member?(whitelist, ap_id) end)
+    cc = Enum.filter(cc, fn ap_id -> Enum.member?(whitelist, ap_id) end)
+
+    object
+    |> Map.put("to", to)
+    |> Map.put("cc", cc)
+  end
+
+  defp do_followers_only(object, user) do
+    # "to" and "cc" must not be nil when passed into
+    # FollowingRelationship.followers_ap_ids/2
+    object
+    |> Map.merge(%{"to" => [], "cc" => []})
+    |> do_followers_only(user)
   end
 
   defp check_report_removal(%{host: actor_host} = _actor_info, %{"type" => "Flag"} = object) do
