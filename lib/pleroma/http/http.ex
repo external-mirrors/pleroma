@@ -81,8 +81,11 @@ defmodule Pleroma.HTTP do
         )
 
       # Connection release is handled in a custom FollowRedirects middleware
+      {:error, err} ->
+        {:error, err}
+
       err ->
-        err
+        {:error, err}
     end
   end
 
