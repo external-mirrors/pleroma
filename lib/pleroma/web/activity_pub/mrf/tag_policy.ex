@@ -17,6 +17,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.TagPolicy do
      - `mrf_tag:sandbox`: Remove from public (local and federated) timelines
      - `mrf_tag:disable-remote-subscription`: Reject non-local follow requests
      - `mrf_tag:disable-any-subscription`: Reject any follow requests
+     - `mrf_tag:reject`: Reject all activities
   """
 
   require Pleroma.Constants
@@ -141,6 +142,10 @@ defmodule Pleroma.Web.ActivityPub.MRF.TagPolicy do
 
   defp process_tag("mrf_tag:disable-any-subscription", %{"type" => "Follow", "actor" => actor}),
     do: {:reject, "[TagPolicy] Follow from #{actor} tagged with mrf_tag:disable-any-subscription"}
+
+  defp process_tag("mrf_tag:reject", _) do
+    {:reject, "[TagPolicy] User tagged with mrf_tag:reject"}
+  end
 
   defp process_tag(_, message), do: {:ok, message}
 

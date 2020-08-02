@@ -120,4 +120,26 @@ defmodule Pleroma.Web.ActivityPub.MRF.TagPolicyTest do
       assert TagPolicy.filter(message) == {:ok, except_message}
     end
   end
+
+  describe "mrf_tag:reject" do
+    test "Reject all activities" do
+      actor = insert(:user, tags: ["mrf_tag:reject"])
+
+      create_activity = %{
+        "actor" => actor.ap_id,
+        "type" => "Create",
+        "object" => %{}
+      }
+
+      assert {:reject, _} = TagPolicy.filter(create_activity)
+
+      follow_activity = %{
+        "object" => actor.ap_id,
+        "type" => "Follow",
+        "actor" => actor.ap_id
+      }
+
+      assert {:reject, _} = TagPolicy.filter(follow_activity)
+    end
+  end
 end
