@@ -731,6 +731,16 @@ defmodule Pleroma.User do
     follow_all(user, autofollowed_users)
   end
 
+  defp autofollower_users(user) do
+    candidates = Config.get([:instance, :autofollower_nicknames])
+
+    autofollower_users =
+      User.Query.build(%{nickname: candidates, local: true, deactivated: false})
+      |> Repo.all()
+
+    all_follow(autofollower_users, user)
+  end
+
   @doc "Inserts provided changeset, performs post-registration actions (confirmation email sending etc.)"
   def register(%Ecto.Changeset{} = changeset) do
     with {:ok, user} <- Repo.insert(changeset) do
@@ -740,6 +750,7 @@ defmodule Pleroma.User do
 
   def post_register_action(%User{} = user) do
     with {:ok, user} <- autofollow_users(user),
+         {:ok, user} <- autofollower_users(user),
          {:ok, user} <- set_cache(user),
          {:ok, _} <- send_welcome_email(user),
          {:ok, _} <- send_welcome_message(user),
@@ -836,6 +847,15 @@ defmodule Pleroma.User do
     |> Enum.each(&follow(follower, &1, :follow_accept))
 
     set_cache(follower)
+  end
+
+  @spec all_follow(list(User.t()), User.t()) :: {atom(), User.t()}
+  def all_follow(followers, followed) do
+    followers
+    |> Enum.reject(fn follower -> blocks?(follower, followed) || blocks?(followed, follower) end)
+    |> Enum.each(&follow(&1, followed, :follow_accept))
+
+    set_cache(followed)
   end
 
   defdelegate following(user), to: FollowingRelationship
