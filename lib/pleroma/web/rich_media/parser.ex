@@ -17,7 +17,7 @@ defmodule Pleroma.Web.RichMedia.Parser do
         Cachex.fetch!(:rich_media_cache, url, fn _ ->
           {:commit, parse_url(url)}
         end)
-        |> set_ttl_based_on_image(url)
+        |> maybe_set_ttl_based_on_image(url)
       rescue
         e ->
           {:error, "Cachex error: #{inspect(e)}"}
@@ -47,15 +47,18 @@ defmodule Pleroma.Web.RichMedia.Parser do
       config :pleroma, :rich_media,
         ttl_setters: [MyModule]
   """
-  def set_ttl_based_on_image({:ok, data}, url) do
-    with {:ok, nil} <- Cachex.ttl(:rich_media_cache, url),
-         ttl when is_number(ttl) <- get_ttl_from_image(data, url) do
-      Cachex.expire_at(:rich_media_cache, url, ttl * 1000)
+  def maybe_set_ttl_based_on_image({:ok, data}, url) do
+    with {:ok, nil} <- Cachex.ttl(:rich_media_cache, url) do
+      ttl = get_ttl_from_image(data, url)
+
+      if is_number(ttl) do
+        Cachex.expire_at(:rich_media_cache, url, ttl * 1000)
+      end
+
       {:ok, data}
-    else
-      _ ->
-        {:ok, data}
     end
+
+    {:ok, data}
   end
 
   defp get_ttl_from_image(data, url) do
