@@ -2,8 +2,13 @@
 # Copyright © 2017-2020 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
-os_exclude = if :os.type() == {:unix, :darwin}, do: [skip_on_mac: true], else: []
-ExUnit.start(exclude: [:federated | os_exclude])
+exclude_tags = [
+  {:federated, true},
+  {:skip_on_mac, :os.type() == {:unix, :darwin}},
+  {:skip_exiftool, not Pleroma.Utils.command_available?("exiftool")}
+]
+
+ExUnit.start(exclude: for({tag, use_tag} <- exclude_tags, use_tag, do: tag))
 
 Ecto.Adapters.SQL.Sandbox.mode(Pleroma.Repo, :manual)
 

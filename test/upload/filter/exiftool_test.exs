@@ -6,6 +6,7 @@ defmodule Pleroma.Upload.Filter.ExiftoolTest do
   use Pleroma.DataCase
   alias Pleroma.Upload.Filter
 
+  @tag :skip_exiftool
   test "apply exiftool filter" do
     assert Pleroma.Utils.command_available?("exiftool")
 
