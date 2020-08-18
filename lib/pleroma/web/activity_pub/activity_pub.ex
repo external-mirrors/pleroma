@@ -1275,7 +1275,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
            ),
          {:ok, hide_follows} <- collection_private(following_data),
          {:ok, followers_data} <-
-           Fetcher.fetch_and_contain_remote_object_from_id(user.follower_address),
+           Fetcher.fetch_and_contain_remote_object_from_id(user.follower_address, force_http: true),
          {:ok, hide_followers} <- collection_private(followers_data) do
       {:ok,
        %{
