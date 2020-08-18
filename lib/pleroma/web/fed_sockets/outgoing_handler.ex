@@ -13,16 +13,14 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
   alias Pleroma.Web.FedSockets.FedSocket
   alias Pleroma.Web.FedSockets.SocketInfo
 
-  def start_link(origin) do
-    GenServer.start_link(__MODULE__, %{origin: origin})
+  def start_link(uri) do
+    GenServer.start_link(__MODULE__, %{uri: uri})
   end
 
-  def init(%{origin: origin}) do
-    uri_string = FedSockets.uri_for_origin(origin)
-
-    case initiate_connection(uri_string) do
-      {:ok, conn_pid} ->
-        FedRegistry.add_fed_socket(uri_string, conn_pid)
+  def init(%{uri: uri}) do
+    case initiate_connection(uri) do
+      {:ok, ws_origin, conn_pid} ->
+        FedRegistry.add_fed_socket(ws_origin, conn_pid)
 
       {:error, reason} ->
         Logger.debug("Outgoing connection failed - #{inspect(reason)}")
@@ -79,8 +77,13 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
     {:ok, state}
   end
 
-  def initiate_connection(uri_string) do
-    uri = %{host: host, port: port, path: path} = URI.parse(uri_string)
+  def initiate_connection(uri) do
+    ws_uri =
+      uri
+      |> SocketInfo.origin()
+      |> FedSockets.uri_for_origin()
+
+    %{host: host, port: port, path: path} = URI.parse(ws_uri)
 
     with {:ok, conn_pid} <- :gun.open(to_charlist(host), port),
          {:ok, _} <- :gun.await_up(conn_pid),
@@ -88,7 +91,7 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
          ref <- :gun.ws_upgrade(conn_pid, to_charlist(path), headers, %{silence_pings: false}) do
       receive do
         {:gun_upgrade, ^conn_pid, ^ref, [<<"websocket">>], _} ->
-          {:ok, conn_pid}
+          {:ok, ws_uri, conn_pid}
       after
         15_000 ->
           Logger.debug("Fedsocket timeout connecting to #{inspect(uri)}")
@@ -101,10 +104,9 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
     end
   end
 
-  defp build_headers(%{host: host, port: nil}), do: build_headers("#{host}")
-  defp build_headers(%{host: host, port: port}), do: build_headers("#{host}:#{port}")
+  defp build_headers(uri) do
+    host_for_sig = uri |> URI.parse() |> host_signature()
 
-  defp build_headers(host) when is_binary(host) do
     shake = FedSocket.shake()
     digest = "SHA-256=" <> (:crypto.hash(:sha256, shake) |> Base.encode64())
     date = Pleroma.Signature.signed_date()
@@ -115,7 +117,7 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
       "content-length": to_charlist("#{shake_size}"),
       date: date,
       digest: digest,
-      host: host
+      host: host_for_sig
     }
 
     signature = Pleroma.Signature.sign(InternalFetchActor.get_actor(), signature_opts)
@@ -127,5 +129,13 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
       {'content-length', to_charlist("#{shake_size}")},
       {to_charlist("(request-target)"), to_charlist(shake)}
     ]
+  end
+
+  defp host_signature(%{host: host, scheme: scheme, port: port}) do
+    if port == URI.default_port(scheme) do
+      host
+    else
+      "#{host}:#{port}"
+    end
   end
 end

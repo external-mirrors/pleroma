@@ -85,15 +85,12 @@ defmodule Pleroma.Web.FedSockets.SocketInfoTest do
       assert origin =~ ":4000"
     end
 
-    test "will not include port 80" do
-      assert %{conn_pid: :pid, origin: origin} = SocketInfo.build("http://example.com:80", :pid)
-
-      refute origin =~ ":80"
-    end
-
-    test "does not require the port" do
-      assert %{conn_pid: :pid, origin: "example.com"} =
+    test "will provide the port if missing" do
+      assert %{conn_pid: :pid, origin: "example.com:80"} =
                SocketInfo.build("http://example.com", :pid)
+
+      assert %{conn_pid: :pid, origin: "example.com:443"} =
+               SocketInfo.build("https://example.com", :pid)
     end
   end
 
@@ -113,14 +110,9 @@ defmodule Pleroma.Web.FedSockets.SocketInfoTest do
       assert origin =~ ":4000"
     end
 
-    test "will not include port 80" do
-      assert %{pid: _, origin: origin} = SocketInfo.build("http://example.com:80")
-
-      refute origin =~ ":80"
-    end
-
-    test "does not require the port" do
-      assert %{pid: _, origin: "example.com"} = SocketInfo.build("http://example.com")
+    test "will provide the port if missing" do
+      assert %{pid: _, origin: "example.com:80"} = SocketInfo.build("http://example.com")
+      assert %{pid: _, origin: "example.com:443"} = SocketInfo.build("https://example.com")
     end
   end
 end

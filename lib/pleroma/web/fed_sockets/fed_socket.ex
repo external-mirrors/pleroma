@@ -27,9 +27,7 @@ defmodule Pleroma.Web.FedSockets.FedSocket do
   @shake "61dd18f7-f1e6-49a4-939a-a749fcdc1103"
 
   def connect_to_host(uri) do
-    origin = SocketInfo.origin(uri)
-
-    case OutgoingHandler.start_link(origin) do
+    case OutgoingHandler.start_link(uri) do
       {:ok, pid} ->
         {:ok, pid}
 

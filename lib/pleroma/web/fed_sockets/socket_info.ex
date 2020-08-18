@@ -37,11 +37,8 @@ defmodule Pleroma.Web.FedSockets.SocketInfo do
   defp build_origin(uri) when is_binary(uri),
     do: uri |> URI.parse() |> build_origin
 
-  defp build_origin(%{host: host, port: nil}),
-    do: %SocketInfo{origin: host}
-
-  defp build_origin(%{host: host, port: 80}),
-    do: %SocketInfo{origin: host}
+  defp build_origin(%{host: host, port: nil, scheme: scheme}),
+    do: build_origin(%{host: host, port: URI.default_port(scheme)})
 
   defp build_origin(%{host: host, port: port}),
     do: %SocketInfo{origin: "#{host}:#{port}"}
