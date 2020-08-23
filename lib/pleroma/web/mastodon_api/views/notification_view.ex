@@ -118,6 +118,9 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
       "pleroma:chat_mention" ->
         put_chat_message(response, activity, reading_user, status_render_opts)
 
+      "pleroma:report" ->
+        response
+
       type when type in ["follow", "follow_request"] ->
         response
     end
