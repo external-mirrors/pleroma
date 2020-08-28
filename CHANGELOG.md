@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [unreleased]
 
 ### Changed
+
+- **Breaking:** The default descriptions on uploads are now empty. The old behavior (filename as default) can be configured, see the cheat sheet.
+- **Breaking:** Added the ObjectAgePolicy to the default set of MRFs. This will delist and strip the follower collection of any message received that is older than 7 days. This will stop users from seeing very old messages in the timelines. The messages can still be viewed on the user's page and in conversations. They also still trigger notifications.
 - **Breaking:** Elixir >=1.9 is now required (was >= 1.8)
+- **Breaking:** Configuration: `:auto_linker, :opts` moved to `:pleroma, Pleroma.Formatter`. Old config namespace is deprecated.
+- **Breaking:** Configuration: `:instance, welcome_user_nickname` moved to `:welcome, :direct_message, :sender_nickname`, `:instance, :welcome_message` moved to `:welcome, :direct_message, :message`. Old config namespace is deprecated.
+- **Breaking:** LDAP: Fallback to local database authentication has been removed for security reasons and lack of a mechanism to ensure the passwords are synchronized when LDAP passwords are updated.
+- **Breaking** Changed defaults for `:restrict_unauthenticated` so that when `:instance, :public` is set to `false` then all `:restrict_unauthenticated` items be effectively set to `true`. If you'd like to allow unauthenticated access to specific API endpoints on a private instance, please explicitly set `:restrict_unauthenticated` to non-default value in `config/prod.secret.exs`.
 - In Conversations, return only direct messages as `last_status`
 - Using the `only_media` filter on timelines will now exclude reblog media
 - MFR policy to set global expiration for all local Create activities
@@ -20,31 +27,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Breaking:** Pleroma API: The routes to update avatar, banner and background have been removed.
 - **Breaking:** Image description length is limited now.
 - **Breaking:** Emoji API: changed methods and renamed routes.
+- **Breaking:** Notification Settings API for suppressing notifications has been simplified down to `block_from_strangers`.
+- **Breaking:** Notification Settings API option for hiding push notification contents has been renamed to `hide_notification_contents`.
 - MastodonAPI: Allow removal of avatar, banner and background.
 - Streaming: Repeats of a user's posts will no longer be pushed to the user's stream.
 - Mastodon API: Added `pleroma.metadata.fields_limits` to /api/v1/instance
 - Mastodon API: On deletion, returns the original post text.
 - Mastodon API: Add `pleroma.unread_count` to the Marker entity.
-- **Breaking:** Notification Settings API for suppressing notifications
-  has been simplified down to `block_from_strangers`.
-- **Breaking:** Notification Settings API option for hiding push notification
-  contents has been renamed to `hide_notification_contents`
 - Mastodon API: Added `pleroma.metadata.post_formats` to /api/v1/instance
+- Mastodon API (legacy): Allow query parameters for `/api/v1/domain_blocks`, e.g. `/api/v1/domain_blocks?domain=badposters.zone`
+- Mastodon API: Make notifications about statuses from muted users and threads read automatically
+- Pleroma API: `/api/pleroma/captcha` responses now include `seconds_valid` with an integer value.
+
 </details>
 
 <details>
   <summary>Admin API Changes</summary>
 
+- **Breaking** Changed relay `/api/pleroma/admin/relay` endpoints response format.
 - Status visibility stats: now can return stats per instance.
-
 - Mix task to refresh counter cache (`mix pleroma.refresh_counter_cache`)
+
 </details>
 
 ### Removed
+
 - **Breaking:** removed `with_move` parameter from notifications timeline.
 
 ### Added
 
+- Frontends: Add mix task to install frontends.
+- Frontends: Add configurable frontends for primary and admin fe.
+- Configuration: Added a blacklist for email servers.
 - Chats: Added `accepts_chat_messages` field to user, exposed in APIs and federation.
 - Chats: Added support for federated chats. For details, see the docs.
 - ActivityPub: Added support for existing AP ids for instances migrated from Mastodon.
@@ -64,10 +78,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Support pagination in emoji packs API (for packs and for files in pack)
 - Support for viewing instances favicons next to posts and accounts
 - Added Pleroma.Upload.Filter.Exiftool as an alternate EXIF stripping mechanism targeting GPS/location metadata.
+- "By approval" registrations mode.
+- Configuration: Added `:welcome` settings for the welcome message to newly registered users. You can send a welcome message as a direct message, chat or email.
+- Ability to hide favourites and emoji reactions in the API with `[:instance, :show_reactions]` config.
 
 <details>
   <summary>API Changes</summary>
-- Mastodon API: Add pleroma.parents_visible field to statuses.
+
+- Mastodon API: Add pleroma.parent_visible field to statuses.
 - Mastodon API: Extended `/api/v1/instance`.
 - Mastodon API: Support for `include_types` in `/api/v1/notifications`.
 - Mastodon API: Added `/api/v1/notifications/:id/dismiss` endpoint.
@@ -81,6 +99,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 </details>
 
 ### Fixed
+- Fix list pagination and other list issues.
 - Support pagination in conversations API
 - **Breaking**: SimplePolicy `:reject` and `:accept` allow deletions again
 - Fix follower/blocks import when nicknames starts with @
@@ -92,6 +111,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Admin API: fix `GET /api/pleroma/admin/users/:nickname/credentials` returning 404 when getting the credentials of a remote user while `:instance, :limit_to_local_content` is set to `:unauthenticated`
 - Fix CSP policy generation to include remote Captcha services
 - Fix edge case where MediaProxy truncates media, usually caused when Caddy is serving content for the other Federated instance.
+- Emoji Packs could not be listed when instance was set to `public: false`
+- Fix whole_word always returning false on filter get requests
+- Migrations not working on OTP releases if the database was connected over ssl
+- Fix relay following
 
 ## [Unreleased (patch)]
 
@@ -121,6 +144,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Follow request notifications
 <details>
   <summary>API Changes</summary>
+
 - Admin API: `GET /api/pleroma/admin/need_reboot`.
 </details>
 
@@ -188,6 +212,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Breaking**: Using third party engines for user recommendation
 <details>
   <summary>API Changes</summary>
+
 - **Breaking**: AdminAPI: migrate_from_db endpoint
 </details>
 
