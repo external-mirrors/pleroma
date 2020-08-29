@@ -207,6 +207,25 @@ defmodule Pleroma.Web.MastodonAPI.NotificationViewTest do
     test_notifications_rendering([notification], user, [expected])
   end
 
+  test "Report notification" do
+    reporting_user = insert(:user)
+    reported_user = insert(:user)
+    {:ok, moderator_user} = insert(:user) |> User.admin_api_update(%{is_moderator: true})
+
+    {:ok, activity} = CommonAPI.report(reporting_user, %{account_id: reported_user.id})
+    {:ok, [notification]} = Notification.create_notifications(activity)
+
+    expected = %{
+      id: to_string(notification.id),
+      pleroma: %{is_seen: false, is_muted: false},
+      type: "pleroma:report",
+      account: AccountView.render("show.json", %{user: reporting_user, for: moderator_user}),
+      created_at: Utils.to_masto_date(notification.inserted_at)
+    }
+
+    test_notifications_rendering([notification], moderator_user, [expected])
+  end
+
   test "muted notification" do
     user = insert(:user)
     another_user = insert(:user)
