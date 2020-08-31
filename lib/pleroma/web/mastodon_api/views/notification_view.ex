@@ -16,6 +16,8 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
   alias Pleroma.Web.MastodonAPI.NotificationView
   alias Pleroma.Web.MastodonAPI.StatusView
   alias Pleroma.Web.PleromaAPI.Chat.MessageReferenceView
+  alias Pleroma.Web.AdminAPI.ReportView
+  alias Pleroma.Web.AdminAPI.Report
 
   @parent_types ~w{Like Announce EmojiReact}
 
@@ -119,11 +121,17 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
         put_chat_message(response, activity, reading_user, status_render_opts)
 
       "pleroma:report" ->
-        response
+        put_report(response, activity)
 
       type when type in ["follow", "follow_request"] ->
         response
     end
+  end
+
+  defp put_report(response, activity) do
+    report_render = ReportView.render("show.json", Report.extract_report_info(activity))
+
+    Map.put(response, :report, report_render)
   end
 
   defp put_emoji(response, activity) do

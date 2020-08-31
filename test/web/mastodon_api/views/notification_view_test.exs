@@ -18,6 +18,8 @@ defmodule Pleroma.Web.MastodonAPI.NotificationViewTest do
   alias Pleroma.Web.MastodonAPI.NotificationView
   alias Pleroma.Web.MastodonAPI.StatusView
   alias Pleroma.Web.PleromaAPI.Chat.MessageReferenceView
+  alias Pleroma.Web.AdminAPI.ReportView
+  alias Pleroma.Web.AdminAPI.Report
   import Pleroma.Factory
 
   defp test_notifications_rendering(notifications, user, expected_result) do
@@ -220,7 +222,8 @@ defmodule Pleroma.Web.MastodonAPI.NotificationViewTest do
       pleroma: %{is_seen: false, is_muted: false},
       type: "pleroma:report",
       account: AccountView.render("show.json", %{user: reporting_user, for: moderator_user}),
-      created_at: Utils.to_masto_date(notification.inserted_at)
+      created_at: Utils.to_masto_date(notification.inserted_at),
+      report: ReportView.render("show.json", Report.extract_report_info(activity))
     }
 
     test_notifications_rendering([notification], moderator_user, [expected])
