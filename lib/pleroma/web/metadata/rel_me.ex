@@ -7,6 +7,8 @@ defmodule Pleroma.Web.Metadata.Providers.RelMe do
   @behaviour Provider
 
   @impl Provider
+  def build_tags(%{user: %{bio: nil}}), do: []
+
   def build_tags(%{user: user}) do
     bio_tree = Floki.parse_fragment!(user.bio)
 
