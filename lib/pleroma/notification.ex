@@ -367,11 +367,7 @@ defmodule Pleroma.Notification do
   end
 
   def create_notifications(%Activity{data: %{"type" => type}} = activity, options)
-      when type in ["Follow", "Like", "Announce", "Move", "EmojiReact"] do
-    do_create_notifications(activity, options)
-  end
-
-  def create_notifications(%Activity{data: %{"type" => "Flag"}} = activity, options) do
+      when type in ["Follow", "Like", "Announce", "Move", "EmojiReact", "Flag"] do
     do_create_notifications(activity, options)
   end
 
