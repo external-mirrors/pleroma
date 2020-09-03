@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - Rich media failure tracking (along with `:failure_backoff` option)
+- Reports now generate notifications for admins and mods
 
 ### Fixed
 - Mastodon API: Search parameter `following` now correctly returns the followings rather than the followers
