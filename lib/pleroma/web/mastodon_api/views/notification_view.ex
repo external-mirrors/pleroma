@@ -11,13 +11,13 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
   alias Pleroma.Object
   alias Pleroma.User
   alias Pleroma.UserRelationship
+  alias Pleroma.Web.AdminAPI.Report
+  alias Pleroma.Web.AdminAPI.ReportView
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.MastodonAPI.AccountView
   alias Pleroma.Web.MastodonAPI.NotificationView
   alias Pleroma.Web.MastodonAPI.StatusView
   alias Pleroma.Web.PleromaAPI.Chat.MessageReferenceView
-  alias Pleroma.Web.AdminAPI.ReportView
-  alias Pleroma.Web.AdminAPI.Report
 
   @parent_types ~w{Like Announce EmojiReact}
 

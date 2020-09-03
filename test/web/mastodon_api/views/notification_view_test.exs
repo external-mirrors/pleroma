@@ -12,14 +12,14 @@ defmodule Pleroma.Web.MastodonAPI.NotificationViewTest do
   alias Pleroma.Object
   alias Pleroma.Repo
   alias Pleroma.User
+  alias Pleroma.Web.AdminAPI.Report
+  alias Pleroma.Web.AdminAPI.ReportView
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.CommonAPI.Utils
   alias Pleroma.Web.MastodonAPI.AccountView
   alias Pleroma.Web.MastodonAPI.NotificationView
   alias Pleroma.Web.MastodonAPI.StatusView
   alias Pleroma.Web.PleromaAPI.Chat.MessageReferenceView
-  alias Pleroma.Web.AdminAPI.ReportView
-  alias Pleroma.Web.AdminAPI.Report
   import Pleroma.Factory
 
   defp test_notifications_rendering(notifications, user, expected_result) do

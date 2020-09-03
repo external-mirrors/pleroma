@@ -7,7 +7,7 @@ defmodule Pleroma.Repo.Migrations.ChangeTypeToEnumForNotifications do
     end
 
     """
-    drop type notification_type
+    drop type if exists notification_type
     """
     |> execute()
 
@@ -37,14 +37,14 @@ defmodule Pleroma.Repo.Migrations.ChangeTypeToEnumForNotifications do
     alter table(:notifications) do
       modify(:type, :string)
     end
-    
+
     """
     delete from notifications where type = 'pleroma:report'
     """
     |> execute()
 
     """
-    drop type notification_type
+    drop type if exists notification_type
     """
     |> execute()
 
