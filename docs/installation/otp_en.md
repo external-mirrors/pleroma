@@ -282,6 +282,12 @@ su pleroma -s $SHELL -lc "./bin/pleroma_ctl user new joeuser joeuser@sld.tld --a
 ```
 This will create an account withe the username of 'joeuser' with the email address of joeuser@sld.tld, and set that user's account as an admin. This will result in a link that you can paste into the browser, which logs you in and enables you to set the password.
 
+## Upgrading to a new version
+
+When upgrading to a later OTP release, it's important to always **completely replace** the old installation directory in `/opt/pleroma` with the new version. This will prevent old versions of libraries from being used.
+
+Be sure to read the CHANGELOG for additional upgrade steps.
+
 ## Further reading
 
 {! backend/installation/further_reading.include !}
@@ -289,4 +295,3 @@ This will create an account withe the username of 'joeuser' with the email addre
 ## Questions
 
 Questions about the installation or didn’t it work as it should be, ask in [#pleroma:matrix.org](https://matrix.heldscal.la/#/room/#freenode_#pleroma:matrix.org) or IRC Channel **#pleroma** on **Freenode**.
-
