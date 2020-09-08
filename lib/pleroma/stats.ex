@@ -23,6 +23,7 @@ defmodule Pleroma.Stats do
 
   @impl true
   def init(_args) do
+    if Pleroma.Config.get(:env) == :test, do: :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
     {:ok, nil, {:continue, :calculate_stats}}
   end
 
@@ -87,8 +88,6 @@ defmodule Pleroma.Stats do
       )
 
     user_count = Repo.aggregate(users_query, :count, :id)
-
-    if Pleroma.Config.get(:env) == :test, do: Ecto.Adapters.SQL.Sandbox.checkin(Repo)
 
     %{
       peers: peers,
