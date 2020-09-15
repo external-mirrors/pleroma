@@ -87,6 +87,8 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
 
     with {:ok, conn_pid} <- :gun.open(to_charlist(host), port),
          {:ok, _} <- :gun.await_up(conn_pid),
+         reference <- :gun.get(conn_pid, to_charlist(path)),
+         {:response, :fin, 204, _} <- :gun.await(conn_pid, reference),
          headers <- build_headers(uri),
          ref <- :gun.ws_upgrade(conn_pid, to_charlist(path), headers, %{silence_pings: false}) do
       receive do
@@ -98,6 +100,9 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
           {:error, :timeout}
       end
     else
+      {:response, :nofin, 404, _} ->
+        {:error, :fedsockets_not_supported}
+
       e ->
         Logger.debug("Fedsocket error connecting to #{inspect(uri)}")
         {:error, e}
