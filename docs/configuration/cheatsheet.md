@@ -40,7 +40,6 @@ To add configuration to your config file, you can copy it from the base config. 
 * `allow_relay`: Enable Pleroma’s Relay, which makes it possible to follow a whole instance.
 * `public`: Makes the client API in authenticated mode-only except for user-profiles. Useful for disabling the Local Timeline and The Whole Known Network. Note that there is a dependent setting restricting or allowing unauthenticated access to specific resources, see `restrict_unauthenticated` for more details.
 * `quarantined_instances`: List of ActivityPub instances where private (DMs, followers-only) activities will not be send.
-* `managed_config`: Whenether the config for pleroma-fe is configured in [:frontend_configurations](#frontend_configurations) or in ``static/config.json``.
 * `allowed_post_formats`: MIME-type list of formats allowed to be posted (transformed into HTML).
 * `extended_nickname_format`: Set to `true` to use extended local nicknames format (allows underscores/dashes). This will break federation with
     older software for theses nicknames.
@@ -226,6 +225,16 @@ Enables the worker which processes posts scheduled for deletion. Pinned posts ar
 
 * `enabled`: whether expired activities will be sent to the job queue to be deleted
 
+## FedSockets
+FedSockets is an experimental feature allowing for Pleroma backends to federate using a persistant websocket connection as opposed to making each federation a seperate http connection. This feature is currently off by default. It is configurable throught he following options.
+
+### :fedsockets
+* `enabled`: Enables FedSockets for this instance. `false` by default.
+* `connection_duration`: Time an idle websocket is kept open.
+* `rejection_duration`: Failures to connect via FedSockets will not be retried for this period of time.
+* `fed_socket_fetches` and `fed_socket_rejections`: Settings passed to `cachex` for the fetch registry, and rejection stacks. See `Pleroma.Web.FedSockets` for more details.
+
+
 ## Frontends
 
 ### :frontend_configurations
@@ -314,6 +323,14 @@ This section describe PWA manifest instance-specific values. Currently this opti
 * `invalidation`: options for remove media from cache after delete object:
   * `enabled`: Enables purge cache
   * `provider`: Which one of  the [purge cache strategy](#purge-cache-strategy) to use.
+
+## :media_preview_proxy
+
+* `enabled`: Enables proxying of remote media preview to the instance’s proxy. Requires enabled media proxy (`media_proxy/enabled`).
+* `thumbnail_max_width`: Max width of preview thumbnail for images (video preview always has original dimensions).
+* `thumbnail_max_height`: Max height of preview thumbnail for images (video preview always has original dimensions).
+* `image_quality`: Quality of the output. Ranges from 0 (min quality) to 100 (max quality).
+* `min_content_length`: Min content length to perform preview, in bytes. If greater than 0, media smaller in size will be served as is, without thumbnailing.
 
 ### Purge cache strategy
 
