@@ -136,7 +136,6 @@ defmodule Pleroma.Web.FedSockets.OutgoingHandler do
       {'date', date},
       {'digest', to_charlist(digest)},
       {'content-length', to_charlist("#{shake_size}")},
-      {to_charlist("(request-target)"), to_charlist(shake)},
       {'user-agent', to_charlist(Application.user_agent())}
     ]
   end

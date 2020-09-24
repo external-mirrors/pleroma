@@ -59,8 +59,6 @@ defmodule Pleroma.Web.FedSockets.FedRegistry do
     case Registry.register(FedSockets.Registry, origin, socket_info) do
       {:ok, _owner} ->
         clear_prior_rejection(origin)
-        Logger.debug("fedsocket added: #{inspect(origin)}")
-
         {:ok, socket_info}
 
       {:error, {:already_registered, _pid}} ->

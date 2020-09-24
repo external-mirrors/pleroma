@@ -18,7 +18,8 @@ defmodule Pleroma.Web.FedSockets.IncomingHandler do
 
     with true <- Pleroma.Config.get([:fed_sockets, :enabled]),
          sec_protocol <- :cowboy_req.header("sec-websocket-protocol", req, nil),
-         headers = %{"(request-target)" => ^shake} <- :cowboy_req.headers(req),
+         headers <- :cowboy_req.headers(req),
+         headers <- Map.put(headers, "(request-target)", shake),
          true <- validate_conn(%{req_headers: headers}),
          %{"keyId" => origin} <- split_signature(headers["signature"]) do
       req =
