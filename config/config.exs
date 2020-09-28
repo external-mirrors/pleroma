@@ -348,7 +348,7 @@ config :pleroma, :assets,
       mime_type: "image/png"
     }
   ],
-  default_mascot: :pleroma_fox_tan
+  default_mascot: :nothing
 
 config :pleroma, :manifest,
   icons: [
