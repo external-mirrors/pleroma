@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Upgrade notes
+- Instances running behind nginx that choose to enable websocket-based federation will need to update their nginx config. Add the location definition `location /api/fedsocket/v1` found in `installation/pleroma.nginx`. Take note of any other differences bwtween your config and `installation/pleroma.nginx`.
+
 ### Added
 - Experimental websocket-based federation between Pleroma instances.
 
