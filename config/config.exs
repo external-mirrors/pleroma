@@ -330,7 +330,7 @@ config :pleroma, :frontend_configurations,
     showFeaturesPanel: true,
     showInstanceSpecificPanel: false,
     subjectLineBehavior: "email",
-    theme: "pleroma-dark",
+    theme: "bird",
     webPushNotifications: false
   },
   masto_fe: %{
