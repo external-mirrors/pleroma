@@ -21,11 +21,11 @@ defmodule Site.SupSlashB do
 
       object =
         object
-        |> Map.put("actor", "https://neckbeard.xyz/users/slash_b")
+        |> Map.put("actor", "https://neckbeard.xyz/users/b")
 
       message =
         message
-        |> Map.put("actor", "https://neckbeard.xyz/users/slash_b")
+        |> Map.put("actor", "https://neckbeard.xyz/users/b")
         |> Map.put("object", object)
 
       {:ok, message}
