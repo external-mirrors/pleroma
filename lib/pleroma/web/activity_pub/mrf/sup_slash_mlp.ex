@@ -17,7 +17,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.SupSlashMLP do
     actor_info = URI.parse(actor)
 
     if(actor_info.host == "neckbeard.xyz") do
-      # Logger.warn("sup /b/ #{inspect(object)}")
+      # Logger.warn("sup /mlp/ #{inspect(object)}")
 
       object =
         object
