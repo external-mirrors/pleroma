@@ -22,7 +22,6 @@
 ## Restore/Move
 
 1. Optionally reinstall Pleroma (either on the same server or on another server if you want to move servers).
-
 2. Stop the Pleroma service.
 
 `systemctl stop pleroma`
