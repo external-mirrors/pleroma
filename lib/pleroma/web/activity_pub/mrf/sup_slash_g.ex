@@ -1,4 +1,4 @@
-defmodule Pleroma.Web.ActivityPub.MRF.SupSlashB do
+defmodule Pleroma.Web.ActivityPub.MRF.SupSlashG do
   require Logger
   @behaviour Pleroma.Web.ActivityPub.MRF
 
