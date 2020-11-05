@@ -50,7 +50,6 @@ defmodule Pleroma.Web.MastodonAPI.NotificationController do
     favourite
     move
     pleroma:emoji_reaction
-    pleroma:report
   }
   def index(%{assigns: %{user: user}} = conn, params) do
     params =

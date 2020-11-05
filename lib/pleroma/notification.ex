@@ -70,6 +70,7 @@ defmodule Pleroma.Notification do
     move
     pleroma:chat_mention
     pleroma:emoji_reaction
+    pleroma:report
     reblog
   }
 
