@@ -1,6 +1,8 @@
 defmodule Pleroma.Repo.Migrations.AddPleromaReportTypeToEnumForNotifications do
   use Ecto.Migration
 
+  @disable_ddl_transaction true
+
   def up do
     """
     alter type notification_type add value 'pleroma:report'
