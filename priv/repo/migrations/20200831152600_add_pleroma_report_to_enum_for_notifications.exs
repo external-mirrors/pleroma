@@ -1,34 +1,9 @@
-defmodule Pleroma.Repo.Migrations.ChangeTypeToEnumForNotifications do
+defmodule Pleroma.Repo.Migrations.AddPleromaReportTypeToEnumForNotifications do
   use Ecto.Migration
 
   def up do
-    alter table(:notifications) do
-      modify(:type, :string)
-    end
-
     """
-    drop type if exists notification_type
-    """
-    |> execute()
-
-    """
-    create type notification_type as enum (
-    'favourite',
-    'follow',
-    'follow_request',
-    'mention',
-    'move',
-    'pleroma:chat_mention',
-    'pleroma:emoji_reaction',
-    'pleroma:report',
-    'reblog'
-    )
-    """
-    |> execute()
-
-    """
-    alter table notifications 
-    alter column type type notification_type using (type::notification_type)
+    alter type notification_type add value 'pleroma:report'
     """
     |> execute()
   end
