@@ -145,7 +145,7 @@ This notification has to be requested explicitly.
 The `type` value is `pleroma:report`
 
 - `account`: The account who reported
-- `chat_message`: The report
+- `report`: The report
 
 ## GET `/api/v1/notifications`
 
