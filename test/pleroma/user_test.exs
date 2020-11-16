@@ -388,6 +388,7 @@ defmodule Pleroma.UserTest do
     }
 
     setup do: clear_config([:instance, :autofollowed_nicknames])
+    setup do: clear_config([:instance, :autofollowing_nicknames])
     setup do: clear_config([:welcome])
     setup do: clear_config([:instance, :account_activation_required])
 
@@ -406,6 +407,23 @@ defmodule Pleroma.UserTest do
 
       assert User.following?(registered_user, user)
       refute User.following?(registered_user, remote_user)
+    end
+
+    test "it adds automatic followers for new registered accounts" do
+      user1 = insert(:user)
+      user2 = insert(:user)
+
+      Pleroma.Config.put([:instance, :autofollowing_nicknames], [
+        user1.nickname,
+        user2.nickname
+      ])
+
+      cng = User.register_changeset(%User{}, @full_user_data)
+
+      {:ok, registered_user} = User.register(cng)
+
+      assert User.following?(user1, registered_user)
+      assert User.following?(user2, registered_user)
     end
 
     test "it sends a welcome message if it is set" do
@@ -990,12 +1008,44 @@ defmodule Pleroma.UserTest do
       assert User.muted_notifications?(user, muted_user)
     end
 
+    test "expiring" do
+      user = insert(:user)
+      muted_user = insert(:user)
+
+      {:ok, _user_relationships} = User.mute(user, muted_user, %{expires_in: 60})
+      assert User.mutes?(user, muted_user)
+
+      worker = Pleroma.Workers.MuteExpireWorker
+      args = %{"op" => "unmute_user", "muter_id" => user.id, "mutee_id" => muted_user.id}
+
+      assert_enqueued(
+        worker: worker,
+        args: args
+      )
+
+      assert :ok = perform_job(worker, args)
+
+      refute User.mutes?(user, muted_user)
+      refute User.muted_notifications?(user, muted_user)
+    end
+
     test "it unmutes users" do
       user = insert(:user)
       muted_user = insert(:user)
 
       {:ok, _user_relationships} = User.mute(user, muted_user)
       {:ok, _user_mute} = User.unmute(user, muted_user)
+
+      refute User.mutes?(user, muted_user)
+      refute User.muted_notifications?(user, muted_user)
+    end
+
+    test "it unmutes users by id" do
+      user = insert(:user)
+      muted_user = insert(:user)
+
+      {:ok, _user_relationships} = User.mute(user, muted_user)
+      {:ok, _user_mute} = User.unmute(user.id, muted_user.id)
 
       refute User.mutes?(user, muted_user)
       refute User.muted_notifications?(user, muted_user)
@@ -1008,7 +1058,7 @@ defmodule Pleroma.UserTest do
       refute User.mutes?(user, muted_user)
       refute User.muted_notifications?(user, muted_user)
 
-      {:ok, _user_relationships} = User.mute(user, muted_user, false)
+      {:ok, _user_relationships} = User.mute(user, muted_user, %{notifications: false})
 
       assert User.mutes?(user, muted_user)
       refute User.muted_notifications?(user, muted_user)
