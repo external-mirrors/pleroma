@@ -25,6 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The site title is now injected as a `title` tag like preloads or metadata.
 - Password reset tokens now are not accepted after a certain age.
 - Mix tasks to help with displaying and removing ConfigDB entries. See `mix pleroma.config`
+- OAuth form improvements: users are remembered by their cookie, the CSS is overridable by the admin, and the style has been improved.
+- OAuth improvements and fixes: more secure session-based authentication (by token that could be revoked anytime), ability to revoke belonging OAuth token from any client etc. 
 
 <details>
   <summary>API Changes</summary>
@@ -33,7 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Pleroma API: (`GET /api/v1/pleroma/federation_status`) Add a way to get a list of unreachable instances.
 - Mastodon API: User and conversation mutes can now auto-expire if `expires_in` parameter was given while adding the mute.
 - Admin API: An endpoint to manage frontends
-
+- Streaming API: Add follow relationships updates  
 </details>
 
 ### Fixed
