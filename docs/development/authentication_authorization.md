@@ -18,4 +18,4 @@
 
 ## Auth-related configuration, OAuth consumer mode etc.
 
-See `Authentication` section of [the configuration cheatsheet](configuration/cheatsheet.md#authentication).
+See `Authentication` section of [the configuration cheatsheet](../configuration/cheatsheet.md#authentication).
