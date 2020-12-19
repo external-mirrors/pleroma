@@ -1,4 +1,4 @@
-# Setting up Pleroma dev
+# Setting up a Pleroma development environment
 
 Pleroma doesn't *just* work when running local. Mostley this is because you probably won't be running over https locally. The following should help you to get started.
 
