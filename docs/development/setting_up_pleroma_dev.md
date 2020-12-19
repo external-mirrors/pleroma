@@ -8,7 +8,7 @@ To upstream code, you make an account on git.pleroma.social if you don't already
 
 ## Installing
 
-1. Install Pleroma as explained in the docs: https://docs-develop.pleroma.social/backend/installation/debian_based_en/ but with some exceptions:
+1. Install Pleroma as explained in [the docs](../installation/debian_based.md), with some exceptions:
     * Use your own repository instead of pleroma's and add pleroma as a remote `git remote add pleroma 'https://git.pleroma.social/pleroma/pleroma'`
     * You can skip systemd and nginx and all that stuff
     * No need to create a dedicated pleroma user, it's easier to just use your own user (although you can if you want)
