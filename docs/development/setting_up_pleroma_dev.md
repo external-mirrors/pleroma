@@ -83,7 +83,7 @@ mix ecto.migrate;
 
 If you develop on a certain branch, it's possible you did migrations that aren't merged into another branch you're working on. If you have multiple things you're working on, it's probably best to set up multiple pleroma's with each their own database. If you finished with a branch and just want to switch back to develop to start a new branch from there, you can drop the database, switch back to develop and recreate the database
 
-### Removign the database and user completely
+### Removing the database and user completely
 
 ```sh
 sudo -Hu postgres psql -c "DROP DATABASE pleroma_local;"
