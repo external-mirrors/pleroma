@@ -5,7 +5,7 @@ defmodule Pleroma.Repo.Migrations.AddFtsIndexToObjectsTwo do
     execute("create extension if not exists rum")
 
     drop_if_exists(
-      index(:objects, ["(to_tsvector(data->>'content'))"],
+      index(:objects, ["(to_tsvector('english', data->>'content'))"],
         using: :gin,
         name: :objects_fts
       )
@@ -42,7 +42,7 @@ defmodule Pleroma.Repo.Migrations.AddFtsIndexToObjectsTwo do
     end
 
     create_if_not_exists(
-      index(:objects, ["(to_tsvector(data->>'content'))"],
+      index(:objects, ["(to_tsvector('english', data->>'content'))"],
         using: :gin,
         name: :objects_fts
       )
