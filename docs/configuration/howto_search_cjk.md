@@ -20,35 +20,21 @@ SELECT ts_debug('YOUR.CONFIG', '安装和配置Nginx, ElixirとErlangをイン�
 Check output of the query, and see if it matches your expectation.
 
 
-## Update default search config for Pleroma database
-```
-ALTER DATABASE pleroma SET default_text_search_config = 'YOUR.CONFIG';
-```
+## Update text search config and index in database
 
+=== "OTP"
 
-## Update index 
+    ```sh
+    ./bin/pleroma_ctl database set_text_search_config YOUR.CONFIG
+    ```
 
-### if you are using GIN
-In index definition, `YOUR.CONFIG` has to be hardcoded due to [PostgreSQL requirement](https://www.postgresql.org/docs/current/textsearch-tables.html#TEXTSEARCH-TABLES-INDEX), so you have to update it from the original value of `english`:
-```
-DROP INDEX objects_fts;
-CREATE INDEX objects_fts ON objects USING gin(to_tsvector('YOUR.CONFIG', data->>'content'));
-```
+=== "From Source"
 
-### if you are using RUM
-update trigger function definition to use the default search config of Pleroma database
-```
-CREATE OR REPLACE FUNCTION objects_fts_update() RETURNS trigger AS $$
-    begin
-    new.fts_content := to_tsvector(new.data->>'content');
-    return new;
-    end
-$$ LANGUAGE plpgsql
-```
-and, if not on a fresh Pleroma install, refresh index for existing statuses:
-```
-UPDATE objects SET updated_at = NOW();
-```
+    ```sh
+    mix pleroma.database set_text_search_config YOUR.CONFIG
+    ```
+
+Note: index update may take a while.
 
 ## Restart database connection
 Since some changes above will only apply with a new database connection, you will have to restart either Pleroma or PostgreSQL process, or use `pg_terminate_backend` SQL command without restarting either. 
