@@ -181,7 +181,7 @@ defmodule Mix.Tasks.Pleroma.Database do
     else
       rum_enabled = Pleroma.Config.get([:database, :rum_enabled])
       shell_info("Recreate index, RUM: #{rum_enabled}")
-      # Note SQL below needs to be kept up-to-date with latest GIN or RUM index definition in any future migration
+      # Note SQL below needs to be kept up-to-date with latest GIN or RUM index definition in future
       if rum_enabled do
         Ecto.Adapters.SQL.query!(Pleroma.Repo, "CREATE OR REPLACE FUNCTION objects_fts_update() RETURNS trigger AS $$ BEGIN
             new.fts_content := to_tsvector(new.data->>'content');
@@ -191,7 +191,7 @@ defmodule Mix.Tasks.Pleroma.Database do
         shell_info("Refresh RUM index")
         Ecto.Adapters.SQL.query!(Pleroma.Repo, "UPDATE objects SET updated_at = NOW();")
       else
-        Ecto.Adapters.SQL.query!(Pleroma.Repo, "DROP INDEX IF EXISTS objects_fts;");
+        Ecto.Adapters.SQL.query!(Pleroma.Repo, "DROP INDEX IF EXISTS objects_fts;")
         Ecto.Adapters.SQL.query!(Pleroma.Repo, "CREATE INDEX objects_fts ON objects USING gin(to_tsvector('#{tsconfig}', data->>'content')); ")
       end
       shell_info('Done.')
