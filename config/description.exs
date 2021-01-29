@@ -60,6 +60,12 @@ frontend_options = [
     label: "Build directory",
     type: :string,
     description: "The directory inside the zip file "
+  },
+  %{
+    key: "custom-http-headers",
+    label: "Custom HTTP headers",
+    type: {:list, :string},
+    description: "The custom HTTP headers for the frontend"
   }
 ]
 
@@ -1627,13 +1633,20 @@ config :pleroma, :config_description, [
     group: :pleroma,
     key: Pleroma.Web.MediaProxy.Invalidation.Script,
     type: :group,
-    description: "Script invalidate settings",
+    description: "Invalidation script settings",
     children: [
       %{
         key: :script_path,
         type: :string,
-        description: "Path to shell script. Which will run purge cache.",
+        description: "Path to executable script which will purge cached items.",
         suggestions: ["./installation/nginx-cache-purge.sh.example"]
+      },
+      %{
+        key: :url_format,
+        type: :string,
+        description:
+          "Optional URL format preprocessing. Only required for Apache's htcacheclean.",
+        suggestions: [":htcacheclean"]
       }
     ]
   },
