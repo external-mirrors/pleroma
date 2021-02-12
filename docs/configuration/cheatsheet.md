@@ -712,6 +712,12 @@ No specific configuration.
 
 * `args`: List of actions for the `mogrify` command like `"strip"` or `["strip", "auto-orient", {"implode", "1"}]`.
 
+#### Pleroma.Upload.Filter.HeifToJpeg
+
+This filter converts HEIC/HEIF files commonly found on MacOS/iOS to JPEGs.
+
+No specific configuration.
+
 ## Email
 
 ### Pleroma.Emails.Mailer

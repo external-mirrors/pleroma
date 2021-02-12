@@ -172,7 +172,8 @@ defmodule Pleroma.ApplicationRequirements do
       check_filter(Pleroma.Upload.Filter.Exiftool.ReadDescription, "exiftool"),
       check_filter(Pleroma.Upload.Filter.Mogrify, "mogrify"),
       check_filter(Pleroma.Upload.Filter.Mogrifun, "mogrify"),
-      check_filter(Pleroma.Upload.Filter.AnalyzeMetadata, "ffprobe")
+      check_filter(Pleroma.Upload.Filter.AnalyzeMetadata, "ffprobe"),
+      check_filter(Pleroma.Upload.Filter.HeifToJpeg)
     ]
 
     preview_proxy_commands_status =
@@ -220,6 +221,12 @@ defmodule Pleroma.ApplicationRequirements do
   end
 
   defp check_repo_pool_size!(result), do: result
+
+  defp check_filter(Pleroma.Upload.Filter.HeifToJpeg) do
+    {:ok, supported} = Vix.Vips.Image.supported_saver_suffixes()
+
+    ".heif" in supported
+  end
 
   defp check_filter(filter, command_required) do
     filters = Config.get([Pleroma.Upload, :filters])
