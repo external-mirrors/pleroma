@@ -38,7 +38,12 @@ defmodule Pleroma.Web.MastodonAPI.ConversationView do
     # except when the current user is the only participant
     users =
       if length(participation.recipients) > 1 do
-        Enum.reject(participation.recipients, &(&1.id == user.id))
+        Enum.reject(
+          participation.recipients,
+          fn
+            x -> x.id == user.id || is_nil(x.id)
+          end
+        )
       else
         participation.recipients
       end
