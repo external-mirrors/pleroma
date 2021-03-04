@@ -357,6 +357,69 @@ defmodule Pleroma.Web.MastodonAPI.StatusControllerTest do
       assert activity.data["to"] == [user2.ap_id]
       assert activity.data["cc"] == []
     end
+
+    test "discloses application metadata when enabled" do
+      user = insert(:user, disclose_client: true)
+      %{user: _user, token: token, conn: conn} = oauth_access(["write:statuses"], user: user)
+
+      %Pleroma.Web.OAuth.Token{
+        app: %Pleroma.Web.OAuth.App{
+          client_name: app_name,
+          website: app_website
+        }
+      } = token
+
+      result =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/v1/statuses", %{
+          "status" => "cofe is my copilot"
+        })
+
+      assert %{
+               "content" => "cofe is my copilot"
+             } = json_response_and_validate_schema(result, 200)
+
+      activity = result.assigns.activity.id
+
+      result =
+        conn
+        |> get("api/v1/statuses/#{activity}")
+
+      assert %{
+               "content" => "cofe is my copilot",
+               "application" => %{
+                 "name" => ^app_name,
+                 "website" => ^app_website
+               }
+             } = json_response_and_validate_schema(result, 200)
+    end
+
+    test "hides application metadata when disabled" do
+      user = insert(:user, disclose_client: false)
+      %{user: _user, token: _token, conn: conn} = oauth_access(["write:statuses"], user: user)
+
+      result =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/v1/statuses", %{
+          "status" => "club mate is my wingman"
+        })
+
+      assert %{"content" => "club mate is my wingman"} =
+               json_response_and_validate_schema(result, 200)
+
+      activity = result.assigns.activity.id
+
+      result =
+        conn
+        |> get("api/v1/statuses/#{activity}")
+
+      assert %{
+               "content" => "club mate is my wingman",
+               "application" => nil
+             } = json_response_and_validate_schema(result, 200)
+    end
   end
 
   describe "posting scheduled statuses" do

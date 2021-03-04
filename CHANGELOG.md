@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+- The `application` metadata returned with statuses is no longer hardcoded. Apps that want to display these details will now have valid data for new posts after this change.
+
+## Unreleased (Patch)
+
+## [2.3.0] - 2020-03-01
+
+### Security
+
+- Fixed client user agent leaking through MediaProxy
+
 ### Removed
 
 - `:auth, :enforce_oauth_admin_scope_usage` configuration option.
@@ -37,13 +47,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Breaking:** AdminAPI `GET /api/pleroma/admin/instances/:instance/statuses` changed response format and added the number of total users posts.
 - Admin API: Reports now ordered by newest
 - Pleroma API: `GET /api/v1/pleroma/chats` is deprecated in favor of `GET /api/v2/pleroma/chats`.
+- Pleroma API: Reroute `/api/pleroma/*` to `/api/v1/pleroma/*`
 
 </details>
 
 ### Added
 
 - Reports now generate notifications for admins and mods.
-- Experimental websocket-based federation between Pleroma instances.
 - Support for local-only statuses.
 - Support pagination of blocks and mutes.
 - Account backup.
@@ -97,9 +107,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Mastodon API: Fixed creation of scheduled posts with polls.
   - Mastodon API: Support for expires_in/expires_at in the Filters.
 </details>
-
-## Unreleased (Patch)
-
 
 ## [2.2.2] - 2020-01-18
 
