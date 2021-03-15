@@ -131,13 +131,23 @@ defmodule Pleroma.Web.RichMedia.Parser do
   end
 
   def parse_url(url) do
-    with {:ok, %Tesla.Env{body: html}} <- Pleroma.Web.RichMedia.Helpers.rich_media_get(url),
-         {:ok, html} <- Floki.parse_document(html) do
-      html
-      |> maybe_parse()
-      |> Map.put("url", url)
-      |> clean_parsed_data()
-      |> check_parsed_data()
+    case OEmbed.for(url) do
+      {:ok, result} ->
+        result
+        |> Map.from_struct()
+        |> Map.new(fn {k, v} -> {to_string(k), v} end)
+        |> clean_parsed_data()
+        |> check_parsed_data()
+
+      {:error, _} ->
+        with {:ok, %Tesla.Env{body: html}} <- Pleroma.Web.RichMedia.Helpers.rich_media_get(url),
+             {:ok, html} <- Floki.parse_document(html) do
+          html
+          |> maybe_parse()
+          |> Map.put("url", url)
+          |> clean_parsed_data()
+          |> check_parsed_data()
+        end
     end
   end
 

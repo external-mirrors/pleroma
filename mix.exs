@@ -199,6 +199,7 @@ defmodule Pleroma.Mixfile do
       {:open_api_spex,
        git: "https://git.pleroma.social/pleroma/elixir-libraries/open_api_spex.git",
        ref: "f296ac0924ba3cf79c7a588c4c252889df4c2edd"},
+      {:oembed, "~> 0.4.1"},
 
       ## dev & test
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
