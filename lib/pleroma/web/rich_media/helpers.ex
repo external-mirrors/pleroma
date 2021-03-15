@@ -105,6 +105,7 @@ defmodule Pleroma.Web.RichMedia.Helpers do
       {_, content_type} ->
         case Plug.Conn.Utils.media_type(content_type) do
           {:ok, "text", "html", _} -> :ok
+          {:ok, "application", "json", _} -> :ok
           _ -> {:error, {:content_type, content_type}}
         end
 
