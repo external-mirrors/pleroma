@@ -43,7 +43,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiHellthreadPolicy do
       _reply =
         CommonAPI.post(User.get_by_nickname(bot_user), %{
           status: "@" <> recipient.nickname <> " you have been " <> action <> " by @" <> actor.nickname,
-          "visibility" => "direct"
+          visibility: "direct"
         })
     end
 
