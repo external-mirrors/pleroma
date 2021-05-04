@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - MRF (`FollowBotPolicy`): New MRF Policy which makes a designated local Bot account attempt to follow all users in public Notes received by your instance. Users who require approving follower requests or have #nobot in their profile are excluded.
 - Return OAuth token `id` (primary key) in POST `/oauth/token`.
 
+### Fixed
+- Don't crash so hard when email settings are invalid.
+
 ## Unreleased (Patch)
 
 ### Fixed
@@ -25,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Applying ConcurrentLimiter settings via AdminAPI
 - User login failures if their `notification_settings` were in a NULL state.
 - Mix task `pleroma.user delete_activities` query transaction timeout is now :infinity
+- Fixed some Markdown issues, including trailing slash in links.
 
 ## [2.3.0] - 2020-03-01
 
