@@ -33,7 +33,9 @@ If your platform is not supported, or you just want to be able to edit the sourc
 Currently Pleroma is not packaged by any OS/Distros, but if you want to package it for one, we can guide you through the process on our [community channels](#community-channels). If you want to change default options in your Pleroma package, please **discuss it with us first**.
 
 ### Docker
-While we don’t provide docker files, other people have written very good ones. Take a look at <https://github.com/angristan/docker-pleroma> or <https://glitch.sh/sn0w/pleroma-docker>.
+There is a docker image available via the GitLab registry at `git.pleroma.social:5050/pleroma/pleroma`. You can see the `docker-compose.example.yaml` file in this repository for an example on how to deploy it using `docker-compose` or `docker stack deploy`.
+
+For more information, you can take a look at <https://github.com/angristan/docker-pleroma> or <https://glitch.sh/sn0w/pleroma-docker>.
 
 ### Compilation Troubleshooting
 If you ever encounter compilation issues during the updating of Pleroma, you can try these commands and see if they fix things:

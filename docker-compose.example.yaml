@@ -1,0 +1,56 @@
+# An example deployment configuration for docker-compose and docker stack deploy
+version: '3'
+services:
+  db:
+    # If you would like to use things like search extensions
+    # (as in https://docs.pleroma.social/backend/configuration/howto_search_cjk/ )
+    # it may be more appropriate to use a custom postgres image.
+    image: postgres:alpine
+    # Create the environment file as follows:
+    # POSTGRES_USER=pleroma
+    # POSTGRES_DB=pleroma
+    # POSTGRES_PASSWORD=some-randomly-generated-password
+    env_file: postgres.env
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "pleroma"]
+    volumes:
+      # Replace /path/to/pleroma with where you would like to store data.
+      # For deployments using docker-compose, you can also just use `./`.
+      - /path/to/pleroma/postgres:/var/lib/postgresql/data
+    # For docker stack deploy: you may want to restrict where to run
+    # the database, as in most cases it is best to put db files on a local disk
+    # for performance and reliability.
+    #deploy:
+    #  placement:
+    #    constraints:
+    #      - 'node.hostname==this-machine-just-for-dbs'
+
+  pleroma:
+    # This is the stable image from pleroma's registry.
+    # To use the image built from the develop branch, use
+    # git.pleroma.social:5050/pleroma/pleroma:latest instead.
+    image: git.pleroma.social:5050/pleroma/pleroma:latest-stable
+    depends_on:
+      - db
+    networks:
+      - internal
+      - external
+    ports:
+      - "4000:4000"
+    # Create the environment file as follows:
+    # DB_PASS=some-randomly-generated-password
+    # DB_HOST=db
+    # DB_NAME=pleroma
+    # DB_USER=pleroma
+    env_file: pleroma.env
+    volumes:
+      - /path/to/pleroma/pleroma-data/uploads:/var/lib/pleroma/uploads
+      - /path/to/pleroma/pleroma-data/static:/var/lib/pleroma/static
+      - /path/to/pleroma/pleroma-data/conf:/etc/pleroma
+
+networks:
+  internal:
+    internal: true
+  external:
