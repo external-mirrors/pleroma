@@ -1,7 +1,6 @@
 # Switching a from-source install to OTP releases
 
-## What are OTP releases?
-OTP releases are as close as you can get to binary releases with Erlang/Elixir. The release is self-contained, and provides everything needed to boot it, it is easily administered via the provided shell script to open up a remote console, start/stop/restart the release, start in the background, send remote commands, and more.
+{! backend/installation/what_are_otp_releases.include !}
 
 ## Pre-requisites
 You will be running commands as root. If you aren't root already, please elevate your priviledges by executing `sudo su`/`su`.

@@ -1,5 +1,7 @@
 # Installing on FreeBSD
 
+{! backend/installation/otp_recomended.include !}
+
 This document was written for FreeBSD 12.1, but should be work on future releases.
 
 {! backend/installation/generic_dependencies.include !}

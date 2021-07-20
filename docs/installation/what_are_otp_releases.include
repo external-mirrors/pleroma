@@ -1,0 +1,2 @@
+## What are OTP releases?
+OTP releases are as close as you can get to binary releases with Erlang/Elixir. The release is self-contained, and provides everything needed to boot it, it is easily administered via the provided shell script to open up a remote console, start/stop/restart the release, start in the background, send remote commands, and more. They simplify deployment and since they are self-contained, you have less chance of a whole class of bugs. Using OTP releases is the recommended way to install Pleroma.

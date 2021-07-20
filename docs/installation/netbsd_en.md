@@ -1,5 +1,7 @@
 # Installing on NetBSD
 
+{! backend/installation/otp_recomended.include !}
+
 {! backend/installation/generic_dependencies.include !}
 
 ## Installing software used in this guide
