@@ -1,6 +1,6 @@
 # Installing on Gentoo GNU/Linux
 
-{! backend/installation/otp_recomended.include !}
+{! backend/installation/otp_vs_from_source_source.include !}
 
 ## Installation
 

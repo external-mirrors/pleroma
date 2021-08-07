@@ -1,2 +1,0 @@
-!!! warning
-    This guide installs Pleroma from source and is not the recommended way of installing Pleroma. Unless you really need a from source installation, please refer to the guide for [Installing on Linux using OTP releases](./otp_en.md). The OTP releases use binary releases and bundles several dependencies, which makes it less prone to bugs and is easier to install.

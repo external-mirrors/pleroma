@@ -1,6 +1,8 @@
 # Switching a from-source install to OTP releases
 
-{! backend/installation/what_are_otp_releases.include !}
+{! backend/installation/otp_vs_from_source.include !}
+
+In this guide we cover how you can migrate from a from source installation to one using OTP releases.
 
 ## Pre-requisites
 You will be running commands as root. If you aren't root already, please elevate your priviledges by executing `sudo su`/`su`.
