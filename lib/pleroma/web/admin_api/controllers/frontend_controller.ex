@@ -37,7 +37,7 @@ defmodule Pleroma.Web.AdminAPI.FrontendController do
   defp installed do
     fronetend_directory = Pleroma.Frontend.dir()
 
-    if(File.exists?(fronetend_directory)) do
+    if File.exists?(fronetend_directory) do
       File.ls!(fronetend_directory)
     else
       []
