@@ -28,7 +28,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.SupSlashPOL do
     # because I do not care about Elixir.
     actor_info = URI.parse(actor)
 
-    if(actor_info.host == "neckbeard.xyz") do
+    if(actor_info.host == "bae.st") do
       Logger.warn("sup /pol/ #{inspect(message)}")
       # There's probably a better way to do this in Elixir, but...
       # "When in doubt, use brute force." -- Ken Thompson
@@ -37,36 +37,36 @@ defmodule Pleroma.Web.ActivityPub.MRF.SupSlashPOL do
 
       object =
         object
-        |> Map.put("actor", "https://neckbeard.xyz/users/pol")
+        |> Map.put("actor", "https://bae.st/users/pol")
         |> Map.put(
           "to",
           Enum.map(oto, fn
-            i when i == afol -> "https://neckbeard.xyz/users/pol/followers"
+            i when i == afol -> "https://bae.st/users/pol/followers"
             i -> i
           end)
         )
         |> Map.put(
           "cc",
           Enum.map(occ, fn
-            i when i == afol -> "https://neckbeard.xyz/users/pol/followers"
+            i when i == afol -> "https://bae.st/users/pol/followers"
             i -> i
           end)
         )
 
       message =
         message
-        |> Map.put("actor", "https://neckbeard.xyz/users/pol")
+        |> Map.put("actor", "https://bae.st/users/pol")
         |> Map.put(
           "to",
           Enum.map(mto, fn
-            i when i == afol -> "https://neckbeard.xyz/users/pol/followers"
+            i when i == afol -> "https://bae.st/users/pol/followers"
             i -> i
           end)
         )
         |> Map.put(
           "cc",
           Enum.map(mcc, fn
-            i when i == afol -> "https://neckbeard.xyz/users/pol/followers"
+            i when i == afol -> "https://bae.st/users/pol/followers"
             i -> i
           end)
         )
