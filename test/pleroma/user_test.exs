@@ -2084,6 +2084,17 @@ defmodule Pleroma.UserTest do
       assert user.ap_id in ap_ids
       assert user_two.ap_id in ap_ids
     end
+
+    test "it returns a list of AP ids in the same order" do
+      user = insert(:user)
+      user_two = insert(:user)
+      user_three = insert(:user)
+
+      ap_ids =
+        User.get_ap_ids_by_nicknames([user.nickname, user_three.nickname, user_two.nickname])
+
+      assert [user.ap_id, user_three.ap_id, user_two.ap_id] == ap_ids
+    end
   end
 
   describe "sync followers count" do
@@ -2497,5 +2508,40 @@ defmodule Pleroma.UserTest do
     %{id: id} = insert(:note_activity, user: user)
     %{object: %{data: %{"id" => object_id}}} = Activity.get_by_id_with_object(id)
     object_id
+  end
+
+  describe "account endorsements" do
+    test "it pins people" do
+      user = insert(:user)
+      pinned_user = insert(:user)
+
+      {:ok, _pinned_user, _user} = User.follow(user, pinned_user)
+
+      refute User.endorses?(user, pinned_user)
+
+      {:ok, _user_relationship} = User.endorse(user, pinned_user)
+
+      assert User.endorses?(user, pinned_user)
+    end
+
+    test "it unpins users" do
+      user = insert(:user)
+      pinned_user = insert(:user)
+
+      {:ok, _pinned_user, _user} = User.follow(user, pinned_user)
+      {:ok, _user_relationship} = User.endorse(user, pinned_user)
+      {:ok, _user_pin} = User.unendorse(user, pinned_user)
+
+      refute User.endorses?(user, pinned_user)
+    end
+
+    test "it doesn't pin users you do not follow" do
+      user = insert(:user)
+      pinned_user = insert(:user)
+
+      assert {:error, _message} = User.endorse(user, pinned_user)
+
+      refute User.endorses?(user, pinned_user)
+    end
   end
 end
