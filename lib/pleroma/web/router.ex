@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2022 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.Router do
@@ -668,6 +668,11 @@ defmodule Pleroma.Web.Router do
     get("/objects/:uuid", OStatus.OStatusController, :object)
     get("/activities/:uuid", OStatus.OStatusController, :activity)
     get("/notice/:id", OStatus.OStatusController, :notice)
+
+    # Notice compatibility routes for other frontends
+    get("/@:nickname/:id", OStatus.OStatusController, :notice)
+    get("/@:nickname/posts/:id", OStatus.OStatusController, :notice)
+    get("/:nickname/status/:id", OStatus.OStatusController, :notice)
 
     # Mastodon compatibility routes
     get("/users/:nickname/statuses/:id", OStatus.OStatusController, :object)
