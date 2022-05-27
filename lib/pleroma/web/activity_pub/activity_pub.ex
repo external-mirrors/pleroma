@@ -1250,8 +1250,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   defp restrict_unauthenticated(query, _), do: query
 
   defp restrict_quote_url(query, %{quote_url: quote_url}) do
-    IO.inspect(quote_url)
-
     from([_activity, object] in query,
       where: fragment("(?)->'quoteUrl' = ?", object.data, ^quote_url)
     )
