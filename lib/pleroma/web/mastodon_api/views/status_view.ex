@@ -448,7 +448,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
         emoji_reactions: emoji_reactions,
         parent_visible: visible_for_user?(reply_to, opts[:for]),
         pinned_at: pinned_at,
-        quote_count: object.data["quotesCount"] || 0,
+        quote_count: object.data["quotesCount"] || 0
     }
   end
 
