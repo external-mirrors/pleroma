@@ -1846,7 +1846,4 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   defp maybe_restrict_deactivated_users(activity, _opts),
     do: Activity.restrict_deactivated_users(activity)
-
-  def fetch_quotes(%Activity{data: %{"id" => ap_id}} = activity, params) do
-  end
 end
