@@ -9,8 +9,6 @@ defmodule Pleroma.Repo.Migrations.CreateAttachmentRelationships do
       timestamps()
     end
 
-    create_if_not_exists(
-      unique_index(:attachment_relationships, [:object_id, :attachment_id])
-    )
+    create_if_not_exists(unique_index(:attachment_relationships, [:object_id, :attachment_id]))
   end
 end

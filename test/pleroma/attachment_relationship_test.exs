@@ -23,6 +23,7 @@ defmodule Pleroma.AttachmentRelationshipTest do
   describe "create_many/2" do
     test "creates many relationships" do
       object = insert(:note)
+
       attachments =
         [1..5]
         |> Enum.map(fn _ -> insert(:note) end)
@@ -39,6 +40,7 @@ defmodule Pleroma.AttachmentRelationshipTest do
   describe "attachments_of/1" do
     test "gets attachments" do
       object = insert(:note)
+
       attachments =
         [1..5]
         |> Enum.map(fn _ -> insert(:note) end)
