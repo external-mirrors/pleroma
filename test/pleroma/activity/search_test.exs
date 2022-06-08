@@ -157,6 +157,16 @@ defmodule Pleroma.Activity.SearchTest do
       assert private_mentioned.id in ids
     end
 
+    test "found self-posted statuses", %{searcher: searcher} do
+      {:ok, self_posted} = CommonAPI.post(searcher, %{status: "mew mew", visibility: "direct"})
+
+      results = Search.search(searcher, "mew")
+      assert [_] = results
+
+      ids = Enum.map(results, & &1.id)
+      assert self_posted.id in ids
+    end
+
     test "found bookmarked statuses", %{searcher: searcher, unlisted: unlisted} do
       Pleroma.Bookmark.create(searcher.id, unlisted.id)
 
