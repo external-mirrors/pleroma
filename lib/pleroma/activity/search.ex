@@ -141,21 +141,21 @@ defmodule Pleroma.Activity.Search do
 
     q =
       Activity.with_preloaded_bookmark(q, user)
-      |> join(:left, [a, o, b], interact in Activity,
-        on:
-          interact.actor == ^user.ap_id and
-            fragment(
-              "(?->>'id') = COALESCE((?)->'object'->> 'id', (?)->>'object')",
-              o.data,
-              interact.data,
-              interact.data
-            ) and
-            fragment("ARRAY[?->>'type'] && ?", interact.data, ^@interact_activity_types)
+      |> join(
+        :left_lateral,
+        [a, o, b],
+        interact in fragment(
+          "SELECT * FROM activities AS interact WHERE interact.actor = ? AND (?->>'id') = COALESCE((interact.data)->'object'->> 'id', (interact.data)->>'object') AND ARRAY[interact.data->>'type'] && ? LIMIT 1",
+          ^user.ap_id,
+          o.data,
+          ^@interact_activity_types
+        )
       )
       |> where(
-        [a, o, b, interact],
+        [a, o, b, react],
         fragment("? && ?", ^intended_recipients, a.recipients) or
-          not is_nil(b) or not is_nil(interact)
+          not is_nil(b) or
+          not is_nil(react)
       )
 
     q

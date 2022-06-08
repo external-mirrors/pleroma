@@ -191,6 +191,24 @@ defmodule Pleroma.Activity.SearchTest do
       ids = Enum.map(results, & &1.id)
       assert unlisted.id in ids
     end
+
+    test "found no duplicated statuses", %{
+      searcher: searcher,
+      unlisted: unlisted,
+      private_mentioned: private_mentioned
+    } do
+      Pleroma.Bookmark.create(searcher.id, unlisted.id)
+      Pleroma.Bookmark.create(searcher.id, private_mentioned.id)
+      {:ok, _} = CommonAPI.favorite(searcher, unlisted.id)
+      {:ok, _} = CommonAPI.repeat(unlisted.id, searcher)
+      {:ok, _} = CommonAPI.react_with_emoji(unlisted.id, searcher, "🐈‍⬛")
+
+      results = Search.search(searcher, "wednesday")
+      assert [_, _] = results
+
+      ids = Enum.map(results, & &1.id)
+      assert unlisted.id in ids
+    end
   end
 
   test "it finds local-only posts for authenticated users" do
