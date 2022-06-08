@@ -30,7 +30,8 @@ defmodule Pleroma.Activity.Search do
       Activity
       |> Activity.with_preloaded_object()
       |> Activity.restrict_deactivated_users()
-      |> restrict_public(user)
+      |> restrict_create()
+      |> restrict_searchable(user)
       |> query_with(index_type, search_query, search_function)
       |> maybe_restrict_local(user)
       |> maybe_restrict_author(author)
@@ -57,6 +58,52 @@ defmodule Pleroma.Activity.Search do
 
   def maybe_restrict_blocked(query, _), do: query
 
+  defp restrict_create(q) do
+    from([a, o] in q, where: fragment("?->>'type' = 'Create'", a.data))
+  end
+
+  defp get_config(item) do
+    Pleroma.Config.get([Pleroma.Activity.Search, item])
+  end
+
+  defp restrict_searchable(q, user) do
+    cond do
+      is_nil(user) && get_config(:allow_public) ->
+        restrict_public(q, user)
+
+      get_config(:allow_all_visible) ->
+        restrict_visible(q, user)
+
+      is_nil(user) ->
+        q |> where([a, o], false)
+
+      get_config(:allow_public) && get_config(:allow_interacted) ->
+        restrict_interacted(q, user, also_public: true)
+
+      get_config(:allow_public) ->
+        restrict_public(q, user)
+
+      get_config(:allow_interacted) ->
+        restrict_interacted(q, user, also_public: false)
+
+      true ->
+        q |> where([a, o], false)
+    end
+  end
+
+  defp restrict_visible(q, user) when not is_nil(user) do
+    intended_recipients = [
+      Pleroma.Constants.as_public(),
+      Pleroma.Web.ActivityPub.Utils.as_local_public(),
+      user.ap_id
+      | User.following(user)
+    ]
+
+    from([a, o] in q,
+      where: fragment("? && ?", ^intended_recipients, a.recipients)
+    )
+  end
+
   defp restrict_public(q, user) when not is_nil(user) do
     intended_recipients = [
       Pleroma.Constants.as_public(),
@@ -64,16 +111,54 @@ defmodule Pleroma.Activity.Search do
     ]
 
     from([a, o] in q,
-      where: fragment("?->>'type' = 'Create'", a.data),
       where: fragment("? && ?", ^intended_recipients, a.recipients)
     )
   end
 
   defp restrict_public(q, _user) do
     from([a, o] in q,
-      where: fragment("?->>'type' = 'Create'", a.data),
       where: ^Pleroma.Constants.as_public() in a.recipients
     )
+  end
+
+  @interact_activity_types [
+    "Like",
+    "EmojiReact",
+    "EmojiReaction",
+    "Announce"
+  ]
+  defp restrict_interacted(q, user, opts) when not is_nil(user) do
+    intended_recipients =
+      if opts[:also_public] do
+        [
+          Pleroma.Constants.as_public(),
+          Pleroma.Web.ActivityPub.Utils.as_local_public(),
+          user.ap_id
+        ]
+      else
+        [user.ap_id]
+      end
+
+    q =
+      Activity.with_preloaded_bookmark(q, user)
+      |> join(:left, [a, o, b], interact in Activity,
+        on:
+          interact.actor == ^user.ap_id and
+            fragment(
+              "(?->>'id') = COALESCE((?)->'object'->> 'id', (?)->>'object')",
+              o.data,
+              interact.data,
+              interact.data
+            ) and
+            fragment("ARRAY[?->>'type'] && ?", interact.data, ^@interact_activity_types)
+      )
+      |> where(
+        [a, o, b, interact],
+        fragment("? && ?", ^intended_recipients, a.recipients) or
+          not is_nil(b) or not is_nil(interact)
+      )
+
+    q
   end
 
   defp query_with(q, :gin, search_query, :plain) do

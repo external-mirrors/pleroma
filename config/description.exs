@@ -3475,5 +3475,32 @@ config :pleroma, :config_description, [
         ]
       }
     ]
+  },
+  %{
+    group: :pleroma,
+    key: Pleroma.Activity.Search,
+    type: :group,
+    description: "Status search settings",
+    children: [
+      %{
+        key: :allow_public,
+        type: :boolean,
+        description: "Allow searching all public statuses",
+        suggestions: [true]
+      },
+      %{
+        key: :allow_interacted,
+        type: :boolean,
+        description: "Allow searching all statuses that the user has interacted with",
+        suggestions: [false]
+      },
+      %{
+        key: :allow_all_visible,
+        type: :boolean,
+        description:
+          "Allow searching all visible statuses (this overrides allow_public and allow_interacted)",
+        suggestions: [false]
+      }
+    ]
   }
 ]
