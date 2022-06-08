@@ -192,6 +192,16 @@ defmodule Pleroma.Activity.SearchTest do
       assert unlisted.id in ids
     end
 
+    test "found replied statuses", %{searcher: searcher, unlisted: unlisted} do
+      {:ok, _} = CommonAPI.post(searcher, %{status: "mew mew", in_reply_to_id: unlisted.id})
+
+      results = Search.search(searcher, "wednesday")
+      assert [_, _] = results
+
+      ids = Enum.map(results, & &1.id)
+      assert unlisted.id in ids
+    end
+
     test "found no duplicated statuses", %{
       searcher: searcher,
       unlisted: unlisted,

@@ -151,11 +151,21 @@ defmodule Pleroma.Activity.Search do
           ^@interact_activity_types
         )
       )
-      |> where(
+      |> join(
+        :left_lateral,
         [a, o, b, react],
+        reply in fragment(
+          "SELECT * FROM objects AS reply WHERE reply.data->>'actor' = ? AND reply.data->>'inReplyTo' IS NOT NULL AND reply.data->>'inReplyTo' = ?->>'id' LIMIT 1",
+          ^user.ap_id,
+          o.data
+        )
+      )
+      |> where(
+        [a, o, b, react, reply],
         fragment("? && ?", ^intended_recipients, a.recipients) or
           not is_nil(b) or
-          not is_nil(react)
+          not is_nil(react) or
+          not is_nil(reply)
       )
 
     q
