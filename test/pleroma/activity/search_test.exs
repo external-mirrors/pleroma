@@ -144,6 +144,11 @@ defmodule Pleroma.Activity.SearchTest do
       }
     end
 
+    test "with anonymous user it finds nothing" do
+      results = Search.search(nil, "wednesday")
+      assert [] = results
+    end
+
     test "found mentioned statuses", %{searcher: searcher, private_mentioned: private_mentioned} do
       results = Search.search(searcher, "wednesday")
       assert [_] = results
@@ -218,6 +223,142 @@ defmodule Pleroma.Activity.SearchTest do
 
       ids = Enum.map(results, & &1.id)
       assert unlisted.id in ids
+    end
+
+    test "did not leak invisible statuses", %{searcher: searcher, user: user, private: private} do
+      {:ok, _, _, _} = CommonAPI.follow(searcher, user)
+
+      {:ok, _} = CommonAPI.post(searcher, %{status: "mew mew", in_reply_to_id: private.id})
+
+      results = Search.search(searcher, "wednesday")
+      assert [_, _] = results
+
+      ids = Enum.map(results, & &1.id)
+      assert private.id in ids
+
+      {:ok, _} = CommonAPI.unfollow(searcher, user)
+
+      results = Search.search(searcher, "wednesday")
+      assert [_] = results
+
+      ids = Enum.map(results, & &1.id)
+      refute private.id in ids
+    end
+  end
+
+  describe "when allowing searching both everything interacted and everything public" do
+    setup do
+      clear_config([Pleroma.Activity.Search, :allow_all_visible], false)
+      clear_config([Pleroma.Activity.Search, :allow_interacted], true)
+      clear_config([Pleroma.Activity.Search, :allow_public], true)
+      user = insert(:user)
+      searcher = insert(:user)
+
+      {:ok, public} = CommonAPI.post(user, %{status: "it's wednesday my dudes"})
+
+      {:ok, unlisted} =
+        CommonAPI.post(user, %{status: "it's wednesday my dudes", visibility: "unlisted"})
+
+      {:ok, private} = CommonAPI.post(user, %{status: "wednesday private", visibility: "private"})
+
+      {:ok, private_mentioned} =
+        CommonAPI.post(user, %{
+          status: "wednesday private @#{searcher.nickname}",
+          visibility: "private"
+        })
+
+      %{
+        user: user,
+        searcher: searcher,
+        public: public,
+        unlisted: unlisted,
+        private: private,
+        private_mentioned: private_mentioned
+      }
+    end
+
+    test "with anonymous user it finds only public", %{public: public, unlisted: unlisted} do
+      results = Search.search(nil, "wednesday")
+      assert [_, _] = results
+
+      ids = Enum.map(results, & &1.id)
+      assert public.id in ids
+      assert unlisted.id in ids
+    end
+
+    test "found mentioned and public statuses", %{
+      searcher: searcher,
+      private_mentioned: private_mentioned,
+      public: public,
+      unlisted: unlisted
+    } do
+      results = Search.search(searcher, "wednesday")
+      assert [_, _, _] = results
+
+      ids = Enum.map(results, & &1.id)
+      assert public.id in ids
+      assert unlisted.id in ids
+      assert private_mentioned.id in ids
+    end
+
+    test "found interacted private statuses", %{searcher: searcher, user: user, private: private} do
+      {:ok, _, _, _} = CommonAPI.follow(searcher, user)
+
+      results = Search.search(searcher, "wednesday")
+      assert [_, _, _] = results
+
+      ids = Enum.map(results, & &1.id)
+      refute private.id in ids
+
+      {:ok, _} = CommonAPI.favorite(searcher, private.id)
+
+      results = Search.search(searcher, "wednesday")
+      assert [_, _, _, _] = results
+
+      ids = Enum.map(results, & &1.id)
+      assert private.id in ids
+    end
+  end
+
+  describe "when allowing searching nothing" do
+    setup do
+      clear_config([Pleroma.Activity.Search, :allow_all_visible], false)
+      clear_config([Pleroma.Activity.Search, :allow_interacted], false)
+      clear_config([Pleroma.Activity.Search, :allow_public], false)
+      user = insert(:user)
+      searcher = insert(:user)
+
+      {:ok, public} = CommonAPI.post(user, %{status: "it's wednesday my dudes"})
+
+      {:ok, unlisted} =
+        CommonAPI.post(user, %{status: "it's wednesday my dudes", visibility: "unlisted"})
+
+      {:ok, private} = CommonAPI.post(user, %{status: "wednesday private", visibility: "private"})
+
+      {:ok, private_mentioned} =
+        CommonAPI.post(user, %{
+          status: "wednesday private @#{searcher.nickname}",
+          visibility: "private"
+        })
+
+      %{
+        user: user,
+        searcher: searcher,
+        public: public,
+        unlisted: unlisted,
+        private: private,
+        private_mentioned: private_mentioned
+      }
+    end
+
+    test "with anonymous user it finds nothing" do
+      results = Search.search(nil, "wednesday")
+      assert [] = results
+    end
+
+    test "with registered user it finds nothing", %{searcher: searcher} do
+      results = Search.search(searcher, "wednesday")
+      assert [] = results
     end
   end
 

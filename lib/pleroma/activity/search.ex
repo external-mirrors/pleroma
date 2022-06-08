@@ -31,6 +31,7 @@ defmodule Pleroma.Activity.Search do
       |> Activity.with_preloaded_object()
       |> Activity.restrict_deactivated_users()
       |> restrict_create()
+      |> restrict_visible(user)
       |> restrict_searchable(user)
       |> query_with(index_type, search_query, search_function)
       |> maybe_restrict_local(user)
@@ -69,10 +70,10 @@ defmodule Pleroma.Activity.Search do
   defp restrict_searchable(q, user) do
     cond do
       is_nil(user) && get_config(:allow_public) ->
-        restrict_public(q, user)
+        q
 
       get_config(:allow_all_visible) ->
-        restrict_visible(q, user)
+        q
 
       is_nil(user) ->
         q |> where([a, o], false)
@@ -102,6 +103,10 @@ defmodule Pleroma.Activity.Search do
     from([a, o] in q,
       where: fragment("? && ?", ^intended_recipients, a.recipients)
     )
+  end
+
+  defp restrict_visible(q, anon) do
+    restrict_public(q, anon)
   end
 
   defp restrict_public(q, user) when not is_nil(user) do
