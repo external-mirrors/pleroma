@@ -86,6 +86,38 @@ defmodule Pleroma.Tests.Helpers do
         |> to_datetime()
       end
 
+      @doc """
+      Compares two `NaiveDateTime`s and checks if the absolute difference is withing a given range.
+
+      The range is in seconds. The default range is 5 seconds.
+
+      Returns `true` or `false`.
+
+      ## Examples
+
+      iex> Pleroma.Tests.Helpers.time_diff_within_range(~N[2017-07-17 17:09:58], ~N[2017-07-17 17:10:03])
+      true
+
+      iex> Pleroma.Tests.Helpers.time_diff_within_range(~N[2017-07-17 17:10:03], ~N[2017-07-17 17:09:58])
+      true
+
+      iex> Pleroma.Tests.Helpers.time_diff_within_range(~N[2017-07-17 17:09:58], ~N[2017-07-17 17:10:04])
+      false
+
+      iex> Pleroma.Tests.Helpers.time_diff_within_range(~N[2017-07-17 17:10:04], ~N[2017-07-17 17:09:58])
+      false
+
+      iex> Pleroma.Tests.Helpers.time_diff_within_range(~N[2017-07-17 17:09:58], ~N[2017-07-17 17:10:04], 6)
+      true
+      """
+      def time_diff_within_range(
+            %NaiveDateTime{} = naive_datetime_1,
+            %NaiveDateTime{} = naive_datetime_2,
+            range \\ 5
+          ) do
+        abs(NaiveDateTime.diff(naive_datetime_1, naive_datetime_2)) <= range
+      end
+
       def collect_ids(collection) do
         collection
         |> Enum.map(& &1.id)
