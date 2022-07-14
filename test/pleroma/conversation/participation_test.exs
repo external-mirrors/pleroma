@@ -122,11 +122,11 @@ defmodule Pleroma.Conversation.ParticipationTest do
   end
 
   test "it marks a participation as read" do
-    {:ok, participation} = insert(:participation, %{read: false}) |> time_travel(-3600)
+    participation = insert(:participation, %{updated_at: ~N[2017-07-17 17:09:58], read: false})
     {:ok, updated_participation} = Participation.mark_as_read(participation)
 
     assert updated_participation.read
-    assert time_diff_within_range(updated_participation.updated_at, NaiveDateTime.utc_now())
+    assert NaiveDateTime.diff(updated_participation.updated_at, NaiveDateTime.utc_now()) <= 5
   end
 
   test "it marks a participation as unread" do
