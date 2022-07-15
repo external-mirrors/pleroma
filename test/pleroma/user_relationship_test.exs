@@ -79,8 +79,11 @@ defmodule Pleroma.UserRelationshipTest do
     end
 
     test "if record already exists, returns it", %{users: [user1, user2]} do
-      user_block = UserRelationship.create_block(user1, user2)
-      assert user_block == UserRelationship.create_block(user1, user2)
+      {:ok, user_block} = UserRelationship.create_block(user1, user2)
+      {:ok, new_block} = UserRelationship.create_block(user1, user2)
+
+      assert user_block.id == new_block.id
+      assert Repo.all(from(ur in UserRelationship, select: count(ur.id))) == [1]
     end
   end
 
