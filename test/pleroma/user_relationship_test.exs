@@ -83,7 +83,13 @@ defmodule Pleroma.UserRelationshipTest do
       {:ok, new_block} = UserRelationship.create_block(user1, user2)
 
       assert user_block.id == new_block.id
-      assert Repo.all(from(ur in UserRelationship, select: count(ur.id))) == [1]
+
+      [_] =
+        UserRelationship
+        |> where(relationship_type: :block)
+        |> where(source_id: ^user1.id)
+        |> where(target_id: ^user2.id)
+        |> Repo.all()
     end
   end
 
