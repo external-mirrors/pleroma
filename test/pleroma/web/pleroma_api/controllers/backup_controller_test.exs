@@ -9,7 +9,8 @@ defmodule Pleroma.Web.PleromaAPI.BackupControllerTest do
   alias Pleroma.Web.PleromaAPI.BackupView
 
   setup do
-    clear_config([Pleroma.Upload, :uploader])
+    clear_config([Pleroma.Upload, :uploader], Pleroma.Uploaders.Local)
+    clear_config([Pleroma.Uploaders.Local, :uploads], "uploads")
     clear_config([Backup, :limit_days])
     oauth_access(["read:accounts"])
   end

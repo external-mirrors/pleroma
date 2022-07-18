@@ -428,6 +428,8 @@ defmodule Pleroma.Web.TwitterAPI.RemoteFollowControllerTest do
 
     test "with media proxy" do
       clear_config([:media_proxy, :enabled], true)
+      clear_config([Pleroma.Upload, :uploader], Pleroma.Uploaders.Local)
+      clear_config([Pleroma.Uploaders.Local, :uploads], "uploads")
 
       user =
         insert(:user, %{
