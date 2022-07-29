@@ -16,7 +16,7 @@ defmodule Pleroma.Mixfile do
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: ["coveralls.html": :test],
       # Docs
-      name: "Pleroma",
+      name: "Akkoma",
       homepage_url: "https://neckbeard.xyz/",
       source_url: "https://git.mentality.rip/sjw/pleroma",
       docs: [
