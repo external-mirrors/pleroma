@@ -7,6 +7,7 @@ defmodule Pleroma.UserRelationshipTest do
 
   use Pleroma.DataCase, async: true
 
+  import Mock
   import Pleroma.Factory
 
   describe "*_exists?/2" do
@@ -79,17 +80,14 @@ defmodule Pleroma.UserRelationshipTest do
     end
 
     test "if record already exists, returns it", %{users: [user1, user2]} do
-      {:ok, user_block} = UserRelationship.create_block(user1, user2)
-      {:ok, new_block} = UserRelationship.create_block(user1, user2)
+      user_block =
+        with_mock NaiveDateTime,
+          utc_now: fn -> ~N[2017-03-17 17:09:58] end,
+          from_erl!: fn {{2017, 3, 17}, {17, 9, 58}}, {0, 6} -> ~N[2017-03-17 17:09:58] end do
+          UserRelationship.create_block(user1, user2)
+        end
 
-      assert user_block.id == new_block.id
-
-      [_] =
-        UserRelationship
-        |> where(relationship_type: :block)
-        |> where(source_id: ^user1.id)
-        |> where(target_id: ^user2.id)
-        |> Repo.all()
+      assert user_block == UserRelationship.create_block(user1, user2)
     end
   end
 
