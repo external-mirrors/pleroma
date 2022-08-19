@@ -1882,6 +1882,13 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
 
     result =
       conn
+      |> get("/api/v1/mutes?offset=1")
+      |> json_response_and_validate_schema(200)
+
+    assert [id2, id1] == Enum.map(result, & &1["id"])
+
+    result =
+      conn
       |> get("/api/v1/mutes?limit=1")
       |> json_response_and_validate_schema(200)
 

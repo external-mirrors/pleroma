@@ -495,7 +495,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
     users =
       user
       |> User.muted_users_relation(_restrict_deactivated = true)
-      |> Pleroma.Pagination.fetch_paginated(params)
+      |> Pleroma.Pagination.fetch_paginated_auto(params)
 
     conn
     |> add_link_headers(users)
