@@ -423,7 +423,7 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
       security: [%{"oAuth" => ["follow", "read:mutes"]}],
       parameters: [with_relationships_param() | pagination_params()],
       responses: %{
-        200 => Operation.response("Accounts", "application/json", array_of_accounts())
+        200 => Operation.response("Accounts", "application/json", with_or_without_total(array_of_accounts()))
       }
     }
   end
@@ -437,7 +437,7 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
       security: [%{"oAuth" => ["read:blocks"]}],
       parameters: pagination_params(),
       responses: %{
-        200 => Operation.response("Accounts", "application/json", array_of_accounts())
+        200 => Operation.response("Accounts", "application/json", with_or_without_total(array_of_accounts()))
       }
     }
   end

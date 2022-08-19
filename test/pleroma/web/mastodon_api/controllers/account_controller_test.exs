@@ -1889,6 +1889,14 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
 
     result =
       conn
+      |> get("/api/v1/mutes?offset=1&total=true")
+      |> json_response_and_validate_schema(200)
+
+    assert result["total"] == 3
+    assert [id2, id1] == Enum.map(result["items"], & &1["id"])
+
+    result =
+      conn
       |> get("/api/v1/mutes?limit=1")
       |> json_response_and_validate_schema(200)
 
@@ -2030,6 +2038,14 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       |> json_response_and_validate_schema(200)
 
     assert [%{"id" => ^id1}] = result
+
+    result =
+      conn
+      |> assign(:user, user)
+      |> get("/api/v1/blocks?offset=2&total=true")
+      |> json_response_and_validate_schema(200)
+
+    assert %{"total" => 3, "items" => [%{"id" => ^id1}]} = result
   end
 
   test "account lookup", %{conn: conn} do

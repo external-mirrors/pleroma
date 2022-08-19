@@ -54,6 +54,12 @@ defmodule Pleroma.Web.ApiSpec.Helpers do
         :query,
         %Schema{type: :integer, default: 20},
         "Maximum number of items to return. Will be ignored if it's more than 40"
+      ),
+      Operation.parameter(
+        :total,
+        :query,
+        %Schema{type: :boolean, default: false},
+        "Whether to return total number of results. If true, the result will be a map containing keys `total` and `items`."
       )
     ]
   end
@@ -81,5 +87,21 @@ defmodule Pleroma.Web.ApiSpec.Helpers do
 
   def no_content_response do
     Operation.response("No Content", "application/json", %Schema{type: :string, example: ""})
+  end
+
+  def with_or_without_total(schema) do
+    %Schema{
+      oneOf: [
+        schema,
+        %Schema{
+          title: "#{schema.title}WithTotal",
+          type: :object,
+          properties: %{
+            total: %Schema{type: :integer},
+            items: schema
+          },
+        }
+      ]
+    }
   end
 end

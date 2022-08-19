@@ -24,10 +24,20 @@ defmodule Pleroma.Pagination do
 
   def fetch_paginated_auto(query, %{offset: offset} = params, table_binding) when offset > 0 do
     fetch_paginated(query, params, :offset, table_binding)
+    |> unify_pagination_result()
   end
 
   def fetch_paginated_auto(query, params, table_binding) do
     fetch_paginated(query, params, :keyset, table_binding)
+    |> unify_pagination_result()
+  end
+
+  defp unify_pagination_result(%{} = result) do
+    result
+  end
+
+  defp unify_pagination_result(result) do
+    %{total: :unknown, items: result}
   end
 
   @spec fetch_paginated(Ecto.Query.t(), map(), type(), atom() | nil) :: [Ecto.Schema.t()]

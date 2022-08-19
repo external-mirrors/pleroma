@@ -36,6 +36,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     users
     |> render_many(AccountView, "show.json", opts)
     |> Enum.filter(&Enum.any?/1)
+    |> Utils.maybe_inject_total(opts[:total])
   end
 
   @doc """

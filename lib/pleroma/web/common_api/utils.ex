@@ -507,4 +507,12 @@ defmodule Pleroma.Web.CommonAPI.Utils do
       {:error, dgettext("errors", "Too many attachments")}
     end
   end
+
+  def maybe_inject_total(result, total) when is_integer(total) do
+    %{total: total, items: result}
+  end
+
+  def maybe_inject_total(result,  _total) do
+    result
+  end
 end
