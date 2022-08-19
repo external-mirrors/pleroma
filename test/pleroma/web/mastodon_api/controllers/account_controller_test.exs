@@ -2015,6 +2015,14 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       |> json_response_and_validate_schema(200)
 
     assert [%{"id" => ^id1}] = result
+
+    result =
+      conn
+      |> assign(:user, user)
+      |> get("/api/v1/blocks?offset=2")
+      |> json_response_and_validate_schema(200)
+
+    assert [%{"id" => ^id1}] = result
   end
 
   test "account lookup", %{conn: conn} do

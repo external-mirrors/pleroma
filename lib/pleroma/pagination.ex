@@ -16,9 +16,19 @@ defmodule Pleroma.Pagination do
 
   @default_limit 20
   @max_limit 40
-  @page_keys ["max_id", "min_id", "limit", "since_id", "order"]
+  @page_keys ["max_id", "min_id", "limit", "since_id", "order", "offset"]
 
   def page_keys, do: @page_keys
+
+  def fetch_paginated_auto(query, params, table_binding \\ nil)
+
+  def fetch_paginated_auto(query, %{offset: offset} = params, table_binding) when offset > 0 do
+    fetch_paginated(query, params, :offset, table_binding)
+  end
+
+  def fetch_paginated_auto(query, params, table_binding) do
+    fetch_paginated(query, params, :keyset, table_binding)
+  end
 
   @spec fetch_paginated(Ecto.Query.t(), map(), type(), atom() | nil) :: [Ecto.Schema.t()]
   def fetch_paginated(query, params, type \\ :keyset, table_binding \\ nil)
