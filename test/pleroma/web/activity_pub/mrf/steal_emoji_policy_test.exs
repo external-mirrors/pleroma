@@ -60,6 +60,78 @@ defmodule Pleroma.Web.ActivityPub.MRF.StealEmojiPolicyTest do
            |> File.exists?()
   end
 
+  describe "accept list" do
+    setup do
+      Tesla.Mock.mock(fn %{method: :get, url: "https://example.org/emoji/firedfox.png"} ->
+        %Tesla.Env{status: 200, body: File.read!("test/fixtures/image.jpg")}
+      end)
+
+      :ok
+    end
+
+    test "accept regex shortcode", %{message: message} do
+      refute "firedfox" in installed()
+
+      clear_config(:mrf_steal_emoji,
+        hosts: ["example.org"],
+        size_limit: 284_468,
+        accepted_shortcodes: [~r/foo/]
+      )
+
+      assert {:ok, _message} = StealEmojiPolicy.filter(message)
+
+      refute "firedfox" in installed()
+
+      clear_config(:mrf_steal_emoji,
+        hosts: ["example.org"],
+        size_limit: 284_468,
+        accepted_shortcodes: [~r/foo/, ~r/firedfox/, ~r/bar/]
+      )
+
+      assert {:ok, _message} = StealEmojiPolicy.filter(message)
+
+      assert "firedfox" in installed()
+    end
+
+    test "accept string shortcode", %{message: message} do
+      refute "firedfox" in installed()
+
+      clear_config(:mrf_steal_emoji,
+        hosts: ["example.org"],
+        size_limit: 284_468,
+        accepted_shortcodes: ["foo"]
+      )
+
+      assert {:ok, _message} = StealEmojiPolicy.filter(message)
+
+      refute "firedfox" in installed()
+
+      clear_config(:mrf_steal_emoji,
+        hosts: ["example.org"],
+        size_limit: 284_468,
+        accepted_shortcodes: ["foo", "firedfox", "bar"]
+      )
+
+      assert {:ok, _message} = StealEmojiPolicy.filter(message)
+
+      assert "firedfox" in installed()
+    end
+
+    test "accept when accepted_shortcodes is empty", %{message: message} do
+      refute "firedfox" in installed()
+
+      clear_config(:mrf_steal_emoji,
+        hosts: ["example.org"],
+        size_limit: 284_468,
+        accepted_shortcodes: []
+      )
+
+      assert {:ok, _message} = StealEmojiPolicy.filter(message)
+
+      assert "firedfox" in installed()
+    end
+  end
+
   test "reject regex shortcode", %{message: message} do
     refute "firedfox" in installed()
 

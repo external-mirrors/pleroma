@@ -76,13 +76,21 @@ defmodule Pleroma.Web.ActivityPub.MRF.StealEmojiPolicy do
       new_emojis =
         foreign_emojis
         |> Enum.reject(fn {shortcode, _url} -> shortcode in installed_emoji end)
+        |> Enum.reject(fn {shortcode, _url} ->
+          Enum.find(Config.get([:mrf_steal_emoji, :rejected_shortcodes], []), false, fn pattern ->
+            shortcode_matches?(shortcode, pattern)
+          end)
+        end)
         |> Enum.filter(fn {shortcode, _url} ->
-          reject_emoji? =
-            [:mrf_steal_emoji, :rejected_shortcodes]
-            |> Config.get([])
-            |> Enum.find(false, fn pattern -> shortcode_matches?(shortcode, pattern) end)
+          accepted_emoji = Config.get([:mrf_steal_emoji, :accepted_shortcodes], [])
 
-          !reject_emoji?
+          if accepted_emoji == [] do
+            true
+          else
+            Enum.find(accepted_emoji, false, fn pattern ->
+              shortcode_matches?(shortcode, pattern)
+            end)
+          end
         end)
         |> Enum.map(&steal_emoji(&1, emoji_dir_path))
         |> Enum.filter(& &1)
@@ -103,7 +111,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.StealEmojiPolicy do
           children: [
             %{
               description: <<_::272, _::_*256>>,
-              key: :hosts | :rejected_shortcodes | :size_limit,
+              key: :hosts | :rejected_shortcodes | :accepted_shortcodes | :size_limit,
               suggestions: [any(), ...],
               type: {:list, :string} | {:list, :string} | :integer
             },
@@ -132,6 +140,16 @@ defmodule Pleroma.Web.ActivityPub.MRF.StealEmojiPolicy do
           type: {:list, :string},
           description: """
             A list of patterns or matches to reject shortcodes with.
+
+            Each pattern can be a string or [Regex](https://hexdocs.pm/elixir/Regex.html) in the format of `~r/PATTERN/`.
+          """,
+          suggestions: ["foo", ~r/foo/]
+        },
+        %{
+          key: :accepted_shortcodes,
+          type: {:list, :string},
+          description: """
+            A list of patterns or matches to accept shortcodes with. When at least one pattern is provided, only emoji whose shortcode match one of these patterns will be accepted.
 
             Each pattern can be a string or [Regex](https://hexdocs.pm/elixir/Regex.html) in the format of `~r/PATTERN/`.
           """,
