@@ -47,6 +47,28 @@ defmodule Pleroma.Web.MediaProxy do
       encode_url(url)
     else
       url
+      |> convert_base()
+    end
+  end
+
+  defp convert_base(url) do
+    endpoint_base = Pleroma.Web.Endpoint.url()
+
+    wanted_base = Pleroma.Web.Domains.get_current_base()
+
+    if wanted_base do
+      cond do
+        url == endpoint_base ->
+          wanted_base
+
+        String.starts_with?(url, endpoint_base <> "/") ->
+          String.replace_prefix(url, endpoint_base, wanted_base)
+
+        true ->
+          url
+      end
+    else
+      url
     end
   end
 
@@ -135,7 +157,10 @@ defmodule Pleroma.Web.MediaProxy do
   end
 
   def base_url do
-    Config.get([:media_proxy, :base_url], Endpoint.url())
+    Config.get(
+      [:media_proxy, :base_url],
+      Pleroma.Web.Domains.get_current_base() || Endpoint.url()
+    )
   end
 
   defp proxy_url(path, sig_base64, url_base64, filename) do

@@ -6,6 +6,8 @@ defmodule Pleroma.Web.MediaProxyTest do
   use ExUnit.Case
   use Pleroma.Tests.Helpers
 
+  import Mock
+
   alias Pleroma.Config
   alias Pleroma.Web.Endpoint
   alias Pleroma.Web.MediaProxy
@@ -178,6 +180,22 @@ defmodule Pleroma.Web.MediaProxyTest do
       encoded = MediaProxy.url(url)
       assert decode_result(encoded) == url
     end
+
+    test "generate url with current base" do
+      with_mock Pleroma.Web.Domains, get_current_base: fn -> "https://mewmew.org:8080" end do
+        encoded = MediaProxy.url("https://pleroma.social")
+
+        assert "https://mewmew.org:8080/" <> _ = encoded
+      end
+    end
+
+    test "convert local url to current base" do
+      with_mock Pleroma.Web.Domains, get_current_base: fn -> "https://mewmew.org:8080" end do
+        encoded = MediaProxy.url(Pleroma.Web.Endpoint.url() <> "/mew")
+
+        assert "https://mewmew.org:8080/mew" = encoded
+      end
+    end
   end
 
   describe "when disabled" do
@@ -185,6 +203,14 @@ defmodule Pleroma.Web.MediaProxyTest do
 
     test "does not encode remote urls" do
       assert MediaProxy.url("https://google.fr") == "https://google.fr"
+    end
+
+    test "convert local url to current base" do
+      with_mock Pleroma.Web.Domains, get_current_base: fn -> "https://mewmew.org:8080" end do
+        encoded = MediaProxy.url(Pleroma.Web.Endpoint.url() <> "/mew")
+
+        assert "https://mewmew.org:8080/mew" = encoded
+      end
     end
   end
 
