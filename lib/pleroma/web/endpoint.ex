@@ -182,6 +182,8 @@ defmodule Pleroma.Web.Endpoint do
 
   plug(MetricsExporterCaller)
 
+  plug(Pleroma.Web.Plugs.AlternativeDomainPlug)
+
   plug(Pleroma.Web.Router)
 
   @doc """

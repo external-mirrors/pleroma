@@ -148,6 +148,8 @@ config :pleroma, Pleroma.Web.Endpoint,
     "SameSite=Lax"
   ]
 
+config :pleroma, Pleroma.Web.Domains, alternative_domains: []
+
 # Configures Elixir's Logger
 config :logger, :console,
   level: :debug,

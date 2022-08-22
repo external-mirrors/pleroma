@@ -3453,5 +3453,42 @@ config :pleroma, :config_description, [
         ]
       }
     ]
+  },
+  %{
+    group: :pleroma,
+    key: Pleroma.Web.Domains,
+    type: :group,
+    description: "Webserver settings",
+    children: [
+      %{
+        key: :alternative_domains,
+        type: {:list, :map},
+        label: "Alternative domains",
+        description: "Other domains than the Endpoint domain to access this instance.",
+        children: [
+          %{
+            key: :host,
+            type: :string,
+            label: "Host",
+            description: "Hostname of the alternative domain",
+            suggestions: ["example.org", "example.onion"]
+          },
+          %{
+            key: :port,
+            type: :integer,
+            label: "Port",
+            description: "Port number of the alternative domain",
+            suggestions: [80, 443]
+          },
+          %{
+            key: :proto,
+            type: :string,
+            label: "Protocol",
+            description: "Protocol of the alternative domain",
+            suggestions: ["https", "http"]
+          }
+        ]
+      }
+    ]
   }
 ]
