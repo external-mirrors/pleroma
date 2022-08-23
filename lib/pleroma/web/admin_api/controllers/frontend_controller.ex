@@ -5,7 +5,6 @@
 defmodule Pleroma.Web.AdminAPI.FrontendController do
   use Pleroma.Web, :controller
 
-  alias Pleroma.Config
   alias Pleroma.Web.Plugs.OAuthScopesPlug
 
   plug(Pleroma.Web.ApiSpec.CastAndValidate)
@@ -16,14 +15,7 @@ defmodule Pleroma.Web.AdminAPI.FrontendController do
   defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.Admin.FrontendOperation
 
   def index(conn, _params) do
-    installed = installed()
-
-    frontends =
-      [:frontends, :available]
-      |> Config.get([])
-      |> Enum.map(fn {name, desc} ->
-        Map.put(desc, "installed", name in installed)
-      end)
+    frontends = Pleroma.Frontend.list()
 
     render(conn, "index.json", frontends: frontends)
   end
@@ -31,16 +23,6 @@ defmodule Pleroma.Web.AdminAPI.FrontendController do
   def install(%{body_params: params} = conn, _params) do
     with :ok <- Pleroma.Frontend.install(params.name, Map.delete(params, :name)) do
       index(conn, %{})
-    end
-  end
-
-  defp installed do
-    frontend_directory = Pleroma.Frontend.dir()
-
-    if File.exists?(frontend_directory) do
-      File.ls!(frontend_directory)
-    else
-      []
     end
   end
 end

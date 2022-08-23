@@ -19,6 +19,33 @@ defmodule Mix.Tasks.Pleroma.FrontendTest do
     end)
   end
 
+  test "it lists available frontends" do
+    clear_config([:frontends, :available], %{
+      "pleroma" => %{
+        "ref" => "fantasy",
+        "name" => "pleroma",
+        "build_url" => "http://gensokyo.2hu/builds/${ref}"
+      },
+      "admin" => %{
+        "ref" => "fantasy",
+        "name" => "admin",
+        "build_url" => "http://gensokyo.2hu/builds/${ref}"
+      }
+    })
+
+    File.mkdir_p!(
+      Pleroma.Frontend.dir()
+      |> Path.join("admin")
+    )
+
+    output = capture_io fn ->
+      Frontend.run(["list-available"])
+    end
+
+    assert output =~ ~r"pleroma/fantasy"
+    assert output =~ ~r"admin/fantasy \(installed\)"
+  end
+
   test "it downloads and unzips a known frontend" do
     clear_config([:frontends, :available], %{
       "pleroma" => %{

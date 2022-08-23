@@ -11,6 +11,19 @@ defmodule Mix.Tasks.Pleroma.Frontend do
 
   @moduledoc File.read!("docs/administration/CLI_tasks/frontend.md")
 
+  def run(["list-available" | _args]) do
+    start_pleroma()
+
+    shell_info("These frontends are available, in <name>/<ref> format:")
+
+    Pleroma.Frontend.list()
+    |> Enum.map(fn desc ->
+      shell_info("  #{desc["name"]}/#{desc["ref"]}" <> (if desc["installed"], do: " (installed)", else: ""))
+    end)
+
+    shell_info("\nUse `mix pleroma.frontend install <name> [--ref <ref>]` to install.")
+  end
+
   def run(["install", "none" | _args]) do
     shell_info("Skipping frontend installation because none was requested")
     "none"

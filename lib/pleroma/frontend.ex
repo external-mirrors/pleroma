@@ -7,6 +7,30 @@ defmodule Pleroma.Frontend do
 
   require Logger
 
+  def list do
+    installed = installed()
+
+    frontends =
+      [:frontends, :available]
+      |> Config.get([])
+      |> Enum.filter(fn {_name, desc} -> is_map(desc) end)
+      |> Enum.map(fn {name, desc} ->
+        Map.put(desc, "installed", name in installed)
+      end)
+
+    frontends
+  end
+
+  defp installed do
+    frontend_directory = Pleroma.Frontend.dir()
+
+    if File.exists?(frontend_directory) do
+      File.ls!(frontend_directory)
+    else
+      []
+    end
+  end
+
   def install(name, opts \\ []) do
     frontend_info = %{
       "ref" => opts[:ref],
