@@ -287,6 +287,13 @@ defmodule Mix.Tasks.Pleroma.Instance do
           " Please transfer your config to the database after running database migrations. Refer to \"Transfering the config to/from the database\" section of the docs for more information."
         )
       end
+
+      shell_info(
+        """
+        Pleroma no longer comes with frontend bundles. You will need to install them via `mix pleroma.frontend install`.
+        For a list of available frontends, use `mix pleroma.frontend list-available`.
+        """
+      )
     else
       shell_error(
         "The task would have overwritten the following files:\n" <>
