@@ -288,12 +288,10 @@ defmodule Mix.Tasks.Pleroma.Instance do
         )
       end
 
-      shell_info(
-        """
-        Pleroma no longer comes with frontend bundles. You will need to install them via `mix pleroma.frontend install`.
-        For a list of available frontends, use `mix pleroma.frontend list-available`.
-        """
-      )
+      shell_info("""
+      Pleroma no longer comes with frontend bundles. You will need to install them via `mix pleroma.frontend install`.
+      For a list of available frontends, use `mix pleroma.frontend list-available`.
+      """)
     else
       shell_error(
         "The task would have overwritten the following files:\n" <>

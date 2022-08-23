@@ -18,7 +18,9 @@ defmodule Mix.Tasks.Pleroma.Frontend do
 
     Pleroma.Frontend.list()
     |> Enum.map(fn desc ->
-      shell_info("  #{desc["name"]}/#{desc["ref"]}" <> (if desc["installed"], do: " (installed)", else: ""))
+      shell_info(
+        "  #{desc["name"]}/#{desc["ref"]}" <> if(desc["installed"], do: " (installed)", else: "")
+      )
     end)
 
     shell_info("\nUse `mix pleroma.frontend install <name> [--ref <ref>]` to install.")

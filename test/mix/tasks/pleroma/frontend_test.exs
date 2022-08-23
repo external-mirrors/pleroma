@@ -38,9 +38,10 @@ defmodule Mix.Tasks.Pleroma.FrontendTest do
       |> Path.join("admin")
     )
 
-    output = capture_io fn ->
-      Frontend.run(["list-available"])
-    end
+    output =
+      capture_io(fn ->
+        Frontend.run(["list-available"])
+      end)
 
     assert output =~ ~r"pleroma/fantasy"
     assert output =~ ~r"admin/fantasy \(installed\)"
