@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="<%= Pleroma.Web.Gettext.language_tag() %>">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimal-ui">
+    <title><%= @title %></title>
+    <%= Phoenix.HTML.raw @server_generated_meta %>
+    <link rel="stylesheet" href="/instance/static.css">
+  </head>
+  <body>
+    <div class="instance-header">
+      <a class="instance-header__content" href="/">
+        <img class="instance-header__thumbnail" src="<%= Pleroma.Config.get([:instance, :instance_thumbnail]) %>">
+        <h1 class="instance-header__title"><%= Pleroma.Config.get([:instance, :name]) %></h1>
+      </a>
+    </div>
+    <div class="container">
+      <%= @inner_content %>
+    </div>
+  </body>
+</html>

@@ -18,9 +18,32 @@ defmodule Pleroma.Web.Fallback.RedirectController do
   end
 
   def redirector(conn, _params, code \\ 200) do
+    conn =
+      conn
+      |> put_resp_content_type("text/html")
+
+    if has_index?() do
+      conn
+      |> send_file(code, index_file_path())
+    else
+      conn
+      |> render_missing_frontend_notice()
+    end
+  end
+
+  defp has_index? do
+    File.exists?(index_file_path())
+  end
+
+  defp render_missing_frontend_notice(conn, opts \\ %{}) do
     conn
-    |> put_resp_content_type("text/html")
-    |> send_file(code, index_file_path())
+    |> put_layout(:fallback_index)
+    |> put_view(Pleroma.Web.Fallback.RedirectView)
+    |> render(
+      "missing_frontend.html",
+      server_generated_meta: opts[:head_tags] || "",
+      title: opts[:title] || Pleroma.Config.get([:instance, :name])
+    )
   end
 
   def redirector_with_meta(conn, %{"maybe_nickname_or_id" => maybe_nickname_or_id} = params) do
@@ -33,19 +56,25 @@ defmodule Pleroma.Web.Fallback.RedirectController do
   end
 
   def redirector_with_meta(conn, params) do
-    {:ok, index_content} = File.read(index_file_path())
-
     tags = build_tags(conn, params)
     preloads = preload_data(conn, params)
-    title = "<title>#{Pleroma.Config.get([:instance, :name])}</title>"
 
-    response =
-      index_content
-      |> String.replace("<!--server-generated-meta-->", tags <> preloads <> title)
+    if has_index?() do
+      {:ok, index_content} = File.read(index_file_path())
 
-    conn
-    |> put_resp_content_type("text/html")
-    |> send_resp(200, response)
+      title = "<title>#{Pleroma.Config.get([:instance, :name])}</title>"
+
+      response =
+        index_content
+        |> String.replace("<!--server-generated-meta-->", tags <> preloads <> title)
+
+      conn
+      |> put_resp_content_type("text/html")
+      |> send_resp(200, response)
+    else
+      conn
+      |> render_missing_frontend_notice(head_tags: tags <> preloads)
+    end
   end
 
   def redirector_with_preload(conn, %{"path" => ["pleroma", "admin"]}) do
@@ -53,17 +82,23 @@ defmodule Pleroma.Web.Fallback.RedirectController do
   end
 
   def redirector_with_preload(conn, params) do
-    {:ok, index_content} = File.read(index_file_path())
     preloads = preload_data(conn, params)
-    title = "<title>#{Pleroma.Config.get([:instance, :name])}</title>"
 
-    response =
-      index_content
-      |> String.replace("<!--server-generated-meta-->", preloads <> title)
+    if has_index?() do
+      {:ok, index_content} = File.read(index_file_path())
+      title = "<title>#{Pleroma.Config.get([:instance, :name])}</title>"
 
-    conn
-    |> put_resp_content_type("text/html")
-    |> send_resp(200, response)
+      response =
+        index_content
+        |> String.replace("<!--server-generated-meta-->", preloads <> title)
+
+      conn
+      |> put_resp_content_type("text/html")
+      |> send_resp(200, response)
+    else
+      conn
+      |> render_missing_frontend_notice(head_tags: preloads)
+    end
   end
 
   def registration_page(conn, params) do

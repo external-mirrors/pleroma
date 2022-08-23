@@ -1,0 +1,7 @@
+<h2><%= Pleroma.Web.Gettext.dpgettext("static_pages", "missing frontend title", "No frontend available") %></h2>
+<p>
+  <%= Pleroma.Web.Gettext.dpgettext("static_pages", "missing frontend description", "The server admin has not yet enabled a frontend here, so we have nothing to show you. You can still use a client to access this instance.") %>
+</p>
+<p>
+  <%= Pleroma.Web.Gettext.dpgettext("static_pages", "missing frontend contact admin", "Please contact the server admin if you need a frontend.") %>
+</p>
