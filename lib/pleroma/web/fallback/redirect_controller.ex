@@ -37,7 +37,7 @@ defmodule Pleroma.Web.Fallback.RedirectController do
 
   defp render_missing_frontend_notice(conn, opts \\ %{}) do
     conn
-    |> put_layout(:fallback_index)
+    |> put_layout({Pleroma.Web.LayoutView, :fallback_index})
     |> put_view(Pleroma.Web.Fallback.RedirectView)
     |> render(
       "missing_frontend.html",
