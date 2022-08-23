@@ -41,7 +41,7 @@ defmodule Pleroma.Web.Fallback.RedirectController do
     |> put_view(Pleroma.Web.Fallback.RedirectView)
     |> render(
       "missing_frontend.html",
-      server_generated_meta: opts[:head_tags] || "",
+      server_generated_meta: opts[:head_tags] || "<!--server-generated-meta-->",
       title: opts[:title] || Pleroma.Config.get([:instance, :name])
     )
   end
