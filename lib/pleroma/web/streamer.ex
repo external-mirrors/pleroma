@@ -135,6 +135,12 @@ defmodule Pleroma.Web.Streamer do
 
   def stream(topics, items) do
     if should_env_send?() do
+      Pleroma.Web.Streamer.Worker.request_stream(topics, items)
+    end
+  end
+
+  def exec_stream(topics, items) do
+    if should_env_send?() do
       for topic <- List.wrap(topics), item <- List.wrap(items) do
         spawn(fn -> do_stream(topic, item) end)
       end

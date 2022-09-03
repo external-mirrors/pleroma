@@ -95,7 +95,8 @@ defmodule Pleroma.Application do
           Pleroma.Repo,
           Config.TransferTask,
           Pleroma.Emoji,
-          Pleroma.Web.Plugs.RateLimiter.Supervisor
+          Pleroma.Web.Plugs.RateLimiter.Supervisor,
+          {Phoenix.PubSub, [name: Pleroma.PubSub, adapter: Phoenix.PubSub.PG2]}
         ] ++
         cachex_children() ++
         http_children(adapter, @mix_env) ++
@@ -104,7 +105,8 @@ defmodule Pleroma.Application do
           Pleroma.JobQueueMonitor,
           {Majic.Pool, [name: Pleroma.MajicPool, pool_size: Config.get([:majic_pool, :size], 2)]},
           {Oban, Config.get(Oban)},
-          Pleroma.Web.Endpoint
+          Pleroma.Web.Endpoint,
+          Pleroma.Web.Streamer.Worker
         ] ++
         task_children(@mix_env) ++
         dont_run_in_test(@mix_env) ++
@@ -265,8 +267,7 @@ defmodule Pleroma.Application do
 
   defp shout_child(true) do
     [
-      Pleroma.Web.ShoutChannel.ShoutChannelState,
-      {Phoenix.PubSub, [name: Pleroma.PubSub, adapter: Phoenix.PubSub.PG2]}
+      Pleroma.Web.ShoutChannel.ShoutChannelState
     ]
   end
 
