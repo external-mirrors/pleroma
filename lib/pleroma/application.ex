@@ -92,11 +92,11 @@ defmodule Pleroma.Application do
     children =
       cluster_children() ++
         [
+          {Phoenix.PubSub, [name: Pleroma.PubSub, adapter: Phoenix.PubSub.PG2]},
           Pleroma.Repo,
           Config.TransferTask,
           Pleroma.Emoji,
-          Pleroma.Web.Plugs.RateLimiter.Supervisor,
-          {Phoenix.PubSub, [name: Pleroma.PubSub, adapter: Phoenix.PubSub.PG2]}
+          Pleroma.Web.Plugs.RateLimiter.Supervisor
         ] ++
         cachex_children() ++
         http_children(adapter, @mix_env) ++

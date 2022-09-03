@@ -21,6 +21,8 @@ defmodule Pleroma.Emoji do
     :named_table,
     {:read_concurrency, true}
   ]
+  @pubsub Pleroma.PubSub
+  @emoji_topic "emoji"
 
   defstruct [:code, :file, :tags, :safe_code, :safe_file]
 
@@ -45,7 +47,7 @@ defmodule Pleroma.Emoji do
   @doc "Reloads the emojis from disk."
   @spec reload() :: :ok
   def reload do
-    GenServer.call(__MODULE__, :reload)
+    GenServer.call(__MODULE__, :request_reload)
   end
 
   @doc "Returns the path of the emoji `name`."
@@ -71,6 +73,7 @@ defmodule Pleroma.Emoji do
 
   @doc false
   def init(_) do
+    Phoenix.PubSub.subscribe(@pubsub, @emoji_topic)
     @ets = :ets.new(@ets, @ets_options)
     GenServer.cast(self(), :reload)
     {:ok, nil}
@@ -86,6 +89,17 @@ defmodule Pleroma.Emoji do
   def handle_call(:reload, _from, state) do
     update_emojis(Loader.load())
     {:reply, :ok, state}
+  end
+
+  def handle_call(:request_reload, _from, state) do
+    update_emojis(Loader.load())
+    Phoenix.PubSub.broadcast_from!(@pubsub, self(), @emoji_topic, :reload)
+    {:reply, :ok, state}
+  end
+
+  def handle_info(:reload, state) do
+    GenServer.call(__MODULE__, :reload)
+    {:noreply, state}
   end
 
   @doc false
