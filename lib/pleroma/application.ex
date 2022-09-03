@@ -126,7 +126,7 @@ defmodule Pleroma.Application do
       end
 
     opts = [strategy: :one_for_one, name: Pleroma.Supervisor, max_restarts: max_restarts]
-    result = Supervisor.start_link(children, opts)
+    {:ok, _} = result = Supervisor.start_link(children, opts)
 
     set_postgres_server_version()
 

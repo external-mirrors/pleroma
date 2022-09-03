@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Config.TransferTask do
-  use Task
+  use GenServer
 
   alias Pleroma.Config
   alias Pleroma.ConfigDB
@@ -12,6 +12,8 @@ defmodule Pleroma.Config.TransferTask do
   require Logger
 
   @type env() :: :test | :benchmark | :dev | :prod
+  @pubsub Pleroma.PubSub
+  @config_topic "config"
 
   defp reboot_time_keys,
     do: [
@@ -34,13 +36,47 @@ defmodule Pleroma.Config.TransferTask do
     ]
 
   def start_link(restart_pleroma? \\ true) do
-    load_and_update_env([], restart_pleroma?)
+    exec_load_and_update_env([], restart_pleroma?)
     if Config.get(:env) == :test, do: Ecto.Adapters.SQL.Sandbox.checkin(Repo)
-    :ignore
+    GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
 
-  @spec load_and_update_env([ConfigDB.t()], boolean()) :: :ok
+  @impl true
+  def init(state) do
+    Phoenix.PubSub.subscribe(@pubsub, @config_topic)
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_call(
+        {:request_load_and_update_env, deleted_settings, restart_pleroma?},
+        _from,
+        state
+      ) do
+    local_result = exec_load_and_update_env(deleted_settings, restart_pleroma?)
+
+    Phoenix.PubSub.broadcast_from!(
+      @pubsub,
+      self(),
+      @config_topic,
+      {:load_and_update_env, deleted_settings, restart_pleroma?}
+    )
+
+    {:reply, local_result, state}
+  end
+
+  @impl true
+  def handle_info({:load_and_update_env, deleted_settings, restart_pleroma?}, state) do
+    exec_load_and_update_env(deleted_settings, restart_pleroma?)
+    {:noreply, state}
+  end
+
   def load_and_update_env(deleted_settings \\ [], restart_pleroma? \\ true) do
+    GenServer.call(__MODULE__, {:request_load_and_update_env, deleted_settings, restart_pleroma?})
+  end
+
+  @spec exec_load_and_update_env([ConfigDB.t()], boolean()) :: :ok
+  def exec_load_and_update_env(deleted_settings \\ [], restart_pleroma? \\ true) do
     with {_, true} <- {:configurable, Config.get(:configurable_from_database)} do
       # We need to restart applications for loaded settings take effect
 
