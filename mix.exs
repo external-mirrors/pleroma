@@ -198,6 +198,7 @@ defmodule Pleroma.Mixfile do
       {:open_api_spex, "~> 3.10"},
       {:phoenix_live_dashboard, "~> 0.6.2"},
       {:ecto_psql_extras, "~> 0.6"},
+      {:libcluster, "~> 3.3"},
 
       # indirect dependency version override
       {:plug, "~> 1.10.4", override: true},

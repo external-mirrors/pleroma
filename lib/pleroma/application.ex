@@ -90,12 +90,13 @@ defmodule Pleroma.Application do
 
     # Define workers and child supervisors to be supervised
     children =
-      [
-        Pleroma.Repo,
-        Config.TransferTask,
-        Pleroma.Emoji,
-        Pleroma.Web.Plugs.RateLimiter.Supervisor
-      ] ++
+      cluster_children() ++
+        [
+          Pleroma.Repo,
+          Config.TransferTask,
+          Pleroma.Emoji,
+          Pleroma.Web.Plugs.RateLimiter.Supervisor
+        ] ++
         cachex_children() ++
         http_children(adapter, @mix_env) ++
         [
@@ -190,6 +191,16 @@ defmodule Pleroma.Application do
     # Note: disabled until prometheus-phx is integrated into prometheus-phoenix:
     # Pleroma.Web.Endpoint.Instrumenter.setup()
     PrometheusPhx.setup()
+  end
+
+  defp cluster_children do
+    topologies = Application.get_env(:libcluster, :topologies)
+
+    if topologies do
+      [{Cluster.Supervisor, [topologies, [name: Pleroma.ClusterSupervisor]]}]
+    else
+      []
+    end
   end
 
   defp cachex_children do
