@@ -72,7 +72,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AnnounceValidator do
     |> validate_inclusion(:type, ["Announce"])
     |> validate_required([:id, :type, :object, :actor, :to, :cc])
     |> validate_actor_presence()
-    |> validate_object_presence()
+    |> validate_object_presence(allow_deactivated_actor: false)
     |> validate_existing_announce()
     |> validate_announcable()
   end

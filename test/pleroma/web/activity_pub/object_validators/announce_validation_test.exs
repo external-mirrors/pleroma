@@ -104,5 +104,16 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AnnounceValidationTest do
 
       assert {:actor, {"can not announce this object publicly", []}} in cng.errors
     end
+
+    test "returns an error if the object is by deactivated actor", %{
+      valid_announce: valid_announce,
+      user: user
+    } do
+      {:ok, _} = Pleroma.User.set_activation(user, false)
+
+      {:error, cng} = ObjectValidator.validate(valid_announce, [])
+
+      assert {:object, {"object is by deactivated actor", []}} in cng.errors
+    end
   end
 end

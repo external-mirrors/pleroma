@@ -54,6 +54,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonValidations do
   def validate_object_presence(cng, options \\ []) do
     field_name = Keyword.get(options, :field_name, :object)
     allowed_types = Keyword.get(options, :allowed_types, false)
+    allow_deactivated_actor = Keyword.get(options, :allow_deactivated_actor, true)
 
     cng
     |> validate_change(field_name, fn field_name, object_id ->
@@ -65,6 +66,13 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonValidations do
 
         object && allowed_types && object.data["type"] not in allowed_types ->
           [{field_name, "object not in allowed types"}]
+
+        object && not allow_deactivated_actor && is_binary(object.data["actor"]) ->
+          with %User{is_active: true} <- Pleroma.User.get_cached_by_ap_id(object.data["actor"]) do
+            []
+          else
+            _ -> [{field_name, "object is by deactivated actor"}]
+          end
 
         true ->
           []
