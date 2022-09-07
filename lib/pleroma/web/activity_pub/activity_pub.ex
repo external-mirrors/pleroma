@@ -1405,6 +1405,14 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       |> exclude_invisible_actors(opts)
       |> exclude_visibility(opts)
 
+    query =
+      if opts[:skip_preload] do
+        query
+      else
+        query
+        |> Activity.restrict_object_of_deactivated_users()
+      end
+
     if Config.feature_enabled?(:improved_hashtag_timeline) do
       query
       |> restrict_hashtag_any(opts)

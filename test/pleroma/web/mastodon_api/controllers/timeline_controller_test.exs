@@ -149,6 +149,30 @@ defmodule Pleroma.Web.MastodonAPI.TimelineControllerTest do
              |> get("/api/v1/timelines/home?remote=true&local=true")
              |> json_response_and_validate_schema(200) == []
     end
+
+    test "does not allow Announces of deactivated users' objects", %{conn: conn, user: user} do
+      local_user = insert(:user)
+      {:ok, _user, _local_user} = User.follow(user, local_user)
+      banned_user = insert(:user)
+      {:ok, local_activity} = CommonAPI.post(banned_user, %{status: "Status"})
+      {:ok, _} = CommonAPI.repeat(local_activity.id, local_user)
+
+      response =
+        conn
+        |> get("/api/v1/timelines/home")
+        |> json_response_and_validate_schema(200)
+
+      assert [_] = response
+
+      {:ok, _} = User.set_activation(banned_user, false)
+
+      response =
+        conn
+        |> get("/api/v1/timelines/home")
+        |> json_response_and_validate_schema(200)
+
+      assert [] = response
+    end
   end
 
   describe "public" do
