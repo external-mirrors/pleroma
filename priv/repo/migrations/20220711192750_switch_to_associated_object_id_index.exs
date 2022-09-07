@@ -8,15 +8,9 @@ defmodule Pleroma.Repo.Migrations.SwitchToAssociatedObjectIdIndex do
   @disable_migration_lock true
 
   def up do
-    drop_if_exists(
-      index(:activities, ["(coalesce(data->'object'->>'id', data->>'object'))"],
-        name: :activities_create_objects_index
-      )
-    )
-
     create(
       index(:activities, ["associated_object_id(data)"],
-        name: :activities_create_objects_index,
+        name: :activities_create_objects_new_index,
         concurrently: true
       )
     )
@@ -24,13 +18,8 @@ defmodule Pleroma.Repo.Migrations.SwitchToAssociatedObjectIdIndex do
 
   def down do
     drop_if_exists(
-      index(:activities, ["associated_object_id(data)"], name: :activities_create_objects_index)
-    )
-
-    create(
-      index(:activities, ["(coalesce(data->'object'->>'id', data->>'object'))"],
-        name: :activities_create_objects_index,
-        concurrently: true
+      index(:activities, ["associated_object_id(data)"],
+        name: :activities_create_objects_new_index
       )
     )
   end
