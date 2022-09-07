@@ -1019,7 +1019,7 @@ defmodule Pleroma.Web.MastodonAPI.TimelineControllerTest do
     end
 
     test "with `%{local: true, federated: false}`, forbids unauthenticated access to public timeline" <>
-           "(but not to local public activities which are delivered as part of federated timeline)",
+           " but not to local public activities which are delivered as part of federated timeline",
          %{conn: conn, base_uri: base_uri, error_response: error_response} do
       clear_config([:restrict_unauthenticated, :timelines, :local], true)
       clear_config([:restrict_unauthenticated, :timelines, :federated], false)
