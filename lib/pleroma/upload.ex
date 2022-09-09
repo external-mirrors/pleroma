@@ -114,7 +114,8 @@ defmodule Pleroma.Upload do
          ],
          "name" => description
        }
-       |> Maps.put_if_present("blurhash", upload.blurhash)}
+       |> Maps.put_if_present("blurhash", upload.blurhash)
+       |> maybe_put_url_spec(url_spec)}
     else
       {:description_limit, _} ->
         {:error, :description_too_long}
@@ -278,5 +279,13 @@ defmodule Pleroma.Upload do
       _ ->
         public_endpoint || upload_base_url || Pleroma.Web.Endpoint.url() <> "/media/"
     end
+  end
+
+  defp maybe_put_url_spec(data, {:file, name} = _url_spec) do
+    Map.put(data, "url_spec", name)
+  end
+
+  defp maybe_put_url_spec(data, _) do
+    data
   end
 end

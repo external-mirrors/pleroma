@@ -63,7 +63,8 @@ defmodule Pleroma.UploadTest do
                      "mediaType" => "image/jpeg",
                      "type" => "Link"
                    }
-                 ]
+                 ],
+                 "url_spec" => "post-process-file.jpg"
                }
 
       Task.await(Agent.get(TestUploaderSuccess, fn task_pid -> task_pid end))

@@ -1454,9 +1454,18 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   @spec upload(Upload.source(), keyword()) :: {:ok, Object.t()} | {:error, any()}
   def upload(file, opts \\ []) do
     with {:ok, data} <- Upload.store(sanitize_upload_file(file), opts) do
-      obj_data = Maps.put_if_present(data, "actor", opts[:actor])
+      url_spec = data["url_spec"]
 
-      Repo.insert(%Object{data: obj_data})
+      obj_data =
+        data
+        |> Maps.put_if_present("actor", opts[:actor])
+        |> Map.drop(["url_spec"])
+
+      Repo.transaction(fn ->
+        {:ok, object} = Repo.insert(%Object{data: obj_data})
+        {:ok, _file} = Pleroma.UploadedFile.create(%{object: object, path: url_spec})
+        object
+      end)
     end
   end
 
