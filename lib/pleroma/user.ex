@@ -157,6 +157,7 @@ defmodule Pleroma.User do
     field(:birthday, :date)
     field(:show_birthday, :boolean, default: false)
     field(:language, :string)
+    field(:last_move_at, :naive_datetime)
 
     embeds_one(
       :notification_settings,
@@ -2683,5 +2684,11 @@ defmodule Pleroma.User do
       birthday_day: day,
       birthday_month: month
     })
+  end
+
+  def update_last_move_at(%__MODULE__{local: true} = user) do
+    user
+    |> cast(%{last_move_at: NaiveDateTime.utc_now()}, [:last_move_at])
+    |> update_and_set_cache()
   end
 end
