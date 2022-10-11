@@ -150,7 +150,7 @@ defmodule Pleroma.Activity.Search do
         :left_lateral,
         [a, o, b],
         interact in fragment(
-          "SELECT * FROM activities AS interact WHERE interact.actor = ? AND (?->>'id') = COALESCE((interact.data)->'object'->> 'id', (interact.data)->>'object') AND ARRAY[interact.data->>'type'] && ? LIMIT 1",
+          "SELECT * FROM activities AS interact WHERE interact.actor = ? AND (?->>'id') = associated_object_id(interact.data) AND ARRAY[interact.data->>'type'] && ? LIMIT 1",
           ^user.ap_id,
           o.data,
           ^@interact_activity_types
