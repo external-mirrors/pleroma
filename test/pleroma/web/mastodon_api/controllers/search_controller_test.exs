@@ -320,6 +320,9 @@ defmodule Pleroma.Web.MastodonAPI.SearchControllerTest do
       :persistent_term.put({Pleroma.Repo, :postgres_version}, 10.0)
       on_exit(fn -> :persistent_term.put({Pleroma.Repo, :postgres_version}, old_version) end)
 
+      user = insert(:user)
+      %{conn: conn} = oauth_access(["read:search"])
+
       capture_log(fn ->
         {:ok, %{id: activity_id}} =
           CommonAPI.post(insert(:user), %{
