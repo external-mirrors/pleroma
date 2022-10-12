@@ -150,8 +150,20 @@ defmodule Pleroma.Activity.Search do
   defp restrict_local(q), do: where(q, local: true)
 
   defp maybe_fetch(activities, user, search_query) do
-    with true <- Regex.match?(~r/https?:/, search_query),
-         {:ok, object} <- Fetcher.fetch_object_from_id(search_query),
+    limit = Pleroma.Config.get([:instance, :limit_to_local_content], :unauthenticated)
+
+    fetched_object = if Regex.match?(~r/https?:/, search_query) do
+      case {limit, user} do
+        {:all, _} -> false
+        {:unauthenticated, %User{}} -> Fetcher.fetch_object_from_id(search_query)
+        {:unauthenticated, _} -> false
+        {false, _} -> Fetcher.fetch_object_from_id(search_query)
+      end
+    else
+      false
+    end
+
+    with {:ok, object} <- fetched_object,
          %Activity{} = activity <- Activity.get_create_by_object_ap_id(object.data["id"]),
          true <- Visibility.visible_for_user?(activity, user) do
       [activity | activities]
