@@ -22,6 +22,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   alias Pleroma.Web.Federator
 
   import Ecto.Query
+  import Pleroma.Web.Utils.Guards, only: [not_empty_string: 1]
 
   require Logger
   require Pleroma.Constants
@@ -317,6 +318,8 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   end
 
   def fix_tag(object), do: object
+
+  def fix_content_map(%{"content" => content} = object) when not_empty_string(content), do: object
 
   # content map usually only has one language so this will do for now.
   def fix_content_map(%{"contentMap" => content_map} = object) do
