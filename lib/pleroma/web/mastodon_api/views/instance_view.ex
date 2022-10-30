@@ -182,7 +182,10 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
       if Config.get([:instance, :profile_directory]) do
         "profile_directory"
       end,
-      "pleroma:get:main/ostatus"
+      "pleroma:get:main/ostatus",
+      if Pleroma.Translation.configured?() do
+        "translation"
+      end
     ]
     |> Enum.filter(& &1)
   end
@@ -249,5 +252,4 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
       allow_remote: Config.get([Pleroma.Language.Translation, :allow_remote])
     }
   end
-
 end
