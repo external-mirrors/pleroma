@@ -183,7 +183,7 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
         "profile_directory"
       end,
       "pleroma:get:main/ostatus",
-      if Pleroma.Translation.configured?() do
+      if Pleroma.Language.Translation.configured?() do
         "translation"
       end
     ]
