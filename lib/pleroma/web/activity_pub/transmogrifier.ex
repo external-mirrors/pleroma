@@ -460,6 +460,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
       |> strip_internal_fields()
       |> fix_type(fetch_options)
       |> fix_in_reply_to(fetch_options)
+      |> maybe_add_language_from_activity(data)
 
     data = Map.put(data, "object", object)
     options = Keyword.put(options, :local, false)
@@ -980,6 +981,16 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
     end
   end
 
+  def maybe_add_language_from_activity(object, activity) do
+    language = get_language_from_context(activity) |> get_valid_language()
+
+    if language do
+      Map.put(object, "language", language)
+    else
+      object
+    end
+  end
+
   defp get_language_from_context(%{"@context" => context}) when is_list(context) do
     case context
          |> Enum.find(fn
@@ -1004,8 +1015,8 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
 
   defp get_language_from_content_map(_), do: nil
 
-  defp get_language_from_content(%{"summary" => summary, "content" => content}) do
-    LanguageDetector.detect("#{summary} #{content}")
+  defp get_language_from_content(%{"content" => content}) do
+    LanguageDetector.detect(content)
   end
 
   defp get_language_from_content(_), do: nil
