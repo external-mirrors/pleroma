@@ -67,7 +67,10 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
     |> CommonFixes.cast_and_filter_recipients("cc", follower_collection, object["cc"])
     |> CommonFixes.cast_and_filter_recipients("bto", follower_collection, object["bto"])
     |> CommonFixes.cast_and_filter_recipients("bcc", follower_collection, object["bcc"])
-    |> CommonFixes.dont_apply_when_importing(& Transmogrifier.fix_implicit_addressing(&1, follower_collection), meta)
+    |> CommonFixes.dont_apply_when_importing(
+      &Transmogrifier.fix_implicit_addressing(&1, follower_collection),
+      meta
+    )
   end
 
   def fix(data, meta) do

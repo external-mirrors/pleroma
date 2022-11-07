@@ -27,16 +27,20 @@ defmodule Pleroma.Web.ActivityPub.Importer do
       |> strip_recipients(opts)
 
     create_data =
-      Utils.make_create_data(%{
-        actor: user,
-        published: published,
-        object: fixed_object,
-        to: [],
-        context: context
-      }, %{})
+      Utils.make_create_data(
+        %{
+          actor: user,
+          published: published,
+          object: fixed_object,
+          to: [],
+          context: context
+        },
+        %{}
+      )
       |> Utils.lazy_put_activity_defaults()
 
-    with {:ok, activity, _meta} <- Pipeline.common_pipeline(create_data, local: true, importing: true) do
+    with {:ok, activity, _meta} <-
+           Pipeline.common_pipeline(create_data, local: true, importing: true) do
       # This is to meant to be executed in the oban queue, we only care if it succeeds,
       # so don't query for and put in the object here.
       {:ok, activity}
@@ -69,6 +73,7 @@ defmodule Pleroma.Web.ActivityPub.Importer do
   defp strip_recipients(object, opts) do
     keep_unlisted = opts[:keep_unlisted] || false
     orig_is_public = Visibility.is_public?(object) and not Visibility.is_local_public?(object)
+
     unlisted_ccs =
       if keep_unlisted and orig_is_public do
         [Pleroma.Constants.as_public()]

@@ -43,7 +43,10 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes do
     |> cast_and_filter_recipients("cc", follower_collection)
     |> cast_and_filter_recipients("bto", follower_collection)
     |> cast_and_filter_recipients("bcc", follower_collection)
-    |> dont_apply_when_importing(& Transmogrifier.fix_implicit_addressing(&1, follower_collection), meta)
+    |> dont_apply_when_importing(
+      &Transmogrifier.fix_implicit_addressing(&1, follower_collection),
+      meta
+    )
   end
 
   def fix_activity_addressing(activity, meta \\ []) do
@@ -54,7 +57,10 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes do
     |> cast_and_filter_recipients("cc", follower_collection)
     |> cast_and_filter_recipients("bto", follower_collection)
     |> cast_and_filter_recipients("bcc", follower_collection)
-    |> dont_apply_when_importing(& Transmogrifier.fix_implicit_addressing(&1, follower_collection), meta)
+    |> dont_apply_when_importing(
+      &Transmogrifier.fix_implicit_addressing(&1, follower_collection),
+      meta
+    )
   end
 
   def fix_actor(data) do
