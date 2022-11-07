@@ -21,7 +21,15 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes do
     Map.put(message, field, data)
   end
 
-  def fix_object_defaults(data) do
+  def dont_apply_when_importing(data, func, meta) do
+    if meta[:importing] do
+      data
+    else
+      func.(data)
+    end
+  end
+
+  def fix_object_defaults(data, meta) do
     context =
       Utils.maybe_create_context(
         data["context"] || data["conversation"] || data["inReplyTo"] || data["id"]
@@ -35,10 +43,10 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes do
     |> cast_and_filter_recipients("cc", follower_collection)
     |> cast_and_filter_recipients("bto", follower_collection)
     |> cast_and_filter_recipients("bcc", follower_collection)
-    |> Transmogrifier.fix_implicit_addressing(follower_collection)
+    |> dont_apply_when_importing(& Transmogrifier.fix_implicit_addressing(&1, follower_collection), meta)
   end
 
-  def fix_activity_addressing(activity) do
+  def fix_activity_addressing(activity, meta \\ []) do
     %User{follower_address: follower_collection} = User.get_cached_by_ap_id(activity["actor"])
 
     activity
@@ -46,7 +54,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes do
     |> cast_and_filter_recipients("cc", follower_collection)
     |> cast_and_filter_recipients("bto", follower_collection)
     |> cast_and_filter_recipients("bcc", follower_collection)
-    |> Transmogrifier.fix_implicit_addressing(follower_collection)
+    |> dont_apply_when_importing(& Transmogrifier.fix_implicit_addressing(&1, follower_collection), meta)
   end
 
   def fix_actor(data) do

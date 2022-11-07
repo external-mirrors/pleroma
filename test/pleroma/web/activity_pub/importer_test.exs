@@ -14,7 +14,7 @@ defmodule Pleroma.Web.ActivityPub.ImporterTest do
 
   import Pleroma.Factory
 
-  describe "import_one/2" do
+  describe "import_one/3" do
     test "it imports an activity" do
       user = insert(:user)
       {:ok, activity} = CommonAPI.post(user, %{status: "mew"})
@@ -66,6 +66,38 @@ defmodule Pleroma.Web.ActivityPub.ImporterTest do
       assert imported_activity.object.data["context"] == activity.object.data["context"]
       assert imported_activity.object.data["inReplyTo"] == activity.object.data["inReplyTo"]
       assert imported_activity.data["context"] == activity.data["context"]
+    end
+
+    test "it keeps public and unlisted posts unlisted with keep_unlisted option" do
+      verify_with_visibility = fn visibility, yn ->
+        user = insert(:user)
+        {:ok, activity} = CommonAPI.post(user, %{status: "mew", visibility: visibility})
+
+        {:ok, activity_for_import} = Transmogrifier.prepare_outgoing(activity.data)
+
+        importing_user = insert(:user)
+        assert {:ok, imported_activity} = Importer.import_one(activity_for_import, importing_user, keep_unlisted: true)
+        imported_activity = Activity.normalize(imported_activity)
+
+        if yn do
+          assert [_, _] = imported_activity.recipients
+        else
+          assert [_] = imported_activity.recipients
+        end
+
+        assert importing_user.ap_id in imported_activity.recipients
+        assert Pleroma.Constants.as_public() in imported_activity.recipients == yn
+        assert Pleroma.Constants.as_public() in imported_activity.data["cc"] == yn
+        refute Pleroma.Constants.as_public() in imported_activity.data["to"]
+        assert Pleroma.Constants.as_public() in imported_activity.object.data["cc"] == yn
+        refute Pleroma.Constants.as_public() in imported_activity.object.data["to"]
+      end
+
+      verify_with_visibility.("public", true)
+      verify_with_visibility.("unlisted", true)
+      verify_with_visibility.("local", false)
+      verify_with_visibility.("private", false)
+      verify_with_visibility.("direct", false)
     end
   end
 end

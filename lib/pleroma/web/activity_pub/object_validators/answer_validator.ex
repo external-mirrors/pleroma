@@ -52,7 +52,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AnswerValidator do
     data =
       data
       |> CommonFixes.fix_actor()
-      |> CommonFixes.fix_object_defaults()
+      |> CommonFixes.fix_object_defaults([])
 
     struct
     |> cast(data, __schema__(:fields))

@@ -59,7 +59,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
   end
 
   # CommonFixes.fix_activity_addressing adapted for Create specific behavior
-  defp fix_addressing(data, object) do
+  defp fix_addressing(data, object, meta) do
     %User{follower_address: follower_collection} = User.get_cached_by_ap_id(data["actor"])
 
     data
@@ -67,7 +67,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
     |> CommonFixes.cast_and_filter_recipients("cc", follower_collection, object["cc"])
     |> CommonFixes.cast_and_filter_recipients("bto", follower_collection, object["bto"])
     |> CommonFixes.cast_and_filter_recipients("bcc", follower_collection, object["bcc"])
-    |> Transmogrifier.fix_implicit_addressing(follower_collection)
+    |> CommonFixes.dont_apply_when_importing(& Transmogrifier.fix_implicit_addressing(&1, follower_collection), meta)
   end
 
   def fix(data, meta) do
@@ -76,7 +76,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
     data
     |> CommonFixes.fix_actor()
     |> Map.put("context", object["context"])
-    |> fix_addressing(object)
+    |> fix_addressing(object, meta)
   end
 
   defp validate_data(cng, meta) do

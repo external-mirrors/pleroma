@@ -25,21 +25,21 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AudioVideoValidator do
     end
   end
 
-  def cast_and_apply(data) do
+  def cast_and_apply(data, meta) do
     data
-    |> cast_data
+    |> cast_data(meta)
     |> apply_action(:insert)
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, meta) do
     data
-    |> cast_data()
-    |> validate_data()
+    |> cast_data(meta)
+    |> validate_data(meta)
   end
 
-  def cast_data(data) do
+  def cast_data(data, meta) do
     %__MODULE__{}
-    |> changeset(data)
+    |> changeset(data, meta)
   end
 
   defp find_attachment(url) do
@@ -90,17 +90,17 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AudioVideoValidator do
 
   defp fix_content(data), do: data
 
-  defp fix(data) do
+  defp fix(data, meta) do
     data
     |> CommonFixes.fix_actor()
-    |> CommonFixes.fix_object_defaults()
+    |> CommonFixes.fix_object_defaults(meta)
     |> Transmogrifier.fix_emoji()
     |> fix_url()
     |> fix_content()
   end
 
-  def changeset(struct, data) do
-    data = fix(data)
+  def changeset(struct, data, meta) do
+    data = fix(data, meta)
 
     struct
     |> cast(data, __schema__(:fields) -- [:attachment, :tag])
@@ -108,7 +108,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AudioVideoValidator do
     |> cast_embed(:tag)
   end
 
-  defp validate_data(data_cng) do
+  defp validate_data(data_cng, _meta) do
     data_cng
     |> validate_inclusion(:type, ["Audio", "Video"])
     |> validate_required([:id, :actor, :attributedTo, :type, :context, :attachment])
