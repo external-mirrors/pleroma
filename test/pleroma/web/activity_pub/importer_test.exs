@@ -108,5 +108,28 @@ defmodule Pleroma.Web.ActivityPub.ImporterTest do
       verify_with_visibility.("private", false)
       verify_with_visibility.("direct", false)
     end
+
+    test "ignores on non-Create" do
+      importing_user = insert(:user)
+
+      assert {:ok, nil} =
+               Importer.import_one(%{"type" => "Announce", "object" => %{}}, importing_user)
+    end
+
+    test "ignores on non-status types" do
+      importing_user = insert(:user)
+
+      assert {:ok, nil} =
+               Importer.import_one(
+                 %{"type" => "Create", "object" => %{"type" => "ChatMessage"}},
+                 importing_user
+               )
+
+      assert {:ok, nil} =
+               Importer.import_one(
+                 %{"type" => "Create", "object" => %{"type" => "Answer"}},
+                 importing_user
+               )
+    end
   end
 end

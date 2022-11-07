@@ -49,11 +49,13 @@ defmodule Pleroma.Web.ActivityPub.Importer do
     end
   end
 
+  def import_object(_, _, _), do: {:ok, nil}
+
   def import_activity(%{"type" => "Create", "object" => object} = _activity, %User{} = user, opts) do
     import_object(object, user, opts)
   end
 
-  def import_activity(_, _, _), do: nil
+  def import_activity(_, _, _), do: {:ok, nil}
 
   def import_one(%{"type" => type} = object, %User{} = user, opts \\ []) do
     if type in Pleroma.Constants.status_types() do
