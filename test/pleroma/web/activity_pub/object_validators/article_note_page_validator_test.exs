@@ -30,12 +30,12 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidatorTest 
     end
 
     test "a basic note validates", %{note: note} do
-      %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note)
+      %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note, [])
     end
 
     test "a note from factory validates" do
       note = insert(:note)
-      %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note.data)
+      %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note.data, [])
     end
   end
 
@@ -90,7 +90,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidatorTest 
       |> File.read!()
       |> Jason.decode!()
 
-    %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note)
+    %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note, [])
   end
 
   test "a note with an attachment should work", _ do
@@ -101,7 +101,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidatorTest 
       |> File.read!()
       |> Jason.decode!()
 
-    %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note)
+    %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note, [])
   end
 
   test "a Note without replies/first/items validates" do
@@ -114,6 +114,6 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidatorTest 
       |> pop_in(["replies", "first", "items"])
       |> elem(1)
 
-    %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note)
+    %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note, [])
   end
 end
