@@ -42,17 +42,18 @@ defmodule Pleroma.Constants do
     ]
   )
 
-  const(updatable_object_types,
-    do: [
-      "Note",
-      "Question",
-      "Audio",
-      "Video",
-      "Event",
-      "Article",
-      "Page"
-    ]
-  )
+  @status_types [
+    "Note",
+    "Question",
+    "Audio",
+    "Video",
+    "Event",
+    "Article",
+    "Page"
+  ]
+  const(updatable_object_types, do: @status_types)
+
+  const(status_types, do: @status_types)
 
   const(actor_types,
     do: [
