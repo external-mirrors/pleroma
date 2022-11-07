@@ -4,7 +4,8 @@
 
 defmodule Pleroma.Web.ActivityPub.Importer do
   alias Pleroma.User
-  alias Pleroma.Web.ActivityPub.ActivityPub
+  alias Pleroma.Web.ActivityPub.Pipeline
+  alias Pleroma.Web.ActivityPub.Utils
 
   require Pleroma.Constants
 
@@ -23,14 +24,23 @@ defmodule Pleroma.Web.ActivityPub.Importer do
       |> rewrite_actor(user)
       |> strip_recipients()
 
-    ActivityPub.create(%{
-      actor: user,
-      published: published,
-      object: fixed_object,
-      to: [],
-      local: true,
-      context: context
-    })
+    create_data =
+      Utils.make_create_data(%{
+        actor: user,
+        published: published,
+        object: fixed_object,
+        to: [],
+        context: context
+      }, %{})
+      |> Utils.lazy_put_activity_defaults()
+
+    with {:ok, activity, _meta} <- Pipeline.common_pipeline(create_data, local: true) do
+      # This is to meant to be executed in the oban queue, we only care if it succeeds,
+      # so don't query for and put in the object here.
+      {:ok, activity}
+    else
+      e -> e
+    end
   end
 
   def import_activity(%{"type" => "Create", "object" => object} = _activity, %User{} = user) do
@@ -57,7 +67,7 @@ defmodule Pleroma.Web.ActivityPub.Importer do
   defp strip_recipients(object) do
     object
     |> Map.put("to", [])
-    |> Map.put("cc", [])
+    |> Map.put("cc", [object["actor"]])
     |> Map.put("bto", [])
     |> Map.put("bcc", [])
   end
