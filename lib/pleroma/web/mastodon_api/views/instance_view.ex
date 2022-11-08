@@ -247,9 +247,7 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
 
     %{
       source_languages: source_languages,
-      target_languages: target_languages,
-      allow_unauthenticated: Config.get([Pleroma.Language.Translation, :allow_unauthenticated]),
-      allow_remote: Config.get([Pleroma.Language.Translation, :allow_remote])
+      target_languages: target_languages
     }
   end
 end
