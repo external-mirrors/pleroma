@@ -38,6 +38,9 @@ While we don’t provide docker files, other people have written very good ones.
 ### Raspberry Pi
 Community maintained Raspberry Pi image that you can flash and run Pleroma on your Raspberry Pi. Available here <https://github.com/guysoft/PleromaPi>.
 
+### Fly.io
+Step-by-step instructions on running Pleroma on Fly.io's free tier. https://sal.dev/fediverse/running-pleroma-on-fly-io/
+
 ### Compilation Troubleshooting
 If you ever encounter compilation issues during the updating of Pleroma, you can try these commands and see if they fix things:
 
