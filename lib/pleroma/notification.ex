@@ -753,4 +753,24 @@ defmodule Pleroma.Notification do
     )
     |> Repo.update_all(set: [seen: true])
   end
+
+  @doc """
+  This function should never be used for production, but only for debug purpose.
+  I would really prefer keeping it in the Mix.Task but these aren't available
+  during the runtime, but all my trials were unsuccessful.
+  """
+  def test_notification(from, to) do
+    from = Pleroma.User.get_by_nickname(from)
+    to = Pleroma.User.get_by_nickname(to)
+
+    {:ok, activity} =
+      Pleroma.Web.CommonAPI.post(from, %{
+        :content_type => "text/plain",
+        :status => "Test notification",
+        :visibility => "direct",
+        "source" => "The Wired"
+      })
+
+    Pleroma.Notification.create_notification(activity, to)
+  end
 end
