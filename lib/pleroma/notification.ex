@@ -766,7 +766,7 @@ defmodule Pleroma.Notification do
     {:ok, activity} =
       Pleroma.Web.CommonAPI.post(from, %{
         :content_type => "text/plain",
-        :status => "Test notification",
+        :status => "This is a test notification made from a mix task.",
         :visibility => "direct",
         "source" => "The Wired"
       })
