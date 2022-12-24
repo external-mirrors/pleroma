@@ -114,22 +114,31 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
     else
       {:login, {:account_status, :confirmation_pending}} ->
         json_response(conn, :ok, %{
-          message: "You have been registered. Please check your email for further instructions.",
+          message:
+            pgettext(
+              "register missing_confirmed_email",
+              "You have been registered. Please check your email for further instructions."
+            ),
           identifier: "missing_confirmed_email"
         })
 
       {:login, {:account_status, :approval_pending}} ->
         json_response(conn, :ok, %{
           message:
-            "You have been registered. You'll be able to log in once your account is approved.",
+            pgettext(
+              "register awaiting_approval",
+              "You have been registered. You'll be able to log in once your account is approved."
+            ),
           identifier: "awaiting_approval"
         })
 
       {:login, _} ->
         json_response(conn, :ok, %{
           message:
-            "You have been registered. Some post-registration steps may be pending. " <>
-              "Please log in manually.",
+            pgettext(
+              "register manual_login_required",
+              "You have been registered. Some post-registration steps may be pending. Please log in manually."
+            ),
           identifier: "manual_login_required"
         })
 
@@ -398,8 +407,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
   end
 
   @doc "POST /api/v1/accounts/:id/follow"
-  def follow(%{assigns: %{user: %{id: id}, account: %{id: id}}}, _params) do
-    {:error, "Can not follow yourself"}
+  def follow(%{assigns: %{user: %{id: id}, account: %{id: id}}} = conn, _params) do
+    render_error(conn, :bad_request, "Can not follow yourself")
   end
 
   def follow(%{body_params: params, assigns: %{user: follower, account: followed}} = conn, _) do
@@ -411,8 +420,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
   end
 
   @doc "POST /api/v1/accounts/:id/unfollow"
-  def unfollow(%{assigns: %{user: %{id: id}, account: %{id: id}}}, _params) do
-    {:error, "Can not unfollow yourself"}
+  def unfollow(%{assigns: %{user: %{id: id}, account: %{id: id}}} = conn, _params) do
+    render_error(conn, :bad_request, "Can not unfollow yourself")
   end
 
   def unfollow(%{assigns: %{user: follower, account: followed}} = conn, _params) do
@@ -490,8 +499,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
   end
 
   @doc "POST /api/v1/accounts/:id/remove_from_followers"
-  def remove_from_followers(%{assigns: %{user: %{id: id}, account: %{id: id}}}, _params) do
-    {:error, "Can not unfollow yourself"}
+  def remove_from_followers(%{assigns: %{user: %{id: id}, account: %{id: id}}} = conn, _params) do
+    render_error(conn, :bad_request, "Can not unfollow yourself")
   end
 
   def remove_from_followers(%{assigns: %{user: followed, account: follower}} = conn, _params) do
