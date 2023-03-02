@@ -190,10 +190,10 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
   Publishes an activity with BCC to all relevant peers.
   """
 
-  def publish(%User{} = actor, %{data: %{"bcc" => bcc}} = activity)
+  def publish(%User{} = orig_actor, %{data: %{"bcc" => bcc}} = activity)
       when is_list(bcc) and bcc != [] do
     public = is_public?(activity)
-    {:ok, data} = Transmogrifier.prepare_outgoing(activity.data)
+    {:ok, actor, activity, data} = prepare_activity(orig_actor, activity)
 
     recipients = recipients(actor, activity)
 
@@ -228,7 +228,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
   end
 
   # Publishes an activity to all relevant peers.
-  def publish(%User{} = actor, %Activity{} = activity) do
+  def publish(%User{} = orig_actor, %Activity{} = activity) do
     public = is_public?(activity)
 
     if public && Config.get([:instance, :allow_relay]) do
@@ -236,7 +236,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
       Relay.publish(activity)
     end
 
-    {:ok, data} = Transmogrifier.prepare_outgoing(activity.data)
+    {:ok, actor, activity, data} = prepare_activity(orig_actor, activity)
     json = Jason.encode!(data)
 
     recipients(actor, activity)
@@ -276,4 +276,20 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
   end
 
   def gather_nodeinfo_protocol_names, do: ["activitypub"]
+
+  defp prepare_activity(orig_actor, activity) do
+    {:ok, data} = Transmogrifier.prepare_outgoing(activity.data)
+
+    with {_, false} <- {:actor_changed?, data["actor"] != activity.data["actor"]} do
+      {:ok, orig_actor, activity, data}
+    else
+      {:actor_changed?, true} ->
+        # If prepare_outgoing changes the actor, re-get it from the db
+        actor = User.get_cached_by_ap_id(data["actor"])
+
+        activity = %Activity{activity | actor: actor.ap_id}
+
+        {:ok, actor, activity, data}
+    end
+  end
 end
