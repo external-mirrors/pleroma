@@ -10,5 +10,6 @@ defmodule Pleroma.Repo.Migrations.CreateUploadedFiles do
     end
 
     create_if_not_exists(index(:uploaded_files, [:path]))
+    create_if_not_exists(index(:uploaded_files, [:object_id]))
   end
 end
