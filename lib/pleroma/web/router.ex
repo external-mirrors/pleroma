@@ -572,6 +572,9 @@ defmodule Pleroma.Web.Router do
 
       get("/backups", BackupController, :index)
       post("/backups", BackupController, :create)
+
+      get("/media", MediaController, :index)
+      delete("/media/:id", MediaController, :delete)
     end
 
     scope [] do

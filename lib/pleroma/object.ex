@@ -19,6 +19,7 @@ defmodule Pleroma.Object do
   alias Pleroma.Workers.AttachmentsCleanupWorker
 
   require Logger
+  require Pleroma.Constants
 
   @type t() :: %__MODULE__{}
 
@@ -450,5 +451,14 @@ defmodule Pleroma.Object do
     else
       []
     end
+  end
+
+  def uploads_by_user_query(%User{} = user) do
+    types = Pleroma.Constants.upload_object_types()
+    ap_id = User.ap_id(user)
+
+    __MODULE__
+    |> where([o], fragment("?->>'type' = ANY (?)", o.data, ^types))
+    |> where([o], fragment("?->>'actor' = ?", o.data, ^ap_id))
   end
 end

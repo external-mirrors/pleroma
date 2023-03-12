@@ -545,6 +545,11 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
 
   def render("card.json", _), do: nil
 
+  def render("attachment.json", %{attachment: %Object{} = object} = opts) do
+    attachment_data = Map.put(object.data, "id", object.id)
+    render("attachment.json", %{opts | attachment: attachment_data})
+  end
+
   def render("attachment.json", %{attachment: attachment}) do
     [attachment_url | _] = attachment["url"]
     media_type = attachment_url["mediaType"] || attachment_url["mimeType"] || "image"
