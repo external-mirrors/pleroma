@@ -11,6 +11,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
   alias Pleroma.Config
   alias Pleroma.Notification
   alias Pleroma.Object
+  alias Pleroma.UploadedFile
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Utils
@@ -1382,6 +1383,47 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       }
 
       {:ok, %Object{}} = ActivityPub.upload(file)
+    end
+  end
+
+  describe "delete_upload/1" do
+    setup do
+      test_file = %Plug.Upload{
+        content_type: "image/jpeg",
+        path: Path.absname("test/fixtures/image.jpg"),
+        filename: "an_image.jpg"
+      }
+
+      {:ok, %Object{} = object} = ActivityPub.upload(test_file)
+      uploaded_file = UploadedFile.get_by_object(object)
+
+      %{test_file: test_file, object: object, uploaded_file: uploaded_file}
+    end
+
+    test "it deletes object and uploaded_file", %{object: object, uploaded_file: uploaded_file} do
+      assert :ok = ActivityPub.delete_upload(uploaded_file)
+      assert %Object{data: %{"type" => "Tombstone"}} = Object.get_by_id(object.id)
+      assert nil == UploadedFile.get_by_id(uploaded_file.id)
+    end
+
+    test "it calls delete_file in the uploader", %{uploaded_file: uploaded_file} do
+      with_mock Pleroma.Upload, delete_file: fn _path -> :ok end do
+        assert :ok = ActivityPub.delete_upload(uploaded_file)
+        assert_called(Pleroma.Upload.delete_file(uploaded_file.path))
+      end
+    end
+
+    test "it does not call delete_file if there are other files with that path", %{
+      uploaded_file: uploaded_file
+    } do
+      {:ok, another_file} = UploadedFile.create(%{object: nil, path: uploaded_file.path})
+
+      with_mock Pleroma.Upload, delete_file: fn _path -> :ok end do
+        assert :ok = ActivityPub.delete_upload(uploaded_file)
+        assert nil == UploadedFile.get_by_id(uploaded_file.id)
+        assert %UploadedFile{} = UploadedFile.get_by_id(another_file.id)
+        refute called(Pleroma.Upload.delete_file(uploaded_file.path))
+      end
     end
   end
 

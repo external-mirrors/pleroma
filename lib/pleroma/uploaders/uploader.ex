@@ -5,6 +5,8 @@
 defmodule Pleroma.Uploaders.Uploader do
   import Pleroma.Web.Gettext
 
+  alias Pleroma.UploadedFile
+
   @mix_env Mix.env()
 
   @moduledoc """
@@ -54,6 +56,11 @@ defmodule Pleroma.Uploaders.Uploader do
       {:ok, _} = ok -> ok
       {:error, _} = error -> error
     end
+  end
+
+  @spec delete_file(module(), file :: String.t()) :: :ok | {:error, String.t()}
+  def delete_file(uploader, path) do
+    uploader.delete_file(path)
   end
 
   defp handle_callback(uploader, upload) do

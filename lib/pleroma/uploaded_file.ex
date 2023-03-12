@@ -6,6 +6,7 @@ defmodule Pleroma.UploadedFile do
   use Ecto.Schema
 
   import Ecto.Changeset
+  import Ecto.Query
 
   alias Pleroma.Object
   alias Pleroma.Repo
@@ -29,6 +30,11 @@ defmodule Pleroma.UploadedFile do
     |> Repo.insert()
   end
 
+  def get_by_id(id) do
+    __MODULE__
+    |> Repo.get_by(id: id)
+  end
+
   def get_by_object(%Object{} = object) do
     get_by_object_id(object.id)
   end
@@ -36,5 +42,19 @@ defmodule Pleroma.UploadedFile do
   def get_by_object_id(object_id) do
     __MODULE__
     |> Repo.get_by(object_id: object_id)
+  end
+
+  def preload_object(%__MODULE__{} = file) do
+    Repo.preload(file, :object)
+  end
+
+  def delete(%__MODULE__{} = file) do
+    Repo.delete(file)
+  end
+
+  def exists_by_path?(path) when is_binary(path) do
+    __MODULE__
+    |> where([f], f.path == ^path)
+    |> Repo.exists?()
   end
 end

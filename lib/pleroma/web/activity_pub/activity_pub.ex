@@ -19,6 +19,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   alias Pleroma.Pagination
   alias Pleroma.Repo
   alias Pleroma.Upload
+  alias Pleroma.UploadedFile
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.MRF
   alias Pleroma.Web.ActivityPub.Transmogrifier
@@ -1463,7 +1464,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
       Repo.transaction(fn ->
         {:ok, object} = Repo.insert(%Object{data: obj_data})
-        {:ok, _file} = Pleroma.UploadedFile.create(%{object: object, path: url_spec})
+        {:ok, _file} = UploadedFile.create(%{object: object, path: url_spec})
         object
       end)
     end
@@ -1477,6 +1478,35 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   end
 
   defp sanitize_upload_file(upload), do: upload
+
+  def delete_upload(%UploadedFile{} = file) do
+    with {:ok, _} <- Repo.transaction(fn -> do_delete_upload(file) end) do
+      :ok
+    else
+      e -> e
+    end
+  end
+
+  defp do_delete_upload(%UploadedFile{path: path} = file) do
+    with %{object: object} = file <- UploadedFile.preload_object(file),
+         {:ok, _} <- UploadedFile.delete(file),
+         {:ok, _, _} <- Object.delete(object),
+         :ok <- maybe_delete_uploaded_file_by_path(path) do
+      :ok
+    else
+      err ->
+        Repo.rollback(err)
+    end
+  end
+
+  defp maybe_delete_uploaded_file_by_path(path) do
+    if not UploadedFile.exists_by_path?(path) do
+      # FIXME: atomicity
+      Upload.delete_file(path)
+    else
+      :ok
+    end
+  end
 
   @spec get_actor_url(any()) :: binary() | nil
   defp get_actor_url(url) when is_binary(url), do: url

@@ -288,4 +288,11 @@ defmodule Pleroma.Upload do
   defp maybe_put_url_spec(data, _) do
     data
   end
+
+  @spec delete_file(path :: String.t()) :: :ok | {:error, String.t()}
+  def delete_file(path) when is_binary(path) do
+    uploader = Config.get([Pleroma.Upload, :uploader])
+
+    Pleroma.Uploaders.Uploader.delete_file(uploader, path)
+  end
 end
