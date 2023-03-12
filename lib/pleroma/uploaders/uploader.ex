@@ -5,8 +5,6 @@
 defmodule Pleroma.Uploaders.Uploader do
   import Pleroma.Web.Gettext
 
-  alias Pleroma.UploadedFile
-
   @mix_env Mix.env()
 
   @moduledoc """
