@@ -21,7 +21,7 @@ defmodule Pleroma.Web.ManifestView do
         "social"
       ],
       serviceworker: %{
-        src: "/sw.js"
+        src: "/sw-pleroma.js"
       }
     }
   end
