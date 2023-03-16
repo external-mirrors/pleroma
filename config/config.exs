@@ -496,10 +496,7 @@ config :pleroma, Pleroma.Web.Metadata,
   ],
   unfurl_nsfw: false
 
-config :pleroma, Pleroma.Web.Preload,
-  providers: [
-    Pleroma.Web.Preload.Providers.Instance
-  ]
+config :pleroma, Pleroma.Web.Preload, providers: []
 
 config :pleroma, :http_security,
   enabled: true,
