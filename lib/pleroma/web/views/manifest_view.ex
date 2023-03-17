@@ -7,7 +7,7 @@ defmodule Pleroma.Web.ManifestView do
   alias Pleroma.Config
   alias Pleroma.Web.Endpoint
 
-  def render("manifest.json", _params) do
+  def render("manifest.json", %{sw: sw}) do
     %{
       name: Config.get([:instance, :name]),
       description: Config.get([:instance, :description]),
@@ -21,7 +21,7 @@ defmodule Pleroma.Web.ManifestView do
         "social"
       ],
       serviceworker: %{
-        src: "/sw-pleroma.js"
+        src: sw
       }
     }
   end

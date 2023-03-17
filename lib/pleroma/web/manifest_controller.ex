@@ -8,7 +8,11 @@ defmodule Pleroma.Web.ManifestController do
   plug(:skip_auth when action == :show)
 
   @doc "GET /manifest.json"
+  def show(conn, %{"sw" => sw}) do
+    render(conn, "manifest.json", sw: sw)
+  end
+
   def show(conn, _params) do
-    render(conn, "manifest.json")
+    render(conn, "manifest.json", sw: "/sw-pleroma.js")
   end
 end
