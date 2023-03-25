@@ -193,25 +193,6 @@ defmodule Pleroma.Factory do
     }
   end
 
-  def listen_factory do
-    audio = insert(:audio)
-
-    data = %{
-      "id" => Pleroma.Web.ActivityPub.Utils.generate_activity_id(),
-      "type" => "Listen",
-      "actor" => audio.data["actor"],
-      "to" => audio.data["to"],
-      "object" => audio.data,
-      "published" => audio.data["published"]
-    }
-
-    %Pleroma.Activity{
-      data: data,
-      actor: data["actor"],
-      recipients: data["to"]
-    }
-  end
-
   def direct_note_factory do
     user2 = insert(:user)
 
