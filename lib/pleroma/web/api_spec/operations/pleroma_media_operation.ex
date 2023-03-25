@@ -38,8 +38,10 @@ defmodule Pleroma.Web.ApiSpec.PleromaMediaOperation do
       operationId: "PleromaAPI.MediaController.delete",
       parameters: [Operation.parameter(:id, :path, :integer, "Attachment id")],
       responses: %{
-        200 => Operation.response("Array of media", "application/json", array_of_attachments()),
-        404 => Operation.response("Not Found", "application/json", ApiError)
+        200 =>
+          Operation.response("Empty", "application/json", %Schema{type: :object, example: %{}}),
+        404 => Operation.response("Not Found", "application/json", ApiError),
+        500 => Operation.response("Internal Server Error", "application/json", ApiError)
       }
     }
   end

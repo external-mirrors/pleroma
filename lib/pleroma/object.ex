@@ -32,6 +32,11 @@ defmodule Pleroma.Object do
 
     many_to_many(:hashtags, Hashtag, join_through: "hashtags_objects", on_replace: :delete)
 
+    many_to_many(:attachments, Pleroma.Object,
+      join_through: "attachment_relationships",
+      on_replace: :delete
+    )
+
     timestamps()
   end
 
@@ -64,6 +69,7 @@ defmodule Pleroma.Object do
     |> unique_constraint(:ap_id, name: :objects_unique_apid_index)
     # Expecting `maybe_handle_hashtags_change/1` to run last:
     |> maybe_handle_hashtags_change(struct)
+    |> maybe_handle_attachments_change(struct)
   end
 
   # Note: not checking activity type (assuming non-legacy objects are associated with Create act.)
@@ -96,6 +102,59 @@ defmodule Pleroma.Object do
   end
 
   defp hashtags_changed?(_, _), do: false
+
+  defp maybe_handle_attachments_change(changeset, struct) do
+    with %Ecto.Changeset{valid?: true} <- changeset,
+         data_attachments_change = get_change(changeset, :data),
+         {_, true} <- {:changed, attachment_ids_changed?(struct, data_attachments_change)},
+         {:ok, attachment_records} <- data_attachments_change |> get_attachments() do
+      put_assoc(changeset, :attachments, attachment_records)
+    else
+      %{valid?: false} ->
+        changeset
+
+      {:changed, false} ->
+        changeset
+
+      {:error, _} ->
+        validate_change(changeset, :data, fn _, _ ->
+          [data: "error referencing attachments"]
+        end)
+    end
+  end
+
+  defp attachment_ids(%{"attachments" => [_ | _] = attachments}) do
+    attachment_ids(attachments)
+  end
+
+  defp attachment_ids(attachments) when is_list(attachments) do
+    Enum.map(attachments, fn
+      %{"id" => id} -> id
+      _ -> nil
+    end)
+    |> Enum.filter(& &1)
+  end
+
+  defp attachment_ids(_), do: []
+
+  defp attachment_ids_changed?(%Object{data: %{"attachments" => [_ | _] = a}}, %{
+         "attachments" => [_ | _] = b
+       }) do
+    a_ids = Enum.sort(attachment_ids(a))
+    b_ids = Enum.sort(attachment_ids(b))
+
+    a_ids != b_ids
+  end
+
+  defp attachment_ids_changed?(%Object{data: %{"attachments" => [_ | _]}}, _), do: true
+  defp attachment_ids_changed?(%Object{}, %{"attachments" => [_ | _]}), do: true
+  defp attachment_ids_changed?(_, _), do: false
+
+  defp get_attachments(data) do
+    data
+    |> attachment_ids()
+    |> Enum.map(fn id -> Object.get_by_ap_id(id) end)
+  end
 
   def get_by_id(nil), do: nil
   def get_by_id(id), do: Repo.get(Object, id)
