@@ -895,6 +895,16 @@ Feel free to adjust the priv_dir and port number. Then you will have to create t
 * `port`: Port to bind to
 * `dstport`: Port advertised in urls (optional, defaults to `port`)
 
+### :finger
+Pleroma can operate as a Finger server by returning the latest pinned post of a local user as the user's plan.
+
+* `enabled`: Enables the gopher interface
+* `ip`: IP address to bind to
+* `port`: Port to bind to
+
+The Finger protocol operates on port 79, but that is a reserved port (<1024). You will have to setup a firewall rule to redirect port 79 to the port you have configured Finger to bind to.
+
+Once enabled, run "finger user@pleromahost" from your favorite Linux/Unix system.
 
 ## Authentication
 

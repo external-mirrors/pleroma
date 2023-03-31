@@ -489,6 +489,11 @@ config :pleroma, :gopher,
   ip: {0, 0, 0, 0},
   port: 9999
 
+config :pleroma, :finger,
+  enabled: false,
+  ip: {0, 0, 0, 0},
+  port: 1079
+
 config :pleroma, Pleroma.Web.Metadata,
   providers: [
     Pleroma.Web.Metadata.Providers.OpenGraph,
