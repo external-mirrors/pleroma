@@ -27,7 +27,7 @@ defmodule Pleroma.Workers.Cron.NewUsersDigestWorker do
           order_by: :inserted_at
         }
         |> User.Query.build()
-        |> where([u], u.inserted_at >= ^a_day_ago and u.inserted_at < ^today)
+        |> where([u], u.inserted_at >= ^a_day_ago and u.inserted_at < ^today and u.is_approved)
         |> Repo.all()
         |> Enum.map(fn user ->
           latest_status =
