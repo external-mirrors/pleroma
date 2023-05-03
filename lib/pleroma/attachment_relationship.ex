@@ -14,8 +14,6 @@ defmodule Pleroma.AttachmentRelationship do
   schema "attachment_relationships" do
     belongs_to(:object, Object)
     belongs_to(:attachment, Object)
-
-    timestamps()
   end
 
   def changeset(%__MODULE__{} = rel, %{object: object, attachment: attachment}) do

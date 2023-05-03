@@ -34,7 +34,13 @@ defmodule Pleroma.Object do
 
     many_to_many(:attachments, Pleroma.Object,
       join_through: "attachment_relationships",
-      on_replace: :delete
+      on_replace: :delete,
+      join_keys: [object_id: :id, attachment_id: :id]
+    )
+
+    many_to_many(:used_in_objects, Pleroma.Object,
+      join_through: "attachment_relationships",
+      join_keys: [attachment_id: :id, object_id: :id]
     )
 
     timestamps()
@@ -105,9 +111,9 @@ defmodule Pleroma.Object do
 
   defp maybe_handle_attachments_change(changeset, struct) do
     with %Ecto.Changeset{valid?: true} <- changeset,
-         data_attachments_change = get_change(changeset, :data),
+         data_attachments_change <- get_change(changeset, :data),
          {_, true} <- {:changed, attachment_ids_changed?(struct, data_attachments_change)},
-         {:ok, attachment_records} <- data_attachments_change |> get_attachments() do
+         attachment_records when is_list(attachment_records) <- data_attachments_change |> get_attachments() do
       put_assoc(changeset, :attachments, attachment_records)
     else
       %{valid?: false} ->
@@ -123,7 +129,7 @@ defmodule Pleroma.Object do
     end
   end
 
-  defp attachment_ids(%{"attachments" => [_ | _] = attachments}) do
+  defp attachment_ids(%{"attachment" => [_ | _] = attachments}) do
     attachment_ids(attachments)
   end
 
@@ -137,8 +143,8 @@ defmodule Pleroma.Object do
 
   defp attachment_ids(_), do: []
 
-  defp attachment_ids_changed?(%Object{data: %{"attachments" => [_ | _] = a}}, %{
-         "attachments" => [_ | _] = b
+  defp attachment_ids_changed?(%Object{data: %{"attachment" => [_ | _] = a}}, %{
+         "attachment" => [_ | _] = b
        }) do
     a_ids = Enum.sort(attachment_ids(a))
     b_ids = Enum.sort(attachment_ids(b))
@@ -146,8 +152,8 @@ defmodule Pleroma.Object do
     a_ids != b_ids
   end
 
-  defp attachment_ids_changed?(%Object{data: %{"attachments" => [_ | _]}}, _), do: true
-  defp attachment_ids_changed?(%Object{}, %{"attachments" => [_ | _]}), do: true
+  defp attachment_ids_changed?(%Object{data: %{"attachment" => [_ | _]}}, _), do: true
+  defp attachment_ids_changed?(%Object{}, %{"attachment" => [_ | _]}), do: true
   defp attachment_ids_changed?(_, _), do: false
 
   defp get_attachments(data) do
@@ -519,5 +525,6 @@ defmodule Pleroma.Object do
     __MODULE__
     |> where([o], fragment("?->>'type' = ANY (?)", o.data, ^types))
     |> where([o], fragment("?->>'actor' = ?", o.data, ^ap_id))
+    |> preload(:used_in_objects)
   end
 end

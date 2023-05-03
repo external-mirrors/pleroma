@@ -547,10 +547,22 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
 
   def render("attachment.json", %{attachment: %Object{} = object} = opts) do
     attachment_data = Map.put(object.data, "id", object.id)
-    render("attachment.json", %{opts | attachment: attachment_data})
+
+    used_in_objects =
+      if Ecto.assoc_loaded?(object.used_in_objects) do
+        object.used_in_objects
+      else
+        nil
+      end
+
+    render("attachment.json",
+      opts
+      |> Map.put(:attachment, attachment_data)
+      |> Map.put(:used_in_objects, used_in_objects)
+    )
   end
 
-  def render("attachment.json", %{attachment: attachment}) do
+  def render("attachment.json", %{attachment: attachment} = opts) do
     [attachment_url | _] = attachment["url"]
     media_type = attachment_url["mediaType"] || attachment_url["mimeType"] || "image"
     href = attachment_url["href"] |> MediaProxy.url()
@@ -588,6 +600,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
       blurhash: attachment["blurhash"]
     }
     |> Maps.put_if_present(:meta, meta)
+    |> maybe_put_used_in_objects(opts)
   end
 
   def render("attachment_meta.json", %{
@@ -760,5 +773,16 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
 
   defp get_source_content_type(_source) do
     Utils.get_content_type(nil)
+  end
+
+  defp maybe_put_used_in_objects(res, opts) do
+    if is_list(opts[:used_in_objects]) do
+      ids = Enum.map(opts[:used_in_objects], fn o -> Activity.get_create_by_object_ap_id(o.data["id"]).id end)
+
+      res
+      |> put_in([:pleroma, :used_in_status_ids], ids)
+    else
+      res
+    end
   end
 end

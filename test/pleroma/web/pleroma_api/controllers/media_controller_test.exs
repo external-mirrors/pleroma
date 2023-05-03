@@ -7,6 +7,7 @@ defmodule Pleroma.Web.PleromaAPI.MediaControllerTest do
 
   alias Pleroma.Object
   alias Pleroma.User
+  alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.MastodonAPI.MediaView
 
@@ -52,7 +53,34 @@ defmodule Pleroma.Web.PleromaAPI.MediaControllerTest do
         uploaded_objects
         |> Enum.reverse()
         |> Enum.map(fn attachment ->
-          MediaView.render("attachment.json", %{attachment: attachment})
+          MediaView.render("attachment.json", %{attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)})
+        end)
+        |> stringify_keys()
+
+      assert attachments == expected
+    end
+
+    test "it lists all medias uploaded by me, with attachment relationships", %{
+      conn: conn,
+      uploaded_objects: uploaded_objects,
+      user: user
+    } do
+      media_ids =
+        uploaded_objects
+        |> Enum.map(fn o -> o.id end)
+
+      {:ok, _activity} = CommonAPI.post(user, %{status: "test", media_ids: media_ids})
+
+      attachments =
+        conn
+        |> get("/api/v1/pleroma/media")
+        |> json_response_and_validate_schema(:ok)
+
+      expected =
+        uploaded_objects
+        |> Enum.reverse()
+        |> Enum.map(fn attachment ->
+          MediaView.render("attachment.json", %{attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)})
         end)
         |> stringify_keys()
 
@@ -75,7 +103,7 @@ defmodule Pleroma.Web.PleromaAPI.MediaControllerTest do
         uploaded_objects
         |> Enum.reverse()
         |> Enum.map(fn attachment ->
-          MediaView.render("attachment.json", %{attachment: attachment})
+          MediaView.render("attachment.json", %{attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)})
         end)
         |> stringify_keys()
 
@@ -95,7 +123,7 @@ defmodule Pleroma.Web.PleromaAPI.MediaControllerTest do
         uploaded_objects
         |> Enum.reverse()
         |> Enum.map(fn attachment ->
-          MediaView.render("attachment.json", %{attachment: attachment})
+          MediaView.render("attachment.json", %{attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)})
         end)
         |> stringify_keys()
 

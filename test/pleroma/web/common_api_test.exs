@@ -765,6 +765,30 @@ defmodule Pleroma.Web.CommonAPITest do
                })
     end
 
+    test "attachment relationships are correctly created" do
+      clear_config([:instance, :max_media_attachments], 4)
+
+      user = insert(:user)
+
+      file = %Plug.Upload{
+        content_type: "image/jpeg",
+        path: Path.absname("test/fixtures/image.jpg"),
+        filename: "an_image.jpg"
+      }
+
+      {:ok, upload} = ActivityPub.upload(file, actor: user.ap_id)
+
+      assert {:ok, activity} =
+               CommonAPI.post(user, %{
+                 status: "",
+                 media_ids: [upload.id]
+               })
+
+      object = Object.normalize(activity)
+
+      assert Pleroma.AttachmentRelationship.exists?(object, upload)
+    end
+
     test "it can handle activities that expire" do
       user = insert(:user)
 
