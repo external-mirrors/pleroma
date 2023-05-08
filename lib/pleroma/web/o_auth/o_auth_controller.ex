@@ -628,6 +628,6 @@ defmodule Pleroma.Web.OAuth.OAuthController do
   end
 
   defp render_invalid_credentials_error(conn) do
-    render_error(conn, :bad_request, "Invalid credentials")
+    render_error(conn, :unauthorized, "Unauthorized")
   end
 end
