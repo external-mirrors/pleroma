@@ -93,6 +93,13 @@ defmodule Pleroma.Web.MastodonAPI.InstanceControllerTest do
     assert ["peer1.com", "peer2.com"] == Enum.sort(result)
   end
 
+  test "get instance information v2", %{conn: conn} do
+    clear_config([:auth, :oauth_consumer_strategies], [])
+
+    assert get(conn, "/api/v2/instance")
+    |> json_response_and_validate_schema(200)
+  end
+
   test "instance languages", %{conn: conn} do
     assert %{"languages" => ["en"]} =
              conn
@@ -107,10 +114,12 @@ defmodule Pleroma.Web.MastodonAPI.InstanceControllerTest do
              |> json_response_and_validate_schema(200)
   end
 
-  test "get instance information v2", %{conn: conn} do
-    clear_config([:auth, :oauth_consumer_strategies], [])
+  test "translation languages matrix", %{conn: conn} do
+    clear_config([Pleroma.Language.Translation, :provider], TranslationMock)
 
-    assert get(conn, "/api/v2/instance")
-    |> json_response_and_validate_schema(200)
+    assert %{"en" => ["pl"], "pl" => ["en"]} =
+             conn
+             |> get("/api/v1/instance/translation_languages")
+             |> json_response_and_validate_schema(200)
   end
 end
