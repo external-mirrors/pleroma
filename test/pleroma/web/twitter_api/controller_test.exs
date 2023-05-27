@@ -91,7 +91,7 @@ defmodule Pleroma.Web.TwitterAPI.ControllerTest do
       response =
         build_conn()
         |> assign(:user, token.user)
-        |> delete("/api/oauth_tokens")
+        |> delete("/api/oauth_tokens_all")
 
       tokens = Token.get_user_tokens(token.user)
 
