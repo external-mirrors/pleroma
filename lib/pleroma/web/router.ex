@@ -809,7 +809,7 @@ defmodule Pleroma.Web.Router do
 
     get("/oauth_tokens", TwitterAPI.Controller, :oauth_tokens)
     delete("/oauth_tokens/:id", TwitterAPI.Controller, :revoke_token)
-    delete("/oauth_tokens", TwitterAPI.Controller, :revoke_all_tokens)
+    delete("/oauth_tokens_all", TwitterAPI.Controller, :revoke_all_tokens)
   end
 
   scope "/", Pleroma.Web do
