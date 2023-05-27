@@ -40,4 +40,33 @@ defmodule Pleroma.Web.Plugs.UploadedMediaPlugTest do
              &(&1 == {"content-disposition", ~s[inline; filename="\\"cofe\\".gif"]})
            )
   end
+
+  test "Filters out dangerous content types" do
+    context = %{module: __MODULE__, case: __MODULE__}
+
+    test_files = [
+      "test/fixtures/lain.xml",
+      "test/fixtures/nypd-facial-recognition-children-teenagers.html",
+      "test/fixtures/snow.js"
+    ]
+
+    Enum.each(test_files, fn t ->
+      Pleroma.DataCase.ensure_local_uploader(context)
+      filename = String.split(t, "/") |> List.last()
+
+      upload = %Plug.Upload{
+        path: Path.absname(t),
+        filename: filename
+      }
+
+      {:ok, %{"url" => [%{"href" => attachment_url}]}} = Upload.store(upload)
+
+      conn = get(build_conn(), attachment_url)
+
+      assert Enum.any?(
+               conn.resp_headers,
+               &(&1 == {"content-type", "text/plain"})
+             )
+    end)
+  end
 end
