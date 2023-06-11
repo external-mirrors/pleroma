@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.Plugs.HTTPSecurityPlug do
-  alias Pleroma.Config
+  alias Pleroma.Config.Getting, as: Config
   import Plug.Conn
 
   require Logger
@@ -114,10 +114,14 @@ defmodule Pleroma.Web.Plugs.HTTPSecurityPlug do
       end
 
     script_src =
-      if Config.get(:env) == :dev do
-        "script-src 'self' 'unsafe-eval'"
+      if Config.get([:http_security, :allow_unsafe_eval]) do
+        if Config.get(:env) == :dev do
+          "script-src 'self' 'unsafe-eval'"
+        else
+          "script-src 'self' 'wasm-unsafe-eval'"
+        end
       else
-        "script-src 'self' 'wasm-unsafe-eval'"
+        "script-src 'self'"
       end
 
     report = if report_uri, do: ["report-uri ", report_uri, ";report-to csp-endpoint"]
