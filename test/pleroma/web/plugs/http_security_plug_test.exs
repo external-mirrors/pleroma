@@ -36,8 +36,9 @@ defmodule Pleroma.Web.Plugs.HTTPSecurityPlugTest do
     end
 
     test "with allow_unsafe_eval set, it does contain it", %{conn: conn, base_config: base_config} do
-      base_config = base_config
-      |> Keyword.put(:allow_unsafe_eval, true)
+      base_config =
+        base_config
+        |> Keyword.put(:allow_unsafe_eval, true)
 
       mock_config(base_config)
 
