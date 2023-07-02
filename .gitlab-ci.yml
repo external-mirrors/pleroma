@@ -1,13 +1,17 @@
-image: git.pleroma.social:5050/pleroma/pleroma/ci-base
-
+# https://hexdocs.pm/elixir/compatibility-and-deprecations.html#compatibility-between-elixir-and-erlang-otp
 variables: &global_variables
+  ELIXIR_IMG: hexpm/elixir
   ELIXIR_VER: 1.12.3
+  ERLANG_VER: 24.3.4.13
+  ALPINE_VER: 3.18.2
   POSTGRES_DB: pleroma_test
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres
   DB_HOST: postgres
   DB_PORT: 5432
   MIX_ENV: test
+
+image: ${ELIXIR_IMG}:${ELIXIR_VER}-erlang-${ERLANG_VER}-alpine-${ALPINE_VER}
 
 workflow:
   rules:
@@ -36,6 +40,9 @@ stages:
 
 before_script:
   - echo $MIX_ENV
+  - apk add cmake file-dev git build-base
+  - mix local.hex --force
+  - mix local.rebar --force
   - rm -rf _build/*/lib/pleroma
   - mix deps.get
 
@@ -123,6 +130,7 @@ unit-testing:
     alias: postgres
     command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
   script:
+    - apk add exiftool ffmpeg imagemagick
     - mix ecto.create
     - mix ecto.migrate
     - mix test --cover --preload-modules
@@ -149,6 +157,7 @@ unit-testing-erratic:
     alias: postgres
     command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
   script:
+    - apk add exiftool ffmpeg imagemagick
     - mix ecto.create
     - mix ecto.migrate
     - mix test --only=erratic
@@ -183,6 +192,7 @@ unit-testing-rum:
     <<: *global_variables
     RUM_ENABLED: "true"
   script:
+    - apk add exiftool ffmpeg imagemagick
     - mix ecto.create
     - mix ecto.migrate
     - "mix ecto.migrate --migrations-path priv/repo/optional_migrations/rum_indexing/"
