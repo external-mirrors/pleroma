@@ -1,4 +1,4 @@
-image: elixir:1.12-alpine
+image: alpine:latest
 
 variables: &global_variables
   POSTGRES_DB: pleroma_test
@@ -35,7 +35,7 @@ stages:
 
 before_script:
   - echo $MIX_ENV
-  - apk add build-base cmake file-dev git openssl
+  - apk add elixir build-base cmake file-dev git openssl
   - mix local.hex --force
   - mix local.rebar --force
   - rm -rf _build/*/lib/pleroma
