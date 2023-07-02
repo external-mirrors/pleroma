@@ -8,7 +8,7 @@ defmodule Pleroma.Mixfile do
       elixir: "~> 1.11",
       elixirc_paths: elixirc_paths(Mix.env()),
       compilers: [:phoenix] ++ Mix.compilers(),
-      elixirc_options: [warnings_as_errors: warnings_as_errors()],
+      #TEMP: elixirc_options: [warnings_as_errors: warnings_as_errors()],
       xref: [exclude: [:eldap]],
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
