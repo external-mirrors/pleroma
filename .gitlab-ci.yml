@@ -1,4 +1,4 @@
-image: elixir:1.11-alpine
+image: elixir:1.12-alpine
 
 variables: &global_variables
   POSTGRES_DB: pleroma_test
