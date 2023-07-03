@@ -684,6 +684,10 @@ config :pleroma, :populate_hashtags_table, fault_rate_allowance: 0.01
 
 config :pleroma, :delete_context_objects, fault_rate_allowance: 0.01
 
+config :pleroma, :add_media_repository_info,
+  fault_rate_allowance: 0.01,
+  sleep_interval_ms: 15000
+
 config :pleroma, :env, Mix.env()
 
 config :http_signatures,

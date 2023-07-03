@@ -43,4 +43,5 @@ defmodule Pleroma.DataMigration do
 
   def populate_hashtags_table, do: get_by_name("populate_hashtags_table")
   def delete_context_objects, do: get_by_name("delete_context_objects")
+  def add_media_repository_info, do: get_by_name("add_media_repository_info")
 end
