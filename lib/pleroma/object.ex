@@ -113,7 +113,8 @@ defmodule Pleroma.Object do
     with %Ecto.Changeset{valid?: true} <- changeset,
          data_attachments_change <- get_change(changeset, :data),
          {_, true} <- {:changed, attachment_ids_changed?(struct, data_attachments_change)},
-         attachment_records when is_list(attachment_records) <- data_attachments_change |> get_attachments() do
+         attachment_records when is_list(attachment_records) <-
+           data_attachments_change |> get_attachments() do
       put_assoc(changeset, :attachments, attachment_records)
     else
       %{valid?: false} ->

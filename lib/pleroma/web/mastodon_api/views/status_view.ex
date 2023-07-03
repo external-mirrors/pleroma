@@ -555,7 +555,8 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
         nil
       end
 
-    render("attachment.json",
+    render(
+      "attachment.json",
       opts
       |> Map.put(:attachment, attachment_data)
       |> Map.put(:used_in_objects, used_in_objects)
@@ -777,7 +778,10 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
 
   defp maybe_put_used_in_objects(res, opts) do
     if is_list(opts[:used_in_objects]) do
-      ids = Enum.map(opts[:used_in_objects], fn o -> Activity.get_create_by_object_ap_id(o.data["id"]).id end)
+      ids =
+        Enum.map(opts[:used_in_objects], fn o ->
+          Activity.get_create_by_object_ap_id(o.data["id"]).id
+        end)
 
       res
       |> put_in([:pleroma, :used_in_status_ids], ids)

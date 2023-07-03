@@ -53,7 +53,9 @@ defmodule Pleroma.Web.PleromaAPI.MediaControllerTest do
         uploaded_objects
         |> Enum.reverse()
         |> Enum.map(fn attachment ->
-          MediaView.render("attachment.json", %{attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)})
+          MediaView.render("attachment.json", %{
+            attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)
+          })
         end)
         |> stringify_keys()
 
@@ -80,7 +82,9 @@ defmodule Pleroma.Web.PleromaAPI.MediaControllerTest do
         uploaded_objects
         |> Enum.reverse()
         |> Enum.map(fn attachment ->
-          MediaView.render("attachment.json", %{attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)})
+          MediaView.render("attachment.json", %{
+            attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)
+          })
         end)
         |> stringify_keys()
 
@@ -103,7 +107,9 @@ defmodule Pleroma.Web.PleromaAPI.MediaControllerTest do
         uploaded_objects
         |> Enum.reverse()
         |> Enum.map(fn attachment ->
-          MediaView.render("attachment.json", %{attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)})
+          MediaView.render("attachment.json", %{
+            attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)
+          })
         end)
         |> stringify_keys()
 
@@ -123,7 +129,9 @@ defmodule Pleroma.Web.PleromaAPI.MediaControllerTest do
         uploaded_objects
         |> Enum.reverse()
         |> Enum.map(fn attachment ->
-          MediaView.render("attachment.json", %{attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)})
+          MediaView.render("attachment.json", %{
+            attachment: attachment |> Pleroma.Repo.preload(:used_in_objects)
+          })
         end)
         |> stringify_keys()
 
