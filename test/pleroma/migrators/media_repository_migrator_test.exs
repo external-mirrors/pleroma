@@ -11,6 +11,12 @@ defmodule Pleroma.Migrators.MediaRepositoryMigratorTest do
 
   import Pleroma.Factory
 
+  @url_prefix "#{Pleroma.Web.Endpoint.url()}/media/"
+
+  defp get_url_spec(url) do
+    String.replace_prefix(url, @url_prefix, "")
+  end
+
   describe "query/0" do
     test "it returns Documents and Images" do
       document = insert(:attachment)
@@ -29,6 +35,22 @@ defmodule Pleroma.Migrators.MediaRepositoryMigratorTest do
 
       result = MediaRepositoryMigrator.query() |> Repo.all()
       assert [] == result
+    end
+  end
+
+  describe "add_media_info/1" do
+    test "it adds an UploadedFile" do
+      document = insert(:attachment)
+      url_spec =
+        document.data["url"]
+        |> Enum.at(0)
+        |> Map.get("href")
+        |> get_url_spec()
+
+      {:ok, _} = MediaRepositoryMigrator.add_media_info(document)
+
+      uploaded_file = UploadedFile.get_by_object(document)
+      assert uploaded_file.path == url_spec
     end
   end
 end

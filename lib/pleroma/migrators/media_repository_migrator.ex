@@ -37,7 +37,7 @@ defmodule Pleroma.Migrators.MediaRepositoryMigrator do
     |> Stream.each(fn objects ->
       object_ids = Enum.map(objects, & &1.id)
 
-      results = Enum.map(object_ids, &add_media_info(&1))
+      results = Enum.map(objects, &add_media_info(&1))
 
       failed_ids =
         results
@@ -93,9 +93,28 @@ defmodule Pleroma.Migrators.MediaRepositoryMigrator do
     )
   end
 
-  @spec add_media_info(integer()) :: {:ok | :error, integer()}
-  defp add_media_info(id) do
-    {:ok, id}
+  defp get_url_spec_from_object(object) do
+    url =
+      object.data["url"]
+      |> Enum.at(0)
+      |> Map.get("href")
+
+    upload_base = Pleroma.Upload.base_url()
+    if String.starts_with?(url, upload_base) do
+      String.replace_prefix(url, upload_base, "")
+    else
+      nil
+    end
+  end
+
+  @spec add_media_info(Object.t()) :: {:ok | :error, integer()}
+  def add_media_info(object) do
+    with url_spec when not is_nil(url_spec) <- get_url_spec_from_object(object),
+         {:ok, _uploaded_file} <- UploadedFile.create(%{object: object, path: url_spec}) do
+      {:ok, object.id}
+    else
+      _ -> {:error, object.id}
+    end
   end
 
   @impl BaseMigrator
