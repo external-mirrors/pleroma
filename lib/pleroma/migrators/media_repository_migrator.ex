@@ -99,13 +99,23 @@ defmodule Pleroma.Migrators.MediaRepositoryMigrator do
       |> Enum.at(0)
       |> Map.get("href")
 
-    upload_base = Pleroma.Upload.base_url()
-    if String.starts_with?(url, upload_base) do
-      String.replace_prefix(url, upload_base, "")
+    base_urls = [
+      Pleroma.Upload.base_url()
+      | Config.get([:add_media_repository_info, :additional_base_urls], [])
+    ]
+
+    try_get_url_spec(url, base_urls)
+  end
+
+  defp try_get_url_spec(url, [base_url | next]) do
+    if String.starts_with?(url, base_url) do
+      String.replace_prefix(url, base_url, "")
     else
-      nil
+      try_get_url_spec(url, next)
     end
   end
+
+  defp try_get_url_spec(_url, []), do: nil
 
   @spec add_media_info(Object.t()) :: {:ok | :error, integer()}
   def add_media_info(object) do
