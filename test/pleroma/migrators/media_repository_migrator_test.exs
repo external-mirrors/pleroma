@@ -7,6 +7,7 @@ defmodule Pleroma.Migrators.MediaRepositoryMigratorTest do
 
   alias Pleroma.Migrators.MediaRepositoryMigrator
   alias Pleroma.Repo
+  alias Pleroma.UploadedFile
 
   import Pleroma.Factory
 
@@ -20,6 +21,14 @@ defmodule Pleroma.Migrators.MediaRepositoryMigratorTest do
       assert [_, _] = result
       assert image in result
       assert document in result
+    end
+
+    test "it does not return objects with a corresponding UploadedFile" do
+      document = insert(:attachment)
+      {:ok, _uploaded_file} = UploadedFile.create(%{object: document, path: "some/path"})
+
+      result = MediaRepositoryMigrator.query() |> Repo.all()
+      assert [] == result
     end
   end
 end

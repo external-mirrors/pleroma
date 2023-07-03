@@ -14,6 +14,7 @@ defmodule Pleroma.Migrators.MediaRepositoryMigrator do
 
   alias Pleroma.Migrators.Support.BaseMigrator
   alias Pleroma.Object
+  alias Pleroma.UploadedFile
 
   @doc "This migration removes objects created exclusively for contexts, containing only an `id` field."
 
@@ -85,7 +86,10 @@ defmodule Pleroma.Migrators.MediaRepositoryMigrator do
   def query do
     from(
       object in Object,
-      where: fragment("(?)->>'type' IN ('Document', 'Image')", object.data)
+      where: fragment("(?)->>'type' IN ('Document', 'Image')", object.data),
+      left_join: uploaded_file in UploadedFile,
+      on: object.id == uploaded_file.object_id,
+      where: is_nil(uploaded_file)
     )
   end
 
