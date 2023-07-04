@@ -126,7 +126,7 @@ defmodule Pleroma.Factory do
     user = attrs[:user] || insert(:user)
 
     data =
-      attachment_data(user.ap_id, nil)
+      attachment_data(user.ap_id, attrs[:href])
       |> Map.put("id", Pleroma.Web.ActivityPub.Utils.generate_object_id())
 
     %Pleroma.Object{

@@ -107,9 +107,13 @@ defmodule Pleroma.Migrators.MediaRepositoryMigrator do
     try_get_url_spec(url, base_urls)
   end
 
+  @link_name_regex ~r[\?name=.*]
   defp try_get_url_spec(url, [base_url | next]) do
     if String.starts_with?(url, base_url) do
+      # Doing reverse of Pleroma.Upload.url_from_spec()
       String.replace_prefix(url, base_url, "")
+      |> String.replace(@link_name_regex, "")
+      |> URI.decode()
     else
       try_get_url_spec(url, next)
     end

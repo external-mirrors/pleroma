@@ -86,5 +86,29 @@ defmodule Pleroma.Migrators.MediaRepositoryMigratorTest do
       uploaded_file = UploadedFile.get_by_object(document)
       assert uploaded_file.path == url_spec
     end
+
+    test "it removes the ?name= query" do
+      document =
+        insert(:attachment, href: "#{Pleroma.Web.Endpoint.url()}/media/1.jpg?name=something.jpg")
+
+      expected_url_spec = "1.jpg"
+
+      {:ok, _} = MediaRepositoryMigrator.add_media_info(document)
+
+      uploaded_file = UploadedFile.get_by_object(document)
+      assert uploaded_file.path == expected_url_spec
+    end
+
+    test "it urldecodes the path" do
+      document =
+        insert(:attachment, href: "#{Pleroma.Web.Endpoint.url()}/media/%3A.jpg?name=something.jpg")
+
+      expected_url_spec = ":.jpg"
+
+      {:ok, _} = MediaRepositoryMigrator.add_media_info(document)
+
+      uploaded_file = UploadedFile.get_by_object(document)
+      assert uploaded_file.path == expected_url_spec
+    end
   end
 end
