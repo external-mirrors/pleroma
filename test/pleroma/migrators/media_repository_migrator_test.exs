@@ -6,6 +6,7 @@ defmodule Pleroma.Migrators.MediaRepositoryMigratorTest do
   use Pleroma.DataCase, async: false
 
   alias Pleroma.Migrators.MediaRepositoryMigrator
+  alias Pleroma.Object
   alias Pleroma.Repo
   alias Pleroma.UploadedFile
 
@@ -109,6 +110,34 @@ defmodule Pleroma.Migrators.MediaRepositoryMigratorTest do
 
       uploaded_file = UploadedFile.get_by_object(document)
       assert uploaded_file.path == expected_url_spec
+    end
+
+    test "it ignores non-local objects" do
+      document = insert(:attachment, data: %{"id" => "https://some.example/media/1.jpg"})
+
+      {:ok, _} = MediaRepositoryMigrator.add_media_info(document)
+
+      uploaded_file = UploadedFile.get_by_object(document)
+      refute uploaded_file
+    end
+
+    test "it processes objects without an id" do
+      document = insert(:attachment, data: %{"id" => "https://some.example/media/1.jpg"})
+      document_without_id = %Object{document | data: document.data |> Map.drop(["id"])}
+
+      url_spec =
+        document.data["url"]
+        |> Enum.at(0)
+        |> Map.get("href")
+        |> get_url_spec()
+
+      {:ok, _} = MediaRepositoryMigrator.add_media_info(document_without_id)
+
+      uploaded_file = UploadedFile.get_by_object(document)
+      assert uploaded_file.path == url_spec
+
+      document_refetched = Object.get_by_id(document_without_id.id)
+      assert Object.local?(document_refetched)
     end
   end
 end

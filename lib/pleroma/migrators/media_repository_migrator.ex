@@ -121,12 +121,30 @@ defmodule Pleroma.Migrators.MediaRepositoryMigrator do
 
   defp try_get_url_spec(_url, []), do: nil
 
+  defp maybe_add_ap_id(%Object{data: %{"id" => id}} = object) when is_binary(id) do
+    {:ok, object}
+  end
+
+  defp maybe_add_ap_id(%Object{} = object) do
+    # On older servers, uploaded media may not have an ap id. We assume those
+    # to be local, and generate an ap id for them.
+
+    object
+    |> Object.change(%{
+      data: object.data |> Map.put("id", Pleroma.Web.ActivityPub.Utils.generate_object_id())
+    })
+    |> Object.update_and_set_cache()
+  end
+
   @spec add_media_info(Object.t()) :: {:ok | :error, integer()}
   def add_media_info(object) do
-    with url_spec when not is_nil(url_spec) <- get_url_spec_from_object(object),
+    with {:ok, object} <- maybe_add_ap_id(object),
+         {_, true} <- {:media_is_local, Object.local?(object)},
+         url_spec when not is_nil(url_spec) <- get_url_spec_from_object(object),
          {:ok, _uploaded_file} <- UploadedFile.create(%{object: object, path: url_spec}) do
       {:ok, object.id}
     else
+      {:media_is_local, _} -> {:ok, object.id}
       _ -> {:error, object.id}
     end
   end
