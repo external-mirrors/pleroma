@@ -266,6 +266,7 @@ defmodule Pleroma.Object.Updater do
     changeset =
       orig_object
       |> Repo.preload(:hashtags)
+      |> Repo.preload(:attachments)
       |> Object.change(%{data: updated_object_data})
       |> maybe_touch_changeset(touch_changeset?)
 

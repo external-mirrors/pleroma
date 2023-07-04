@@ -293,6 +293,7 @@ defmodule Pleroma.Object do
 
     with {:ok, object} <-
            object
+           |> Repo.preload(:attachments)
            |> Object.change(%{data: tombstone})
            |> Repo.update() do
       Hashtag.unlink(object)
