@@ -490,7 +490,7 @@ defmodule Pleroma.Web.CommonAPI.UtilsTest do
     end
   end
 
-  describe "to_master_date/1" do
+  describe "to_masto_date/1" do
     test "removes microseconds from date (NaiveDateTime)" do
       assert Utils.to_masto_date(~N[2015-01-23 23:50:07.123]) == "2015-01-23T23:50:07.000Z"
     end
@@ -501,6 +501,10 @@ defmodule Pleroma.Web.CommonAPI.UtilsTest do
 
     test "returns empty string when date invalid" do
       assert Utils.to_masto_date("2015-01?23T23:50:07.123Z") == ""
+    end
+
+    test "falls back to specified date when date invalid" do
+      assert Utils.to_masto_date("2015-01?23T23:50:07.123Z", :invalid) == :invalid
     end
   end
 
