@@ -11,14 +11,14 @@ defmodule Pleroma.EctoType.Config.BinaryValue do
     if String.valid?(value) do
       {:ok, value}
     else
-      {:ok, :erlang.binary_to_term(value)}
+      {:ok, Plug.Crypto.non_executable_binary_to_term(value, [:safe])}
     end
   end
 
   def cast(value), do: {:ok, value}
 
   def load(value) when is_binary(value) do
-    {:ok, :erlang.binary_to_term(value)}
+    {:ok, Plug.Crypto.non_executable_binary_to_term(value, [:safe])}
   end
 
   def dump(value) do
