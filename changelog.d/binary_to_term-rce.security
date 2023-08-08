@@ -1,1 +1,1 @@
-Fix RCE via erlang.binary_to_term
+- Fix unsafe cast of database-stored configuration values that could lead to code execution
