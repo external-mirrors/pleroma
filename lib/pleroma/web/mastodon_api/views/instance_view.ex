@@ -52,7 +52,7 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
     %{
       domain: Pleroma.Web.WebFinger.domain(),
       title: Keyword.get(instance, :name),
-      version: "#{@mastodon_api_level} (compatible; #{Pleroma.Application.compat_version()})",
+      version: "#{@mastodon_api_level} (compatible; #{Pleroma.Application.named_version()})",
       source_url: Pleroma.Application.repository(),
       description: Keyword.get(instance, :short_description),
       usage: %{users: %{active_month: Pleroma.User.active_user_count()}},

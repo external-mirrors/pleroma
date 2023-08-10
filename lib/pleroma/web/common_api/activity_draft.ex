@@ -11,6 +11,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   alias Pleroma.Web.CommonAPI.Utils
 
   import Pleroma.Web.Gettext
+  import Pleroma.Web.Utils.Guards, only: [not_empty_string: 1]
 
   defstruct valid?: true,
             errors: [],
