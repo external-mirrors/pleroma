@@ -9,7 +9,7 @@ defmodule Pleroma.Workers.MailerWorker do
   def perform(%Job{args: %{"op" => "email", "encoded_email" => encoded_email, "config" => config}}) do
     encoded_email
     |> Base.decode64!()
-    |> Plug.Crypto.non_executable_binary_to_term()
+    |> :erlang.binary_to_term()
     |> Pleroma.Emails.Mailer.deliver(config)
   end
 
