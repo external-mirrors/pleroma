@@ -12,7 +12,6 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   alias Pleroma.Web.CommonAPI.Utils
 
   import Pleroma.Web.Gettext
-  import Pleroma.Web.Utils.Guards, only: [not_empty_string: 1]
 
   defstruct valid?: true,
             errors: [],
@@ -195,11 +194,13 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   end
 
   defp language(draft) do
-    language =
-      Utils.get_valid_language(draft.params[:language]) ||
-        LanguageDetector.detect(draft.full_payload)
+    language = draft.params[:language] || LanguageDetector.detect(draft.full_payload)
 
-    %__MODULE__{draft | language: language}
+    if Utils.is_good_locale_code?(language) do
+      %__MODULE__{draft | language: language}
+    else
+      draft
+    end
   end
 
   defp object(draft) do
