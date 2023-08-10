@@ -156,7 +156,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
         |> Map.drop(["conversation", "inReplyToAtomUri"])
       else
         e ->
-          Logger.warn("Couldn't fetch #{inspect(in_reply_to_id)}, error: #{inspect(e)}")
+          Logger.warning("Couldn't fetch #{inspect(in_reply_to_id)}, error: #{inspect(e)}")
           object
       end
     else
