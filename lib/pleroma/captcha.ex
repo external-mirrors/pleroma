@@ -66,7 +66,7 @@ defmodule Pleroma.Captcha do
 
     with false <- is_nil(answer_data),
          {:ok, data} <- MessageEncryptor.decrypt(answer_data, secret, sign_secret),
-         %{at: at, answer_data: answer_md5} <- Plug.Crypto.non_executable_binary_to_term(data) do
+         %{at: at, answer_data: answer_md5} <- :erlang.binary_to_term(data) do
       {:ok, %{at: at, answer_data: answer_md5}}
     else
       _ -> {:error, :invalid_answer_data}
