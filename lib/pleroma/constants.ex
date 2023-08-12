@@ -42,6 +42,18 @@ defmodule Pleroma.Constants do
     ]
   )
 
+  const(status_object_types,
+    do: [
+      "Note",
+      "Question",
+      "Audio",
+      "Video",
+      "Event",
+      "Article",
+      "Page"
+    ]
+  )
+
   const(updatable_object_types,
     do: [
       "Note",
@@ -69,4 +81,6 @@ defmodule Pleroma.Constants do
   const(mime_regex,
     do: ~r/^[^[:cntrl:] ()<>@,;:\\"\/\[\]?=]+\/[^[:cntrl:] ()<>@,;:\\"\/\[\]?=]+(; .*)?$/
   )
+
+  const(upload_object_types, do: ["Document", "Image"])
 end

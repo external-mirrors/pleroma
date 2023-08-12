@@ -4,7 +4,7 @@ defmodule Pleroma.Mixfile do
   def project do
     [
       app: :pleroma,
-      version: version("2.5.52"),
+      version: version("2.5.54"),
       elixir: "~> 1.11",
       elixirc_paths: elixirc_paths(Mix.env()),
       compilers: [:phoenix] ++ Mix.compilers(),
@@ -150,7 +150,8 @@ defmodule Pleroma.Mixfile do
       {:bbcode_pleroma, "~> 0.2.0"},
       {:cors_plug, "~> 2.0"},
       {:web_push_encryption, "~> 0.3.1"},
-      {:swoosh, "~> 1.0"},
+      # swoosh 1.11.2+ requires Elixir 1.12+
+      {:swoosh, "~> 1.10.0"},
       {:phoenix_swoosh, "~> 1.1"},
       {:gen_smtp, "~> 0.13"},
       {:ex_syslogger, "~> 1.4"},
@@ -192,9 +193,6 @@ defmodule Pleroma.Mixfile do
       {:eblurhash, "~> 1.2.2"},
       {:open_api_spex, "~> 3.16"},
       {:ecto_psql_extras, "~> 0.6"},
-
-      # indirect dependency version override
-      {:plug, "~> 1.10.4", override: true},
 
       ## dev & test
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},

@@ -455,6 +455,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     |> maybe_preload_objects(opts)
     |> maybe_preload_bookmarks(opts)
     |> maybe_set_thread_muted_field(opts)
+    |> restrict_unauthenticated(opts[:user])
     |> restrict_blocked(opts)
     |> restrict_blockers_visibility(opts)
     |> restrict_recipients(recipients, opts[:user])
@@ -1215,6 +1216,27 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   defp restrict_filtered(query, _), do: query
 
+  defp restrict_unauthenticated(query, nil) do
+    local = Config.restrict_unauthenticated_access?(:activities, :local)
+    remote = Config.restrict_unauthenticated_access?(:activities, :remote)
+
+    cond do
+      local and remote ->
+        from(activity in query, where: false)
+
+      local ->
+        from(activity in query, where: activity.local == false)
+
+      remote ->
+        from(activity in query, where: activity.local == true)
+
+      true ->
+        query
+    end
+  end
+
+  defp restrict_unauthenticated(query, _), do: query
+
   defp exclude_poll_votes(query, %{include_poll_votes: true}), do: query
 
   defp exclude_poll_votes(query, _) do
@@ -1718,6 +1740,11 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       %{"id" => object_ap_id} -> {object_ap_id, NaiveDateTime.utc_now()}
       object_ap_id when is_binary(object_ap_id) -> {object_ap_id, NaiveDateTime.utc_now()}
     end)
+  end
+
+  def pin_data_from_featured_collection(obj) do
+    Logger.error("Could not parse featured collection #{inspect(obj)}")
+    %{}
   end
 
   def fetch_and_prepare_featured_from_ap_id(nil) do
