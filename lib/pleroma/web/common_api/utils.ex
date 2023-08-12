@@ -342,7 +342,7 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     with {:ok, date} <- NaiveDateTime.from_iso8601(date) do
       to_masto_date(date, default)
     else
-      _ -> ""
+      _ -> default
     end
   end
 
