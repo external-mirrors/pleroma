@@ -55,6 +55,8 @@ defmodule Mix.Tasks.Pleroma.InstanceTest do
         "dbpass",
         "--indexable",
         "y",
+        "--block_ai",
+        "y",
         "--db-configurable",
         "y",
         "--rum",

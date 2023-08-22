@@ -1,2 +1,6 @@
+<%= if block_ai, do: """
+User-Agent: GPTBot
+Disallow: /
+""" %>
 User-Agent: *
 Disallow: <%= if indexable, do: "", else: "/" %>

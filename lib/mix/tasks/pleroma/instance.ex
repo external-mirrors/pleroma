@@ -29,6 +29,7 @@ defmodule Mix.Tasks.Pleroma.Instance do
           dbpass: :string,
           rum: :string,
           indexable: :string,
+          block_ai: :string,
           db_configurable: :string,
           uploads_dir: :string,
           static_dir: :string,
@@ -88,6 +89,14 @@ defmodule Mix.Tasks.Pleroma.Instance do
           options,
           :indexable,
           "Do you want search engines to index your site? (y/n)",
+          "y"
+        ) === "y"
+
+      block_ai =
+        get_option(
+          options,
+          :block_ai,
+          "Do you want to block AI crawlers such as GPTBot? (y/n)",
           "y"
         ) === "y"
 
@@ -284,7 +293,7 @@ defmodule Mix.Tasks.Pleroma.Instance do
       shell_info("Writing the postgres script to #{psql_path}.")
       File.write(psql_path, result_psql)
 
-      write_robots_txt(static_dir, indexable, template_dir)
+      write_robots_txt(static_dir, indexable, block_ai, template_dir)
 
       shell_info(
         "\n All files successfully written! Refer to the installation instructions for your platform for next steps."
@@ -303,11 +312,12 @@ defmodule Mix.Tasks.Pleroma.Instance do
     end
   end
 
-  defp write_robots_txt(static_dir, indexable, template_dir) do
+  defp write_robots_txt(static_dir, indexable, block_ai, template_dir) do
     robots_txt =
       EEx.eval_file(
         template_dir <> "/robots_txt.eex",
-        indexable: indexable
+        indexable: indexable,
+        block_ai: block_ai
       )
 
     robots_txt_path = Path.join(static_dir, "robots.txt")

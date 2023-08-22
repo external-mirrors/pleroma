@@ -32,6 +32,7 @@ If any of the options are left unspecified, you will be prompted interactively.
 - `--dbpass <password>` - the password to use for the database connection
 - `--rum <Y|N>` - Whether to enable RUM indexes
 - `--indexable <Y|N>` - Allow/disallow indexing site by search engines
+- `--block_ai <Y|N>` - Prohibit AI crawlers such as GPTBot from indexing your site
 - `--db-configurable <Y|N>` - Allow/disallow configuring instance from admin part
 - `--uploads-dir <path>` - the directory uploads go in when using a local uploader
 - `--static-dir <path>` - the directory custom public files should be read from (custom emojis, frontend bundle overrides, robots.txt, etc.)
