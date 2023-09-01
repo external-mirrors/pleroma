@@ -586,16 +586,17 @@ defmodule Pleroma.Web.CommonAPI.UtilsTest do
     end
   end
 
-  describe "attachments_from_ids_descs/2" do
+  describe "attachments_from_ids_descs/3" do
     test "returns [] when attachment ids is empty" do
-      assert Utils.attachments_from_ids_descs([], "{}") == []
+      assert Utils.attachments_from_ids_descs([], "{}", nil) == []
     end
 
     test "returns list attachments with desc" do
-      object = insert(:attachment)
+      user = insert(:user)
+      object = insert(:attachment, %{user: user})
       desc = Jason.encode!(%{object.id => "test-desc"})
 
-      assert Utils.attachments_from_ids_descs(["#{object.id}", "34"], desc) == [
+      assert Utils.attachments_from_ids_descs(["#{object.id}", "34"], desc, user) == [
                Map.merge(object.data, %{"name" => "test-desc"})
              ]
     end
@@ -603,24 +604,36 @@ defmodule Pleroma.Web.CommonAPI.UtilsTest do
 
   describe "attachments_from_ids/1" do
     test "returns attachments with descs" do
-      object = insert(:attachment)
+      user = insert(:user)
+      object = insert(:attachment, %{user: user})
       desc = Jason.encode!(%{object.id => "test-desc"})
 
       assert Utils.attachments_from_ids(%{
                media_ids: ["#{object.id}"],
-               descriptions: desc
+               descriptions: desc,
+               user: user
              }) == [
                Map.merge(object.data, %{"name" => "test-desc"})
              ]
     end
 
     test "returns attachments without descs" do
-      object = insert(:attachment)
-      assert Utils.attachments_from_ids(%{media_ids: ["#{object.id}"]}) == [object.data]
+      user = insert(:user)
+      object = insert(:attachment, %{user: user})
+      assert Utils.attachments_from_ids(%{media_ids: ["#{object.id}"], user: user}) == [object.data]
     end
 
     test "returns [] when not pass media_ids" do
       assert Utils.attachments_from_ids(%{}) == []
+    end
+
+    test "returns [] when media_ids not belong to current user" do
+      user = insert(:user)
+      user2 = insert(:user)
+
+      object = insert(:attachment, %{user: user})
+
+      assert Utils.attachments_from_ids(%{media_ids: ["#{object.id}"], user: user2}) == []
     end
 
     test "checks that the object is of upload type" do
