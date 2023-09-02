@@ -31,6 +31,9 @@ erl_crash.dump
 /config/runtime.exs
 /config/*.env
 
+# Secrets file used for running unit tests
+test.secret.exs
+
 
 # Database setup file, some may forget to delete it
 /config/setup_db*.psql
