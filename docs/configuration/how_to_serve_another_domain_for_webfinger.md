@@ -21,7 +21,7 @@ Both account identifiers are unique and required for Pleroma. An important risk 
 
 As said earlier, each Pleroma user has an `acct`: URI, which is used for discovery and authentication. When you add @user@example.org, a webfinger query is performed. This is done in two steps:
 
-1. Querying `https://example.org/.well-known/host-meta` (where the domain of the URL matches the domain part of the `acct`: URI) to get information on how to perform the query.
+1. Querying `https://example.org/.well-known/host-meta` or `https://example.org/.well-known/host-meta.json` (where the domain of the URL matches the domain part of the `acct`: URI) to get information on how to perform the query.
 This file will indeed contain a URL template of the form `https://example.org/.well-known/webfinger?resource={uri}` that will be used in the second step.
 2. Fill the returned template with the `acct`: URI to be queried and perform the query: `https://example.org/.well-known/webfinger?resource=acct:user@example.org`
 
@@ -55,6 +55,9 @@ With nginx, it would be as simple as adding:
 
 ```nginx
 location = /.well-known/host-meta {
+       return 301 https://pleroma.example.org$request_uri;
+}
+location = /.well-known/host-meta.json {
        return 301 https://pleroma.example.org$request_uri;
 }
 ```

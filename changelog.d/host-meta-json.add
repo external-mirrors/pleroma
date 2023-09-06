@@ -1,0 +1,1 @@
+- Add support for serving `/.well-known/host-meta.json` requests. If you use a different hostname between WebFinger and Pleroma, like say `user@domain.tld` pointing to `social.domain.tld`, you'll need to update your HTTP server configuration.

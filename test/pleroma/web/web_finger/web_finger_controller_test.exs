@@ -22,9 +22,29 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
       |> get("/.well-known/host-meta")
 
     assert response.status == 200
+    assert get_resp_header(response, "content-type") == ["application/xrd+xml; charset=utf-8"]
 
     assert response.resp_body ==
-             ~s(<?xml version="1.0" encoding="UTF-8"?><XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0"><Link rel="lrdd" template="#{Pleroma.Web.Endpoint.url()}/.well-known/webfinger?resource={uri}" type="application/xrd+xml" /></XRD>)
+             ~s[<?xml version="1.0" encoding="UTF-8"?><XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0"><Link rel="lrdd" template="#{Pleroma.Web.Endpoint.url()}/.well-known/webfinger?resource={uri}" type="application/xrd+xml" /></XRD>]
+  end
+
+  test "GET host-meta.json" do
+    response =
+      build_conn()
+      |> get("/.well-known/host-meta.json")
+
+    # RFC6415 (Web Host Metadata) says it MUST be application/json
+    assert get_resp_header(resp, "content-type") == ["application/json; charset=utf-8"]
+
+    assert response == json_response(resp, 200)
+
+    assert response["links"] == [
+             %{
+               "rel" => "lrdd",
+               "type" => "application/jrd+json",
+               "template" => "#{Pleroma.Web.Endpoint.url()}/.well-known/webfinger?resource={uri}"
+             }
+           ]
   end
 
   test "Webfinger JRD" do

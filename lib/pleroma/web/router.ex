@@ -920,6 +920,7 @@ defmodule Pleroma.Web.Router do
     pipe_through(:well_known)
 
     get("/host-meta", WebFinger.WebFingerController, :host_meta)
+    get("/host-meta.json", WebFinger.WebFingerController, :host_meta_json)
     get("/webfinger", WebFinger.WebFingerController, :webfinger)
     get("/nodeinfo", Nodeinfo.NodeinfoController, :schemas)
   end

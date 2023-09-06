@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2022 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2023 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.WebFinger do
@@ -9,9 +9,13 @@ defmodule Pleroma.Web.WebFinger do
   alias Pleroma.Web.Federator.Publisher
   alias Pleroma.Web.XML
   alias Pleroma.XmlBuilder
+
   require Jason
   require Logger
 
+  @cachex Pleroma.Config.get([:cachex, :provider], Cachex)
+
+  # Technically not WebFinger but RFC6415 "Web Host Metadata"
   def host_meta do
     base_url = Endpoint.url()
 
@@ -30,6 +34,21 @@ defmodule Pleroma.Web.WebFinger do
     |> XmlBuilder.to_doc()
   end
 
+  def host_meta_json do
+    base_url = Endpoint.url()
+
+    %{
+      "links" => [
+        %{
+          "rel" => "lrdd",
+          "type" => "application/jrd+json",
+          "template" => "#{base_url}/.well-known/webfinger?resource={uri}"
+        }
+      ]
+    }
+  end
+
+  # WebFinger RFC7033
   def webfinger(resource, fmt) when fmt in ["XML", "JSON"] do
     host = Pleroma.Web.Endpoint.host()
 
@@ -68,7 +87,7 @@ defmodule Pleroma.Web.WebFinger do
     [user.ap_id | user.also_known_as]
   end
 
-  def represent_user(user, "JSON") do
+  defp represent_user(user, "JSON") do
     %{
       "subject" => "acct:#{user.nickname}@#{domain()}",
       "aliases" => gather_aliases(user),
@@ -76,7 +95,7 @@ defmodule Pleroma.Web.WebFinger do
     }
   end
 
-  def represent_user(user, "XML") do
+  defp represent_user(user, "XML") do
     aliases =
       user
       |> gather_aliases()
@@ -146,7 +165,7 @@ defmodule Pleroma.Web.WebFinger do
     end
   end
 
-  def get_template_from_xml(body) do
+  defp get_template_from_xml(body) do
     xpath = "//Link[@rel='lrdd']/@template"
 
     with {:ok, doc} <- XML.parse_document(body),
@@ -155,16 +174,61 @@ defmodule Pleroma.Web.WebFinger do
     end
   end
 
-  def find_lrdd_template(domain) do
+  defp cached_find_lrdd_template(domain) do
+    @cachex.fetch!(:webfinger_cache, "lrdd:#{domain}", fn _ ->
+      with {:ok, _} = template <- find_lrdd_template(domain) do
+        {:commit, template}
+      else
+        e -> {:ignore, e}
+      end
+    end)
+  end
+
+  defp find_lrdd_template(domain) do
+    with {:ok, _} = template <- find_lrdd_template_json(domain) do
+      template
+    else
+      :error ->
+        with {:ok, _} = template <- find_lrdd_template_xml(domain) do
+          template
+        end
+    end
+  end
+
+  defp find_lrdd_template_json(domain) do
+    # WebFinger is restricted to HTTPS - https://tools.ietf.org/html/rfc7033#section-9.1
+    meta_url = "https://#{domain}/.well-known/host-meta.json"
+
+    with
+      {_, {:ok, %{status: status, body: body} = resp}} when status in 200..299 <- {:http, HTTP.get(meta_json_url, [{"accept", "application/json"}])},
+      {_, content_type} when is_binary(content_type) <- {:content_type, Tesla.get_header(resp, "content-type")},
+      true <- content_type =~ ~r[^application/(jrd\+)?json(; .*)?],
+      %{"template" => template} <- Enum.find(body, fn link -> link["rel"] == "lrdd" and Map.has_key?(link, "template" end) do
+        {:ok, template}
+    else
+      {:http, e} ->
+        Logger.warn("WebFinger: #{meta_url} HTTP error: #{inspect(e)}")
+        :error
+      {:content_type, _} ->
+        Logger.warn("WebFinger: #{meta_url} had no Content-Type header")
+        :error
+      false ->
+        Logger.warn("WebFinger: #{meta_url} gave #{content_type} instead of application/json")
+        :error
+      nil ->
+        Logger.warn("WebFinger: #{meta_url} had no LRDD template")
+        :error
+    end
+  end
+
+  defp find_lrdd_template_xml(domain) do
     # WebFinger is restricted to HTTPS - https://tools.ietf.org/html/rfc7033#section-9.1
     meta_url = "https://#{domain}/.well-known/host-meta"
 
     with {:ok, %{status: status, body: body}} when status in 200..299 <- HTTP.get(meta_url) do
       get_template_from_xml(body)
     else
-      error ->
-        Logger.warn("Can't find LRDD template in #{inspect(meta_url)}: #{inspect(error)}")
-        {:error, :lrdd_not_found}
+      error -> {:error, error}
     end
   end
 

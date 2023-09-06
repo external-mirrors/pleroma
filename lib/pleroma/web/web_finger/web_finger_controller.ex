@@ -18,6 +18,14 @@ defmodule Pleroma.Web.WebFinger.WebFingerController do
     |> send_resp(200, xml)
   end
 
+  def host_meta_json(conn, _params) do
+    jrd = WebFinger.host_meta_json()
+
+    conn
+    |> put_resp_content_type("application/jrd+json")
+    |> json(jrd)
+  end
+
   def webfinger(%{assigns: %{format: format}} = conn, %{"resource" => resource})
       when format in ["xml", "xrd+xml"] do
     with {:ok, response} <- WebFinger.webfinger(resource, "XML") do
