@@ -34,11 +34,14 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
         also_known_as: ["https://mushroom.kingdom/users/toad"]
       )
 
-    response =
+    resp =
       build_conn()
       |> put_req_header("accept", "application/jrd+json")
       |> get("/.well-known/webfinger?resource=acct:#{user.nickname}@localhost")
-      |> json_response(200)
+
+    assert get_resp_header(resp, "content-type") == ["application/jrd+json; charset=utf-8"]
+
+    response = json_response(resp, 200)
 
     assert response["subject"] == "acct:#{user.nickname}@localhost"
 

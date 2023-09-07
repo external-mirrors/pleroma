@@ -32,7 +32,9 @@ defmodule Pleroma.Web.WebFinger.WebFingerController do
   def webfinger(%{assigns: %{format: format}} = conn, %{"resource" => resource})
       when format in ["json", "jrd+json"] do
     with {:ok, response} <- WebFinger.webfinger(resource, "JSON") do
-      json(conn, response)
+      conn
+      |> put_resp_content_type("application/jrd+json")
+      |> json(response)
     else
       _e ->
         conn
