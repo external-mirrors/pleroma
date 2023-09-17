@@ -593,19 +593,21 @@ config :pleroma, Oban,
     transmogrifier: 20,
     background: 20,
     search_indexing: [limit: 10, paused: true],
-    slow: 5
+    slow: 5,
+    database_prune: 1
   ],
   plugins: [{Oban.Plugins.Pruner, max_age: 900}],
   crontab: [
     {"0 0 * * 0", Pleroma.Workers.Cron.DigestEmailsWorker},
-    {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker}
+    {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker},
+    {"0 3 * * *", Pleroma.Workers.Cron.PruneDatabaseWorker}
   ]
 
 config :pleroma, :workers,
   retries: [
     federator_incoming: 5,
     federator_outgoing: 5,
-    search_indexing: 2
+    database_prune: :timer.minutes(10)
   ]
 
 config :pleroma, Pleroma.Formatter,
