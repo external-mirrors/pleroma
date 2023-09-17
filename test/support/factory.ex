@@ -510,6 +510,33 @@ defmodule Pleroma.Factory do
     |> Map.merge(attrs)
   end
 
+  def delete_activity_factory(attrs \\ %{}) do
+    user = attrs[:user] || insert(:user)
+    note_activity = attrs[:note_activity] || insert(:note_activity, user: user)
+
+    data_attrs = attrs[:data_attrs] || %{}
+    attrs = Map.drop(attrs, [:user, :data_attrs])
+
+    data =
+      %{
+        "id" => Pleroma.Web.ActivityPub.Utils.generate_activity_id(),
+        "type" => "Delete",
+        "actor" => note_activity.data["actor"],
+        "to" => note_activity.data["to"],
+        "object" => note_activity.data["id"],
+        "published" => DateTime.utc_now() |> DateTime.to_iso8601(),
+        "context" => note_activity.data["context"]
+      }
+      |> Map.merge(data_attrs)
+
+    %Pleroma.Activity{
+      data: data,
+      actor: data["actor"],
+      recipients: data["to"]
+    }
+    |> Map.merge(attrs)
+  end
+
   def oauth_app_factory do
     %Pleroma.Web.OAuth.App{
       client_name: sequence(:client_name, &"Some client #{&1}"),
@@ -661,5 +688,15 @@ defmodule Pleroma.Factory do
     }
     |> Map.merge(params)
     |> Pleroma.Announcement.add_rendered_properties()
+  end
+
+  def delivery_factory(params \\ %{}) do
+    object = Map.get(params, :object, build(:note))
+    user = Map.get(params, :user, build(:user))
+
+    %Pleroma.Delivery{
+      object: object,
+      user: user
+    }
   end
 end
