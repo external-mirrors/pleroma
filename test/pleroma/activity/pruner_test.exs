@@ -33,15 +33,15 @@ defmodule Pleroma.Activity.PrunerTest do
       refute Activity.get_by_id(old_activity.id)
     end
 
-    test "it prunes old delete objects" do
+    test "it prunes old Delete objects" do
       test_prune(:delete_activity, "Delete", &Pruner.prune_deletes/0)
     end
 
-    test "it prunes old undo objects" do
+    test "it prunes old Undo objects" do
       test_prune(:undo_activity, "Undo", &Pruner.prune_undos/0)
     end
 
-    test "it prunes old remove objects" do
+    test "it prunes old Remove objects" do
       test_prune(:remove_activity, "Remove", &Pruner.prune_removes/0)
     end
   end
