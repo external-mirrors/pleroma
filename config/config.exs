@@ -607,7 +607,7 @@ config :pleroma, :workers,
   retries: [
     federator_incoming: 5,
     federator_outgoing: 5,
-    database_prune: :timer.minutes(10)
+    prune_database: :timer.minutes(10)
   ]
 
 config :pleroma, Pleroma.Formatter,
