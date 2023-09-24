@@ -171,7 +171,7 @@ See [PostgreSQL documentation](https://www.postgresql.org/docs/current/textsearc
 
 ## Pruning old activities
 
-Over time, transient `Delete` activities and `Tombstone` objects
+Over time, transient `Delete`, `Undo`, and `Remove` activities
 can accumulate in your database, inflating its size. This is not ideal.
 There is a periodic task to prune these transient objects,
 but on first run this may take a while on older instances to catch up
