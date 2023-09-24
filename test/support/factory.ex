@@ -293,8 +293,12 @@ defmodule Pleroma.Factory do
     featured_collection_activity(attrs, "Add")
   end
 
-  def remove_activity_factor(attrs \\ %{}) do
+  def remove_activity_factory(attrs \\ %{}) do
     featured_collection_activity(attrs, "Remove")
+  end
+
+  def delete_activity_factory(attrs \\ %{}) do
+    featured_collection_activity(attrs, "Delete")
   end
 
   defp featured_collection_activity(attrs, type) do
@@ -314,7 +318,7 @@ defmodule Pleroma.Factory do
         "target" => user.featured_address,
         "object" => note.data["object"],
         "actor" => note.data["actor"],
-        "type" => "Add",
+        "type" => type,
         "to" => [Pleroma.Constants.as_public()],
         "cc" => [user.follower_address]
       }
@@ -511,9 +515,12 @@ defmodule Pleroma.Factory do
     |> Map.merge(attrs)
   end
 
-  def delete_activity_factory(attrs \\ %{}) do
+  def undo_activity_factory(attrs \\ %{}) do
     user = attrs[:user] || insert(:user)
     note_activity = attrs[:note_activity] || insert(:note_activity, user: user)
+
+    like_activity =
+      attrs[:like_activity] || insert(:like_activity, user: user, note_activity: note_activity)
 
     data_attrs = attrs[:data_attrs] || %{}
     attrs = Map.drop(attrs, [:user, :data_attrs])
@@ -521,12 +528,11 @@ defmodule Pleroma.Factory do
     data =
       %{
         "id" => Pleroma.Web.ActivityPub.Utils.generate_activity_id(),
-        "type" => "Delete",
-        "actor" => note_activity.data["actor"],
-        "to" => note_activity.data["to"],
-        "object" => note_activity.data["id"],
+        "type" => "Undo",
+        "actor" => like_activity.data["actor"],
+        "object" => like_activity.data["id"],
         "published" => DateTime.utc_now() |> DateTime.to_iso8601(),
-        "context" => note_activity.data["context"]
+        "context" => like_activity.data["context"]
       }
       |> Map.merge(data_attrs)
 
