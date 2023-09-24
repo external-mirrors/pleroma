@@ -580,7 +580,7 @@ config :pleroma, Oban,
     mute_expire: 5,
     search_indexing: 10,
     rich_media_expiration: 2,
-    database_prune: 1
+    prune_database: 1
   ],
   plugins: [Oban.Plugins.Pruner],
   crontab: [
@@ -593,7 +593,7 @@ config :pleroma, :workers,
   retries: [
     federator_incoming: 5,
     federator_outgoing: 5,
-    database_prune: :timer.minutes(10)
+    prune_database: :timer.minutes(10)
   ]
 
 config :pleroma, Pleroma.Formatter,

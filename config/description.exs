@@ -1965,6 +1965,7 @@ config :pleroma, :config_description, [
           federator_incoming: 50,
           federator_outgoing: 50,
           mailer: 10,
+          prune_database: 1,
           scheduled_activities: 10,
           transmogrifier: 20,
           web_push: 50
@@ -2013,6 +2014,12 @@ config :pleroma, :config_description, [
             suggestions: [10]
           },
           %{
+            key: :prune_database,
+            type: :integer,
+            description: "Prune old activities",
+            suggestions: [1]
+          },
+          %{
             key: :scheduled_activities,
             type: :integer,
             description: "Scheduled activities queue, see Pleroma.ScheduledActivities",
@@ -2038,7 +2045,8 @@ config :pleroma, :config_description, [
         description: "Settings for cron background jobs",
         suggestions: [
           {"0 0 * * 0", Pleroma.Workers.Cron.DigestEmailsWorker},
-          {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker}
+          {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker},
+          {"0 3 * * *", Pleroma.Workers.Cron.PruneDatabaseWorker}
         ]
       }
     ]
@@ -2055,7 +2063,8 @@ config :pleroma, :config_description, [
         description: "Max retry attempts for failed jobs, per `Oban` queue",
         suggestions: [
           federator_incoming: 5,
-          federator_outgoing: 5
+          federator_outgoing: 5,
+          prune_database: :timer.minutes(10)
         ]
       }
     ]
