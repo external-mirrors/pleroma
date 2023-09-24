@@ -519,8 +519,9 @@ defmodule Pleroma.Factory do
     user = attrs[:user] || insert(:user)
     note_activity = attrs[:note_activity] || insert(:note_activity, user: user)
 
-    like_activity =
-      attrs[:like_activity] || insert(:like_activity, user: user, note_activity: note_activity)
+    # if an undo activity is not provided, "like" the note
+    activity_to_undo =
+      attrs[:activity_to_undo] || insert(:like_activity, user: user, note_activity: note_activity)
 
     data_attrs = attrs[:data_attrs] || %{}
     attrs = Map.drop(attrs, [:user, :data_attrs])
@@ -529,10 +530,10 @@ defmodule Pleroma.Factory do
       %{
         "id" => Pleroma.Web.ActivityPub.Utils.generate_activity_id(),
         "type" => "Undo",
-        "actor" => like_activity.data["actor"],
-        "object" => like_activity.data["id"],
+        "actor" => activity_to_undo.data["actor"],
+        "object" => activity_to_undo.data["id"],
         "published" => DateTime.utc_now() |> DateTime.to_iso8601(),
-        "context" => like_activity.data["context"]
+        "context" => activity_to_undo.data["context"]
       }
       |> Map.merge(data_attrs)
 
