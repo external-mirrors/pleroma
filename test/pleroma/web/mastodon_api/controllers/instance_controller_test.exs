@@ -194,4 +194,14 @@ defmodule Pleroma.Web.MastodonAPI.InstanceControllerTest do
     refute Map.has_key?(result["pleroma"]["metadata"]["base_urls"], "media_proxy")
     refute Map.has_key?(result["pleroma"]["metadata"]["base_urls"], "upload")
   end
+
+  test "restrict_unauthenticated", %{conn: conn} do
+    result =
+      conn
+      |> get("/api/v1/instance")
+      |> json_response_and_validate_schema(200)
+
+    assert result["pleroma"]["metadata"]["restrict_unauthenticated"]["timelines"]["local"] ==
+             false
+  end
 end
