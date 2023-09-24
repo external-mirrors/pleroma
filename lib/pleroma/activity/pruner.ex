@@ -7,29 +7,15 @@ defmodule Pleroma.Activity.Pruner do
   alias Pleroma.Repo
   import Ecto.Query
 
-  def prune_deletes do
+  def prune_deletes, do: prune("Delete")
+  def prune_undos, do: prune("Undo")
+  def prune_removes, do: prune("Remove")
+
+  defp prune(activity_type) do
     before_time = cutoff()
 
     from(a in Activity,
-      where: fragment("?->>'type' = ?", a.data, "Delete") and a.inserted_at < ^before_time
-    )
-    |> Repo.delete_all(timeout: :infinity)
-  end
-
-  def prune_undos do
-    before_time = cutoff()
-
-    from(a in Activity,
-      where: fragment("?->>'type' = ?", a.data, "Undo") and a.inserted_at < ^before_time
-    )
-    |> Repo.delete_all(timeout: :infinity)
-  end
-
-  def prune_removes do
-    before_time = cutoff()
-
-    from(a in Activity,
-      where: fragment("?->>'type' = ?", a.data, "Remove") and a.inserted_at < ^before_time
+      where: fragment("?->>'type' = ?", a.data, ^activity_type) and a.inserted_at < ^before_time
     )
     |> Repo.delete_all(timeout: :infinity)
   end
