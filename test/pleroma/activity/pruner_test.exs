@@ -6,8 +6,9 @@ defmodule Pleroma.Activity.PrunerTest do
 
   import Pleroma.Factory
 
-  describe "prune_deletes" do
-    test "it prunes old delete objects" do
+  describe "prune activities" do
+    @spec test_prune(atom(), String.t(), (() -> any())) :: :ok
+    defp test_prune(activity, activity_type, prunefn) do
       deadline = Pleroma.Config.get([:instance, :remote_post_retention_days]) + 1
 
       date =
@@ -18,18 +19,30 @@ defmodule Pleroma.Activity.PrunerTest do
 
       user = insert(:user)
 
-      new_delete = insert(:delete_activity, type: "Delete", user: user)
+      new_activity = insert(activity, type: activity_type, user: user)
 
-      old_delete =
-        insert(:delete_activity,
-          type: "Delete",
+      old_activity =
+        insert(activity,
+          type: activity_type,
           user: user,
           inserted_at: date
         )
 
-      Pruner.prune_deletes()
-      assert Activity.get_by_id(new_delete.id)
-      refute Activity.get_by_id(old_delete.id)
+      prunefn.()
+      assert Activity.get_by_id(new_activity.id)
+      refute Activity.get_by_id(old_activity.id)
+    end
+
+    test "it prunes old delete objects" do
+      test_prune(:delete_activity, "Delete", &Pruner.prune_deletes/0)
+    end
+
+    test "it prunes old undo objects" do
+      test_prune(:undo_activity, "Undo", &Pruner.prune_undos/0)
+    end
+
+    test "it prunes old remove objects" do
+      test_prune(:remove_activity, "Remove", &Pruner.prune_removes/0)
     end
   end
 end
