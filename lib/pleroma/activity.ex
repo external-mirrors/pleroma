@@ -369,10 +369,10 @@ defmodule Pleroma.Activity do
   end
 
   def restrict_object_of_deactivated_users(query) do
-    deactivated_users_query = from(u in User.Query.build(%{deactivated: true}), select: u.ap_id)
-
-    from([activity, object] in query,
-      where: fragment("?->>'actor'", object.data) not in subquery(deactivated_users_query)
+    query
+    |> join(:inner, [activity, object], user in User,
+      as: :user,
+      on: fragment("?->>'actor'", object.data) == user.ap_id and user.is_active == true
     )
   end
 
