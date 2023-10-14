@@ -869,8 +869,6 @@ defmodule Pleroma.UserTest do
   end
 
   describe "get_or_fetch/1 remote users with tld, while BE is runned on subdomain" do
-    setup do: clear_config([Pleroma.Web.WebFinger, :update_nickname_on_user_fetch], true)
-
     test "for mastodon" do
       Tesla.Mock.mock(fn
         %{url: "https://example.com/.well-known/host-meta"} ->
