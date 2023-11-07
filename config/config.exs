@@ -160,11 +160,6 @@ config :logger, :ex_syslogger,
   format: "$metadata[$level] $message",
   metadata: [:request_id]
 
-config :quack,
-  level: :warn,
-  meta: [:all],
-  webhook_url: "https://hooks.slack.com/services/YOUR-KEY-HERE"
-
 config :mime, :types, %{
   "application/xml" => ["xml"],
   "application/xrd+xml" => ["xrd+xml"],
@@ -228,6 +223,7 @@ config :pleroma, :instance,
   max_pinned_statuses: 1,
   attachment_links: false,
   max_report_comment_size: 1000,
+  report_strip_status: true,
   safe_dm_mentions: false,
   healthcheck: false,
   remote_post_retention_days: 90,
@@ -257,7 +253,23 @@ config :pleroma, :instance,
   show_reactions: true,
   password_reset_token_validity: 60 * 60 * 24,
   profile_directory: true,
-  privileged_staff: false,
+  admin_privileges: [
+    :users_read,
+    :users_manage_invites,
+    :users_manage_activation_state,
+    :users_manage_tags,
+    :users_manage_credentials,
+    :users_delete,
+    :messages_read,
+    :messages_delete,
+    :instances_delete,
+    :reports_manage_reports,
+    :moderation_log_read,
+    :announcements_manage_announcements,
+    :emoji_manage_emoji,
+    :statistics_read
+  ],
+  moderator_privileges: [:messages_delete, :reports_manage_reports],
   max_endorsed_users: 20,
   birthday_required: false,
   birthday_min_age: 0,
@@ -396,6 +408,12 @@ config :pleroma, :mrf_keyword,
   federated_timeline_removal: [],
   replace: []
 
+config :pleroma, :mrf_emoji,
+  remove_url: [],
+  remove_shortcode: [],
+  federated_timeline_removal_url: [],
+  federated_timeline_removal_shortcode: []
+
 config :pleroma, :mrf_hashtag,
   sensitive: ["nsfw"],
   reject: [],
@@ -415,6 +433,8 @@ config :pleroma, :mrf_object_age,
   actions: [:delist, :strip_followers]
 
 config :pleroma, :mrf_follow_bot, follower_nickname: nil
+
+config :pleroma, :mrf_inline_quote, template: "<bdi>RT:</bdi> {url}"
 
 config :pleroma, :rich_media,
   enabled: true,
@@ -570,7 +590,6 @@ config :pleroma, Oban,
     background: 5,
     remote_fetcher: 2,
     attachments_cleanup: 1,
-    new_users_digest: 1,
     mute_expire: 5
   ],
   plugins: [Oban.Plugins.Pruner],
@@ -604,9 +623,6 @@ config :pleroma, :ldap,
   tlsopts: [],
   base: System.get_env("LDAP_BASE") || "dc=example,dc=com",
   uid: System.get_env("LDAP_UID") || "cn"
-
-config :esshd,
-  enabled: false
 
 oauth_consumer_strategies =
   System.get_env("OAUTH_CONSUMER_STRATEGIES")
@@ -756,12 +772,12 @@ config :pleroma, :frontends,
         "https://git.pleroma.social/pleroma/admin-fe/-/jobs/artifacts/${ref}/download?job=build",
       "ref" => "develop"
     },
-    "soapbox-fe" => %{
-      "name" => "soapbox-fe",
-      "git" => "https://gitlab.com/soapbox-pub/soapbox-fe",
+    "soapbox" => %{
+      "name" => "soapbox",
+      "git" => "https://gitlab.com/soapbox-pub/soapbox",
       "build_url" =>
-        "https://gitlab.com/soapbox-pub/soapbox-fe/-/jobs/artifacts/${ref}/download?job=build-production",
-      "ref" => "v1.0.0",
+        "https://gitlab.com/soapbox-pub/soapbox/-/jobs/artifacts/${ref}/download?job=build-production",
+      "ref" => "v3.0.0-beta.1",
       "build_dir" => "static"
     },
     "glitch-lily" => %{
@@ -843,7 +859,11 @@ config :pleroma, :restrict_unauthenticated,
 config :pleroma, Pleroma.Web.ApiSpec.CastAndValidate, strict: false
 
 config :pleroma, :mrf,
-  policies: [Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy, Pleroma.Web.ActivityPub.MRF.TagPolicy],
+  policies: [
+    Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy,
+    Pleroma.Web.ActivityPub.MRF.TagPolicy,
+    Pleroma.Web.ActivityPub.MRF.InlineQuotePolicy
+  ],
   transparency: true,
   transparency_exclusions: []
 
@@ -862,7 +882,9 @@ config :pleroma, Pleroma.Web.Auth.Authenticator, Pleroma.Web.Auth.PleromaAuthent
 config :pleroma, Pleroma.User.Backup,
   purge_after_days: 30,
   limit_days: 7,
-  dir: nil
+  dir: nil,
+  process_wait_time: 30_000,
+  process_chunk_size: 100
 
 config :pleroma, ConcurrentLimiter, [
   {Pleroma.Web.RichMedia.Helpers, [max_running: 5, max_waiting: 5]},

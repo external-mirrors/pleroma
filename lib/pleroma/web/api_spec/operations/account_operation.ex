@@ -64,7 +64,8 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
       requestBody: request_body("Parameters", update_credentials_request(), required: true),
       responses: %{
         200 => Operation.response("Account", "application/json", Account),
-        403 => Operation.response("Error", "application/json", ApiError)
+        403 => Operation.response("Error", "application/json", ApiError),
+        413 => Operation.response("Error", "application/json", ApiError)
       }
     }
   end
@@ -223,12 +224,12 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
             type: :object,
             properties: %{
               reblogs: %Schema{
-                type: :boolean,
+                allOf: [BooleanLike],
                 description: "Receive this account's reblogs in home timeline? Defaults to true.",
                 default: true
               },
               notify: %Schema{
-                type: :boolean,
+                allOf: [BooleanLike],
                 description:
                   "Receive notifications for all statuses posted by the account? Defaults to false.",
                 default: false
@@ -451,7 +452,7 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
       operationId: "AccountController.blocks",
       description: "View your blocks. See also accounts/:id/{block,unblock}",
       security: [%{"oAuth" => ["read:blocks"]}],
-      parameters: pagination_params(),
+      parameters: [with_relationships_param() | pagination_params()],
       responses: %{
         200 => Operation.response("Accounts", "application/json", array_of_accounts())
       }
@@ -460,7 +461,7 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
 
   def lookup_operation do
     %Operation{
-      tags: ["Account lookup"],
+      tags: ["Retrieve account information"],
       summary: "Find a user by nickname",
       operationId: "AccountController.lookup",
       parameters: [

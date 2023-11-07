@@ -473,7 +473,7 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
       content = "foobar"
 
       target_ap_id = target_account.ap_id
-      activity_ap_id = activity.data["id"]
+      object_ap_id = activity.object.data["id"]
 
       res =
         Utils.make_flag_data(
@@ -489,11 +489,54 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
 
       note_obj = %{
         "type" => "Note",
-        "id" => activity_ap_id,
+        "id" => object_ap_id,
         "content" => content,
         "published" => activity.object.data["published"],
         "actor" =>
           AccountView.render("show.json", %{user: target_account, skip_visibility_check: true})
+      }
+
+      assert %{
+               "type" => "Flag",
+               "content" => ^content,
+               "context" => ^context,
+               "object" => [^target_ap_id, ^note_obj],
+               "state" => "open"
+             } = res
+    end
+
+    test "returns map with Flag object with a non-Create Activity" do
+      reporter = insert(:user)
+      posting_account = insert(:user)
+      target_account = insert(:user)
+
+      {:ok, activity} = CommonAPI.post(posting_account, %{status: "foobar"})
+      {:ok, like} = CommonAPI.favorite(target_account, activity.id)
+      context = Utils.generate_context_id()
+      content = "foobar"
+
+      target_ap_id = target_account.ap_id
+      object_ap_id = activity.object.data["id"]
+
+      res =
+        Utils.make_flag_data(
+          %{
+            actor: reporter,
+            context: context,
+            account: target_account,
+            statuses: [%{"id" => like.data["id"]}],
+            content: content
+          },
+          %{}
+        )
+
+      note_obj = %{
+        "type" => "Note",
+        "id" => object_ap_id,
+        "content" => content,
+        "published" => activity.object.data["published"],
+        "actor" =>
+          AccountView.render("show.json", %{user: posting_account, skip_visibility_check: true})
       }
 
       assert %{
@@ -544,15 +587,38 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
   end
 
   describe "get_cached_emoji_reactions/1" do
-    test "returns the data or an emtpy list" do
+    test "returns the normalized data or an emtpy list" do
       object = insert(:note)
       assert Utils.get_cached_emoji_reactions(object) == []
 
       object = insert(:note, data: %{"reactions" => [["x", ["lain"]]]})
-      assert Utils.get_cached_emoji_reactions(object) == [["x", ["lain"]]]
+      assert Utils.get_cached_emoji_reactions(object) == [["x", ["lain"], nil]]
 
       object = insert(:note, data: %{"reactions" => %{}})
       assert Utils.get_cached_emoji_reactions(object) == []
+    end
+  end
+
+  describe "add_emoji_reaction_to_object/1" do
+    test "works with legacy 2-tuple format" do
+      user = insert(:user)
+      other_user = insert(:user)
+      third_user = insert(:user)
+
+      note =
+        insert(:note,
+          user: user,
+          data: %{
+            "reactions" => [["😿", [other_user.ap_id]]]
+          }
+        )
+
+      _activity = insert(:note_activity, user: user, note: note)
+
+      Utils.add_emoji_reaction_to_object(
+        %Activity{data: %{"content" => "😿", "actor" => third_user.ap_id}},
+        note
+      )
     end
   end
 end

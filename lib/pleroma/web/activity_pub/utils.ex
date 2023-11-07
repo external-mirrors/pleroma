@@ -31,7 +31,8 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     "Page",
     "Question",
     "Answer",
-    "Audio"
+    "Audio",
+    "Image"
   ]
   @strip_status_report_states ~w(closed resolved)
   @supported_report_states ~w(open closed resolved)
@@ -325,21 +326,29 @@ defmodule Pleroma.Web.ActivityPub.Utils do
           {:ok, Object.t()} | {:error, Ecto.Changeset.t()}
 
   def add_emoji_reaction_to_object(
-        %Activity{data: %{"content" => emoji, "actor" => actor}},
+        %Activity{data: %{"content" => emoji, "actor" => actor}} = activity,
         object
       ) do
     reactions = get_cached_emoji_reactions(object)
+    emoji = Pleroma.Emoji.maybe_strip_name(emoji)
+    url = maybe_emoji_url(emoji, activity)
 
     new_reactions =
-      case Enum.find_index(reactions, fn [candidate, _] -> emoji == candidate end) do
+      case Enum.find_index(reactions, fn [candidate, _, candidate_url] ->
+             if is_nil(candidate_url) do
+               emoji == candidate
+             else
+               url == candidate_url
+             end
+           end) do
         nil ->
-          reactions ++ [[emoji, [actor]]]
+          reactions ++ [[emoji, [actor], url]]
 
         index ->
           List.update_at(
             reactions,
             index,
-            fn [emoji, users] -> [emoji, Enum.uniq([actor | users])] end
+            fn [emoji, users, url] -> [emoji, Enum.uniq([actor | users]), url] end
           )
       end
 
@@ -348,18 +357,40 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     update_element_in_object("reaction", new_reactions, object, count)
   end
 
+  defp maybe_emoji_url(
+         name,
+         %Activity{
+           data: %{
+             "tag" => [
+               %{"type" => "Emoji", "name" => name, "icon" => %{"url" => url}}
+             ]
+           }
+         }
+       ),
+       do: url
+
+  defp maybe_emoji_url(_, _), do: nil
+
   def emoji_count(reactions_list) do
-    Enum.reduce(reactions_list, 0, fn [_, users], acc -> acc + length(users) end)
+    Enum.reduce(reactions_list, 0, fn [_, users, _], acc -> acc + length(users) end)
   end
 
   def remove_emoji_reaction_from_object(
-        %Activity{data: %{"content" => emoji, "actor" => actor}},
+        %Activity{data: %{"content" => emoji, "actor" => actor}} = activity,
         object
       ) do
+    emoji = Pleroma.Emoji.maybe_strip_name(emoji)
     reactions = get_cached_emoji_reactions(object)
+    url = maybe_emoji_url(emoji, activity)
 
     new_reactions =
-      case Enum.find_index(reactions, fn [candidate, _] -> emoji == candidate end) do
+      case Enum.find_index(reactions, fn [candidate, _, candidate_url] ->
+             if is_nil(candidate_url) do
+               emoji == candidate
+             else
+               url == candidate_url
+             end
+           end) do
         nil ->
           reactions
 
@@ -367,9 +398,9 @@ defmodule Pleroma.Web.ActivityPub.Utils do
           List.update_at(
             reactions,
             index,
-            fn [emoji, users] -> [emoji, List.delete(users, actor)] end
+            fn [emoji, users, url] -> [emoji, List.delete(users, actor), url] end
           )
-          |> Enum.reject(fn [_, users] -> Enum.empty?(users) end)
+          |> Enum.reject(fn [_, users, _] -> Enum.empty?(users) end)
       end
 
     count = emoji_count(new_reactions)
@@ -377,11 +408,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   end
 
   def get_cached_emoji_reactions(object) do
-    if is_list(object.data["reactions"]) do
-      object.data["reactions"]
-    else
-      []
-    end
+    Object.get_emoji_reactions(object)
   end
 
   @spec add_like_to_object(Activity.t(), Object.t()) ::
@@ -489,15 +516,35 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
   def get_latest_reaction(internal_activity_id, %{ap_id: ap_id}, emoji) do
     %{data: %{"object" => object_ap_id}} = Activity.get_by_id(internal_activity_id)
+    emoji = Pleroma.Emoji.maybe_quote(emoji)
 
     "EmojiReact"
     |> Activity.Queries.by_type()
     |> where(actor: ^ap_id)
-    |> where([activity], fragment("?->>'content' = ?", activity.data, ^emoji))
+    |> custom_emoji_discriminator(emoji)
     |> Activity.Queries.by_object_id(object_ap_id)
     |> order_by([activity], fragment("? desc nulls last", activity.id))
     |> limit(1)
     |> Repo.one()
+  end
+
+  defp custom_emoji_discriminator(query, emoji) do
+    if String.contains?(emoji, "@") do
+      stripped = Pleroma.Emoji.maybe_strip_name(emoji)
+      [name, domain] = String.split(stripped, "@")
+      domain_pattern = "%/" <> domain <> "/%"
+      emoji_pattern = Pleroma.Emoji.maybe_quote(name)
+
+      query
+      |> where([activity], fragment("?->>'content' = ?
+        AND EXISTS (
+          SELECT FROM jsonb_array_elements(?->'tag') elem
+          WHERE elem->>'id' ILIKE ?
+        )", activity.data, ^emoji_pattern, activity.data, ^domain_pattern))
+    else
+      query
+      |> where([activity], fragment("?->>'content' = ?", activity.data, ^emoji))
+    end
   end
 
   #### Announce-related helpers
@@ -695,20 +742,24 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     Enum.map(statuses || [], &build_flag_object/1)
   end
 
-  defp build_flag_object(%Activity{data: %{"id" => id}, object: %{data: data}}) do
-    activity_actor = User.get_by_ap_id(data["actor"])
+  defp build_flag_object(%Activity{} = activity) do
+    object = Object.normalize(activity, fetch: false)
 
-    %{
-      "type" => "Note",
-      "id" => id,
-      "content" => data["content"],
-      "published" => data["published"],
-      "actor" =>
-        AccountView.render(
-          "show.json",
-          %{user: activity_actor, skip_visibility_check: true}
-        )
-    }
+    # Do not allow people to report Creates. Instead, report the Object that is Created.
+    if activity.data["type"] != "Create" do
+      build_flag_object_with_actor_and_id(
+        object,
+        User.get_by_ap_id(activity.data["actor"]),
+        activity.data["id"]
+      )
+    else
+      build_flag_object(object)
+    end
+  end
+
+  defp build_flag_object(%Object{} = object) do
+    actor = User.get_by_ap_id(object.data["actor"])
+    build_flag_object_with_actor_and_id(object, actor, object.data["id"])
   end
 
   defp build_flag_object(act) when is_map(act) or is_binary(act) do
@@ -720,12 +771,12 @@ defmodule Pleroma.Web.ActivityPub.Utils do
       end
 
     case Activity.get_by_ap_id_with_object(id) do
-      %Activity{} = activity ->
-        build_flag_object(activity)
+      %Activity{object: object} = _ ->
+        build_flag_object(object)
 
       nil ->
-        if activity = Activity.get_by_object_ap_id_with_object(id) do
-          build_flag_object(activity)
+        if %Object{} = object = Object.get_by_ap_id(id) do
+          build_flag_object(object)
         else
           %{"id" => id, "deleted" => true}
         end
@@ -733,6 +784,20 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   end
 
   defp build_flag_object(_), do: []
+
+  defp build_flag_object_with_actor_and_id(%Object{data: data}, actor, id) do
+    %{
+      "type" => "Note",
+      "id" => id,
+      "content" => data["content"],
+      "published" => data["published"],
+      "actor" =>
+        AccountView.render(
+          "show.json",
+          %{user: actor, skip_visibility_check: true}
+        )
+    }
+  end
 
   #### Report-related helpers
   def get_reports(params, page, page_size) do
@@ -748,22 +813,21 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     ActivityPub.fetch_activities([], params, :offset)
   end
 
-  def update_report_state(%Activity{} = activity, state)
-      when state in @strip_status_report_states do
-    {:ok, stripped_activity} = strip_report_status_data(activity)
-
-    new_data =
-      activity.data
-      |> Map.put("state", state)
-      |> Map.put("object", stripped_activity.data["object"])
-
-    activity
-    |> Changeset.change(data: new_data)
-    |> Repo.update()
+  defp maybe_strip_report_status(data, state) do
+    with true <- Config.get([:instance, :report_strip_status]),
+         true <- state in @strip_status_report_states,
+         {:ok, stripped_activity} = strip_report_status_data(%Activity{data: data}) do
+      data |> Map.put("object", stripped_activity.data["object"])
+    else
+      _ -> data
+    end
   end
 
   def update_report_state(%Activity{} = activity, state) when state in @supported_report_states do
-    new_data = Map.put(activity.data, "state", state)
+    new_data =
+      activity.data
+      |> Map.put("state", state)
+      |> maybe_strip_report_status(state)
 
     activity
     |> Changeset.change(data: new_data)
