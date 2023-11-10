@@ -9,8 +9,10 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
   alias Pleroma.User
   alias Pleroma.UserNote
   alias Pleroma.UserRelationship
+  alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.CommonAPI.Utils
   alias Pleroma.Web.MastodonAPI.AccountView
+  alias Pleroma.Web.PleromaAPI.ScrobbleView
   alias Pleroma.Web.MediaProxy
 
   def render("index.json", %{users: users} = opts) do
@@ -249,6 +251,13 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         nil
       end
 
+    scrobbles =
+      ActivityPub.fetch_user_abstract_activities(user, opts[:for], %{
+        type: "Listen",
+        limit: 5,
+        id: user.id
+      })
+
     %{
       id: to_string(user.id),
       username: username_from_nickname(user.nickname),
@@ -297,7 +306,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         skip_thread_containment: user.skip_thread_containment,
         background_image: image_url(user.background) |> MediaProxy.url(),
         accepts_chat_messages: user.accepts_chat_messages,
-        favicon: favicon
+        favicon: favicon,
+        scrobbles: render_many(scrobbles, ScrobbleView, "show.json")
       }
     }
     |> maybe_put_role(user, opts[:for])
