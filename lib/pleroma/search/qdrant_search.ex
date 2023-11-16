@@ -88,7 +88,6 @@ defmodule Pleroma.Search.QdrantSearch do
       from(a in Activity, where: a.id in ^ids)
       |> Activity.with_preloaded_object()
       |> Activity.restrict_deactivated_users()
-      |> order_by([object: obj], desc: obj.data["published"])
       |> Pleroma.Repo.all()
     else
       _ ->
