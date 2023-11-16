@@ -55,7 +55,7 @@ defmodule Pleroma.Search.QdrantSearch do
         points: [
           %{
             id: activity.id |> FlakeId.from_string() |> Ecto.UUID.cast!() |> IO.inspect(),
-            vector: get_embedding(maybe_search_data.content)
+            vector: get_embedding(maybe_search_data.content |> IO.inspect())
           }
         ]
       }
