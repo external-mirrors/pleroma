@@ -82,12 +82,12 @@ defmodule Pleroma.Search.QdrantSearch do
       ids =
         Enum.map(result, fn %{"id" => id} ->
           Ecto.UUID.dump!(id)
-          |> FlakeId.to_string()
         end)
 
       from(a in Activity, where: a.id in ^ids)
       |> Activity.with_preloaded_object()
       |> Activity.restrict_deactivated_users()
+      |> Ecto.Query.order_by([a], fragment("array_position(?, ?)", ^ids, a.id))
       |> Pleroma.Repo.all()
     else
       _ ->
