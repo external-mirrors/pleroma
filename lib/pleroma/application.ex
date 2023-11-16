@@ -240,6 +240,7 @@ defmodule Pleroma.Application do
 
   defp dont_run_in_test(_) do
     [
+      Pleroma.Search.QdrantSearch,
       {Registry,
        [
          name: Pleroma.Web.Streamer.registry(),

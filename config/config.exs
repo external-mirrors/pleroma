@@ -890,6 +890,10 @@ config :pleroma, Pleroma.Search.Meilisearch,
   private_key: nil,
   initial_indexing_chunk_size: 100_000
 
+config :pleroma, Pleroma.Search.QdrantSearch, url: "http://127.0.0.1:6333/"
+
+config :nx, :default_backend, Torchx.Backend
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{Mix.env()}.exs"

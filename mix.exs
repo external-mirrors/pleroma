@@ -196,6 +196,10 @@ defmodule Pleroma.Mixfile do
       {:open_api_spex, "~> 3.16"},
       {:ecto_psql_extras, "~> 0.6"},
 
+      # Qdrant Search
+      {:bumblebee, "~> 0.4.2"},
+      {:torchx, ">= 0.0.0"},
+
       ## dev & test
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_machina, "~> 2.4", only: :test},
