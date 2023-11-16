@@ -60,7 +60,8 @@ defmodule Pleroma.Search.QdrantSearch do
         ]
       }
 
-      with {:ok, %{status: 200}} <- HTTP.put("/collections/posts/points", payload) |> IO.inspect() do
+      with {:ok, %{status: 200}} <-
+             HTTP.put("/collections/posts/points", payload |> IO.inspect()) |> IO.inspect() do
         :ok
       else
         e -> {:error, e}
