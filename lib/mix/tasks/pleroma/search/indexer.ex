@@ -24,13 +24,16 @@ defmodule Mix.Tasks.Pleroma.Search.Indexer do
     q =
       from(a in Pleroma.Activity,
         limit: ^limit,
+        select: [:id],
         order_by: [desc: :id]
       )
 
     {:ok, ids} =
       Pleroma.Repo.transaction(fn ->
         Pleroma.Repo.stream(q, timeout: :infinity)
-        |> Enum.map(fn a -> a.id end)
+        |> Enum.map(fn a ->
+          a.id
+        end)
       end)
 
     IO.puts("Got #{length(ids)} activities, adding to indexer")
