@@ -18,7 +18,6 @@ defmodule Pleroma.Search.QdrantSearch do
     payload = %{vectors: %{size: 384, distance: "Cosine"}}
 
     HTTP.put("/collections/posts", payload)
-    |> IO.inspect()
 
     {:ok, nil, {:continue, :load_model}}
   end
@@ -37,13 +36,13 @@ defmodule Pleroma.Search.QdrantSearch do
     {:noreply, p}
   end
 
-  def get_embedding(text) do
-    GenServer.call(__MODULE__, {:get_embedding, text})
+  def get_embedding(text, type \\ :get_embedding) do
+    GenServer.call(__MODULE__, {:get_embedding, text, type})
   end
 
   @impl true
-  def handle_call({:get_embedding, text}, _, p) do
-    res = :python.call(p, :qdrant_search, :get_embedding, [text])
+  def handle_call({:get_embedding, text, type}, _, p) do
+    res = :python.call(p, :qdrant_search, type, [text])
     {:reply, res, p}
   end
 
@@ -55,14 +54,14 @@ defmodule Pleroma.Search.QdrantSearch do
       payload = %{
         points: [
           %{
-            id: activity.id |> FlakeId.from_string() |> Ecto.UUID.cast!() |> IO.inspect(),
-            vector: get_embedding(maybe_search_data.content |> IO.inspect())
+            id: activity.id |> FlakeId.from_string() |> Ecto.UUID.cast!(),
+            vector: get_embedding(maybe_search_data.content, :get_passage_embedding)
           }
         ]
       }
 
       with {:ok, %{status: 200}} <-
-             HTTP.put("/collections/posts/points", payload |> IO.inspect()) |> IO.inspect() do
+             HTTP.put("/collections/posts/points", payload) do
         :ok
       else
         e -> {:error, e}
@@ -75,7 +74,7 @@ defmodule Pleroma.Search.QdrantSearch do
   @impl true
   def search(_user, query, _options) do
     payload = %{
-      vector: get_embedding(query),
+      vector: get_embedding(query, :get_query_embedding),
       limit: 20
     }
 

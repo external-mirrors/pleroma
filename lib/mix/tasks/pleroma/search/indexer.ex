@@ -13,7 +13,7 @@ defmodule Mix.Tasks.Pleroma.Search.Indexer do
     q =
       from(a in Pleroma.Activity,
         limit: 100_000,
-        order_by: [desc: a.id]
+        order_by: [desc: :id]
       )
 
     Pleroma.Repo.transaction(fn ->
