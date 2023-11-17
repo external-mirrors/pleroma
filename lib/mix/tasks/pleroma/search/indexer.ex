@@ -6,22 +6,49 @@ defmodule Mix.Tasks.Pleroma.Search.Indexer do
   import Mix.Pleroma
   import Ecto.Query
 
-  def run(["index"]) do
+  alias Pleroma.Workers.SearchIndexingWorker
+
+  def run(["index" | options]) do
+    {options, [], []} =
+      OptionParser.parse(
+        options,
+        strict: [
+          limit: :integer
+        ]
+      )
+
     start_pleroma()
-    Pleroma.HTML.compile_scrubbers()
+
+    limit = Keyword.get(options, :limit, 100_000)
 
     q =
       from(a in Pleroma.Activity,
-        limit: 100_000,
+        limit: ^limit,
         order_by: [desc: :id]
       )
 
-    Pleroma.Repo.transaction(fn ->
-      Pleroma.Repo.stream(q, timeout: :infinity)
-      |> Stream.each(fn activity ->
-        Pleroma.Search.add_to_index(activity)
+    {:ok, ids} =
+      Pleroma.Repo.transaction(fn ->
+        Pleroma.Repo.stream(q, timeout: :infinity)
+        |> Enum.map(fn a -> a.id end)
       end)
-      |> Stream.run()
+
+    IO.puts("Got #{length(ids)} activities, adding to indexer")
+
+    ids
+    |> Enum.chunk_every(100)
+    |> Enum.each(fn chunk ->
+      IO.puts("Adding #{length(chunk)} activities to indexing queue")
+
+      chunk
+      |> Enum.map(fn id ->
+        SearchIndexingWorker.new(%{"op" => "add_to_index", "activity" => id})
+      end)
+      |> Oban.insert_all()
     end)
+
+    # |> Stream.each(fn activity ->
+    #  Pleroma.Search.add_to_index(activity)
+    # end)
   end
 end
