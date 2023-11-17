@@ -197,8 +197,6 @@ defmodule Pleroma.Mixfile do
       {:ecto_psql_extras, "~> 0.6"},
 
       # Qdrant Search
-      {:bumblebee, "~> 0.4.2"},
-      {:torchx, ">= 0.0.0"},
       {:erlport, "~> 0.11.0"},
 
       ## dev & test
