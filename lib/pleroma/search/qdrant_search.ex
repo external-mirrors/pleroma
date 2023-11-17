@@ -22,11 +22,6 @@ defmodule Pleroma.Search.QdrantSearch do
       },
       optimizers_config: %{
         memmap_threshold: 20000
-      },
-      quantization_config: %{
-        binary: %{
-          always_ram: false
-        }
       }
     }
 
