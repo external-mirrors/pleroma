@@ -890,7 +890,7 @@ config :pleroma, Pleroma.Search.Meilisearch,
   private_key: nil,
   initial_indexing_chunk_size: 100_000
 
-config :pleroma, Pleroma.Search.QdrantSearch, url: "http://127.0.0.1:6333/"
+config :pleroma, Pleroma.Search.QdrantSearch, url: "http://127.0.0.1:6333/", api_key: nil
 
 config :nx, :default_backend, Torchx.Backend
 

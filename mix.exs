@@ -199,6 +199,7 @@ defmodule Pleroma.Mixfile do
       # Qdrant Search
       {:bumblebee, "~> 0.4.2"},
       {:torchx, ">= 0.0.0"},
+      {:erlport, "~> 0.11.0"},
 
       ## dev & test
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},

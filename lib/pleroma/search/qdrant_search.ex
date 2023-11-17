@@ -4,6 +4,8 @@ defmodule Pleroma.Search.QdrantSearch do
   import Ecto.Query
   alias Pleroma.Activity
 
+  # @model "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
   alias __MODULE__.HTTP
   import Pleroma.Search.Meilisearch, only: [object_to_search_data: 1]
 
@@ -15,35 +17,34 @@ defmodule Pleroma.Search.QdrantSearch do
   def init(_) do
     payload = %{vectors: %{size: 384, distance: "Cosine"}}
 
-    IO.inspect(payload)
+    HTTP.put("/collections/posts", payload)
+    |> IO.inspect()
 
-    HTTP.put("/collections/posts", payload) |> IO.inspect()
     {:ok, nil, {:continue, :load_model}}
   end
 
   @impl true
   def handle_continue(:load_model, _state) do
-    {:ok, model_info} =
-      Bumblebee.load_model({:hf, "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"})
+    python_path = Path.join([File.cwd!(), "python"])
+    python = Path.join(python_path, "venv/bin/python")
 
-    {:ok, tokenizer} =
-      Bumblebee.load_tokenizer(
-        {:hf, "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"}
+    {:ok, p} =
+      :python.start(
+        python_path: python_path |> String.to_charlist(),
+        python: python |> String.to_charlist()
       )
 
-    text_serving = Bumblebee.Text.text_embedding(model_info, tokenizer)
-
-    {:noreply, text_serving}
+    {:noreply, p}
   end
 
   def get_embedding(text) do
-    %{embedding: embedding} = GenServer.call(__MODULE__, {:get_embedding, text})
-    embedding |> Nx.to_list()
+    GenServer.call(__MODULE__, {:get_embedding, text})
   end
 
   @impl true
-  def handle_call({:get_embedding, text}, _, serving) do
-    {:reply, Nx.Serving.run(serving, text), serving}
+  def handle_call({:get_embedding, text}, _, p) do
+    res = :python.call(p, :qdrant_search, :get_embedding, [text])
+    {:reply, res, p}
   end
 
   @impl true
@@ -107,4 +108,8 @@ defmodule Pleroma.Search.QdrantSearch.HTTP do
 
   plug(Tesla.Middleware.BaseUrl, Pleroma.Config.get([Pleroma.Search.QdrantSearch, :url]))
   plug(Tesla.Middleware.JSON)
+
+  plug(Tesla.Middleware.Headers, [
+    {"api-key", Pleroma.Config.get([Pleroma.Search.QdrantSearch, :api_key])}
+  ])
 end
