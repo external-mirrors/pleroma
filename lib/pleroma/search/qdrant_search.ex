@@ -15,7 +15,20 @@ defmodule Pleroma.Search.QdrantSearch do
 
   @impl true
   def init(_) do
-    payload = %{vectors: %{size: 384, distance: "Cosine"}}
+    payload = %{
+      vectors: %{size: 384, distance: "Cosine"},
+      hnsw_config: %{
+        on_disk: true
+      },
+      optimizers_config: %{
+        memmap_threshold: 20000
+      },
+      quantization_config: %{
+        binary: %{
+          always_ram: false
+        }
+      }
+    }
 
     HTTP.put("/collections/posts", payload)
 
