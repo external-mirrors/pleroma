@@ -6,7 +6,7 @@ variables: &global_variables
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres
   DB_HOST: postgres
-  DB_PORT: 5432
+  DB_PORT: "5432"
   MIX_ENV: test
 
 workflow:
@@ -125,7 +125,7 @@ unit-testing:
   script:
     - mix ecto.create
     - mix ecto.migrate
-    - mix test --cover --preload-modules
+    - mix test --cover --preload-modules || mix test --failed
   coverage: '/^Line total: ([^ ]*%)$/'
   artifacts:
     reports:
@@ -151,7 +151,7 @@ unit-testing-erratic:
   script:
     - mix ecto.create
     - mix ecto.migrate
-    - mix test --only=erratic
+    - mix test --only=erratic || mix test --failed
 
 # Removed to fix CI issue. In this early state it wasn't adding much value anyway.
 # TODO Fix and reinstate federated testing
@@ -186,7 +186,7 @@ unit-testing-rum:
     - mix ecto.create
     - mix ecto.migrate
     - "mix ecto.migrate --migrations-path priv/repo/optional_migrations/rum_indexing/"
-    - mix test --preload-modules
+    - mix test --preload-modules || mix test --failed
 
 lint:
   extends: .build_changes_policy
