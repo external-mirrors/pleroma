@@ -194,7 +194,7 @@ defmodule Pleroma.User.Backup do
     end
   end
 
-  @files ['actor.json', 'outbox.json', 'likes.json', 'bookmarks.json']
+  @files [~c"actor.json", ~c"outbox.json", ~c"likes.json", ~c"bookmarks.json"]
   def export(%__MODULE__{} = backup, caller_pid) do
     backup = Repo.preload(backup, :user)
     dir = backup_tempdir(backup)
