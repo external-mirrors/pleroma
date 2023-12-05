@@ -1,0 +1,1 @@
+Reduced latency to POST to the inbox by moving the request validation work into the Oban worker
