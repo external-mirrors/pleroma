@@ -505,14 +505,14 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
     |> json(dgettext("errors", "error"))
   end
 
-  defp set_requester_reachable(%Plug.Conn{} = conn, _) do
-    with actor <- conn.params["actor"],
-         true <- is_binary(actor) do
-      Pleroma.Instances.set_reachable(actor)
-    end
+  defp set_requester_reachable(conn = %Plug.Conn{params: %{"actor" => actor}}, _)
+       when is_binary(actor) do
+    Task.start(fn -> Pleroma.Instances.set_reachable(actor) end)
 
     conn
   end
+
+  defp set_requester_reachable(%Plug.Conn{} = conn, _), do: conn
 
   def upload_media(%{assigns: %{user: %User{} = user}} = conn, %{"file" => file} = data) do
     with {:ok, object} <-
