@@ -273,8 +273,15 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
   end
 
   def inbox(%{assigns: %{valid_signature: true}} = conn, params) do
-    Federator.incoming_ap_doc(params)
-    json(conn, "ok")
+    case Federator.incoming_ap_doc(params) do
+      {:ok, %Oban.Job{}} ->
+        json(conn, "ok")
+
+      _ ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json("error")
+    end
   end
 
   def inbox(%{assigns: %{valid_signature: false}} = conn, _params) do
