@@ -866,12 +866,6 @@ defmodule Pleroma.Web.Router do
     plug(:accepts, ["activity+json", "json"])
   end
 
-  # Server to Server (S2S) AP interactions
-  pipeline :activitypub do
-    plug(:ap_service_actor)
-    plug(:http_signature)
-  end
-
   # Client to Server (C2S) AP interactions
   pipeline :activitypub_client do
     plug(:ap_service_actor)
@@ -897,7 +891,7 @@ defmodule Pleroma.Web.Router do
   end
 
   scope "/", Pleroma.Web.ActivityPub do
-    pipe_through(:activitypub)
+    pipe_through(:ap_service_actor)
     post("/inbox", ActivityPubController, :inbox)
     post("/users/:nickname/inbox", ActivityPubController, :inbox)
   end

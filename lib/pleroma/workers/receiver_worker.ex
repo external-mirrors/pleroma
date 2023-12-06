@@ -11,22 +11,24 @@ defmodule Pleroma.Workers.ReceiverWorker do
 
   @impl Oban.Worker
   def perform(%Job{
-        args: %{"op" => "incoming_ap_doc", "params" => params = %{"nickname" => nickname}}
+        args: %{"op" => "incoming_ap_doc", "conn" => conn = %{params: %{"nickname" => nickname}}}
       }) do
-    with {:nickname, %User{} = recipient} <- {:nickname, User.get_cached_by_nickname(nickname)},
-         {:ok, %User{} = actor} <- User.get_or_fetch_by_ap_id(params["actor"]),
+    with {:signature, true} <- {:signature, HTTPSignatures.validate_conn(conn)},
+         {:nickname, %User{} = recipient} <- {:nickname, User.get_cached_by_nickname(nickname)},
+         {:ok, %User{} = actor} <- User.get_or_fetch_by_ap_id(conn.params["actor"]),
          {:in_message, true} <-
-           {:in_message, Utils.recipient_in_message(recipient, actor, params)},
-         params <- Utils.maybe_splice_recipient(recipient.ap_id, params),
-         {:ok, res} <- Federator.perform(:incoming_ap_doc, params) do
+           {:in_message, Utils.recipient_in_message(recipient, actor, conn.params)},
+         split_params <- Utils.maybe_splice_recipient(recipient.ap_id, conn.params),
+         {:ok, res} <- Federator.perform(:incoming_ap_doc, split_params) do
       {:ok, res}
     else
       e -> process_errors(e)
     end
   end
 
-  def perform(%Job{args: %{"op" => "incoming_ap_doc", "params" => params}}) do
-    with {:ok, res} <- Federator.perform(:incoming_ap_doc, params) do
+  def perform(%Job{args: %{"op" => "incoming_ap_doc", "conn" => conn}}) do
+    with {:signature, true} <- {:signature, HTTPSignatures.validate_conn(conn)},
+         {:ok, res} <- Federator.perform(:incoming_ap_doc, conn.params) do
       {:ok, res}
     else
       e -> process_errors(e)
@@ -43,6 +45,7 @@ defmodule Pleroma.Workers.ReceiverWorker do
       {:error, {:validate_object, reason}} -> {:cancel, reason}
       {:error, {:error, {:validate, reason}}} -> {:cancel, reason}
       {:error, {:reject, reason}} -> {:cancel, reason}
+      {:signature, false} -> {:cancel, :invalid_signature}
       {:nickname, {:error, reason}} -> {:cancel, reason}
       {:in_message, false} -> {:cancel, "Recipient not in message"}
       e -> e
