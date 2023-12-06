@@ -284,7 +284,9 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
   end
 
   def inbox(conn, _params) do
-    case Federator.incoming_ap_doc(conn) do
+    conn_data = %{params: conn.params, req_headers: conn.req_headers}
+
+    case Federator.incoming_ap_doc(conn_data) do
       {:ok, %Oban.Job{}} ->
         json(conn, "ok")
 

@@ -11,14 +11,17 @@ defmodule Pleroma.Workers.ReceiverWorker do
 
   @impl Oban.Worker
   def perform(%Job{
-        args: %{"op" => "incoming_ap_doc", "conn" => conn = %{params: %{"nickname" => nickname}}}
+        args: %{
+          "op" => "incoming_ap_doc",
+          "conn_data" => conn_data = %{params: %{"nickname" => nickname}}
+        }
       }) do
-    with {:signature, true} <- {:signature, HTTPSignatures.validate_conn(conn)},
+    with {:signature, true} <- {:signature, HTTPSignatures.validate_conn(conn_data)},
          {:nickname, %User{} = recipient} <- {:nickname, User.get_cached_by_nickname(nickname)},
-         {:ok, %User{} = actor} <- User.get_or_fetch_by_ap_id(conn.params["actor"]),
+         {:ok, %User{} = actor} <- User.get_or_fetch_by_ap_id(conn_data.params["actor"]),
          {:in_message, true} <-
-           {:in_message, Utils.recipient_in_message(recipient, actor, conn.params)},
-         split_params <- Utils.maybe_splice_recipient(recipient.ap_id, conn.params),
+           {:in_message, Utils.recipient_in_message(recipient, actor, conn_data.params)},
+         split_params <- Utils.maybe_splice_recipient(recipient.ap_id, conn_data.params),
          {:ok, res} <- Federator.perform(:incoming_ap_doc, split_params) do
       {:ok, res}
     else
@@ -26,9 +29,9 @@ defmodule Pleroma.Workers.ReceiverWorker do
     end
   end
 
-  def perform(%Job{args: %{"op" => "incoming_ap_doc", "conn" => conn}}) do
-    with {:signature, true} <- {:signature, HTTPSignatures.validate_conn(conn)},
-         {:ok, res} <- Federator.perform(:incoming_ap_doc, conn.params) do
+  def perform(%Job{args: %{"op" => "incoming_ap_doc", "conn_data" => conn_data}}) do
+    with {:signature, true} <- {:signature, HTTPSignatures.validate_conn(conn_data)},
+         {:ok, res} <- Federator.perform(:incoming_ap_doc, conn_data.params) do
       {:ok, res}
     else
       e -> process_errors(e)

@@ -36,8 +36,8 @@ defmodule Pleroma.Web.Federator do
 
   # Client API
 
-  def incoming_ap_doc(conn) do
-    ReceiverWorker.enqueue("incoming_ap_doc", %{"conn" => conn})
+  def incoming_ap_doc(conn_data) do
+    ReceiverWorker.enqueue("incoming_ap_doc", %{"conn_data" => conn_data})
   end
 
   @impl true
