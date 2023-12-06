@@ -272,16 +272,17 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
     end
   end
 
-  # POST /relay/inbox -or- POST /internal/fetch/inbox
-  def inbox(conn, %{"type" => "Create"} = params) do
-    if FederatingPlug.federating?() do
-      post_inbox_relayed_create(conn, params)
-    else
-      conn
-      |> put_status(:bad_request)
-      |> json("Not federating")
-    end
-  end
+  # Disable this for testing
+  #  # POST /relay/inbox -or- POST /internal/fetch/inbox
+  #  def inbox(conn, %{"type" => "Create"} = params) do
+  #    if FederatingPlug.federating?() do
+  #      post_inbox_relayed_create(conn, params)
+  #    else
+  #      conn
+  #      |> put_status(:bad_request)
+  #      |> json("Not federating")
+  #    end
+  #  end
 
   def inbox(conn, _params) do
     conn_data = %{params: conn.params, req_headers: conn.req_headers}
@@ -297,15 +298,15 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
     end
   end
 
-  defp post_inbox_relayed_create(conn, params) do
-    Logger.debug(
-      "Signature missing or not from author, relayed Create message, fetching object from source"
-    )
-
-    Fetcher.fetch_object_from_id(params["object"]["id"])
-
-    json(conn, "ok")
-  end
+  #  defp post_inbox_relayed_create(conn, params) do
+  #    Logger.debug(
+  #      "Signature missing or not from author, relayed Create message, fetching object from source"
+  #    )
+  #
+  #    Fetcher.fetch_object_from_id(params["object"]["id"])
+  #
+  #    json(conn, "ok")
+  #  end
 
   defp represent_service_actor(%User{} = user, conn) do
     conn
