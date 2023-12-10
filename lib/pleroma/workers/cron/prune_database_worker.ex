@@ -22,4 +22,7 @@ defmodule Pleroma.Workers.Cron.PruneDatabaseWorker do
 
     :ok
   end
+
+  @impl Oban.Worker
+  def timeout(_job), do: :timer.minutes(10)
 end

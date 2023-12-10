@@ -2033,8 +2033,7 @@ config :pleroma, :config_description, [
         description: "Max retry attempts for failed jobs, per `Oban` queue",
         suggestions: [
           federator_incoming: 5,
-          federator_outgoing: 5,
-          prune_database: :timer.minutes(10)
+          federator_outgoing: 5
         ]
       }
     ]
