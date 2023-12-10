@@ -592,8 +592,7 @@ config :pleroma, Oban,
 config :pleroma, :workers,
   retries: [
     federator_incoming: 5,
-    federator_outgoing: 5,
-    prune_database: :timer.minutes(10)
+    federator_outgoing: 5
   ]
 
 config :pleroma, Pleroma.Formatter,
