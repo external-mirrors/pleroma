@@ -7,6 +7,10 @@ while ! pg_isready -U ${DB_USER:-pleroma} -d postgres://${DB_HOST:-db}:${DB_PORT
     sleep 1s
 done
 
+echo "-- Creating db..."
+$HOME/bin/pleroma_ctl create
+
+
 echo "-- Running migrations..."
 $HOME/bin/pleroma_ctl migrate
 

@@ -1,0 +1,36 @@
+version: '3.4'
+
+services:
+  web:
+    build: ../..
+    ports:
+      - "4000:4000"
+    environment:
+      DB_USER: postgres
+      DB_PASS: postgres
+      GRAFANA_HOST: http://grafana:3000
+    volumes:
+      - "./workdir/pleroma:/var/lib/pleroma"
+    restart: "always"
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: "/pg_data"
+    restart: "always"
+    volumes:
+      - "./workdir/pg_data:/pg_data"
+  grafana:
+    image: grafana/grafana-enterprise
+    ports: 
+      - "3000:3000"
+    volumes:
+      - "./workdir/grafana:/var/lib/grafana"
+      - "./grafana-provisioning/:/etc/grafana/provisioning/"
+  prometheus: 
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
