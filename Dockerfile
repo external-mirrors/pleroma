@@ -1,7 +1,7 @@
 ARG ELIXIR_IMG=hexpm/elixir
-ARG ELIXIR_VER=1.12.3
-ARG ERLANG_VER=24.2.1
-ARG ALPINE_VER=3.17.0
+ARG ELIXIR_VER=1.14.5
+ARG ERLANG_VER=25.1.2.1
+ARG ALPINE_VER=3.18.4
 
 FROM ${ELIXIR_IMG}:${ELIXIR_VER}-erlang-${ERLANG_VER}-alpine-${ALPINE_VER} as build
 
@@ -14,6 +14,8 @@ RUN apk add git gcc g++ musl-dev make cmake file-dev vips-dev &&\
 	echo "import Config" > config/prod.secret.exs &&\
 	mix local.hex --force &&\
 	mix local.rebar --force &&\
+  mix deps.clean --all &&\
+  mix clean &&\
 	mix deps.get --only prod &&\
 	mkdir release &&\
 	mix release --path release
