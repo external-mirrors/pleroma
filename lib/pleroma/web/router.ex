@@ -63,6 +63,7 @@ defmodule Pleroma.Web.Router do
   end
 
   pipeline :base_api do
+    plug(:anti_reflection)
     plug(:accepts, ["json"])
     plug(:fetch_session)
     plug(:authenticate)
@@ -77,10 +78,12 @@ defmodule Pleroma.Web.Router do
 
   # Pipeline for app-related endpoints (no user auth checks — app-bound tokens must be supported)
   pipeline :app_api do
+    plug(:anti_reflection)
     plug(:no_auth_or_privacy_expectations_api)
   end
 
   pipeline :api do
+    plug(:anti_reflection)
     plug(:expect_public_instance_or_user_authentication)
     plug(:no_auth_or_privacy_expectations_api)
   end
@@ -211,6 +214,10 @@ defmodule Pleroma.Web.Router do
 
   pipeline :static_fe do
     plug(Pleroma.Web.Plugs.StaticFEPlug)
+  end
+
+  pipeline :anti_reflection do
+    plug(Pleroma.Web.Plugs.AntiReflectionPlug)
   end
 
   scope "/api/v1/pleroma", Pleroma.Web.TwitterAPI do
