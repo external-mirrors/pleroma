@@ -105,7 +105,8 @@ defmodule Pleroma.Config.TransferTask do
   # change logger configuration in runtime, without restart
   defp configure({_, :backends, _, merged}) do
     # removing current backends
-    Enum.each(Application.get_env(:logger, :backends), &Logger.remove_backend/1)
+    backends = Application.get_env(:logger, :backends) || []
+    Enum.each(backends, &Logger.remove_backend/1)
 
     Enum.each(merged, &Logger.add_backend/1)
 
