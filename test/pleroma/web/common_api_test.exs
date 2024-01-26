@@ -12,6 +12,7 @@ defmodule Pleroma.Web.CommonAPITest do
   alias Pleroma.Notification
   alias Pleroma.Object
   alias Pleroma.Repo
+  alias Pleroma.UnstubbedConfigMock, as: ConfigMock
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Transmogrifier
@@ -20,14 +21,29 @@ defmodule Pleroma.Web.CommonAPITest do
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Workers.PollWorker
 
-  import Pleroma.Factory
-  import Mock
   import Ecto.Query, only: [from: 2]
+  import Mock
+  import Mox
+  import Pleroma.Factory
 
+  require Pleroma.Activity.Queries
   require Pleroma.Constants
+
+  defp get_announces_of_object(%{data: %{"id" => id}} = _object) do
+    Pleroma.Activity.Queries.by_type("Announce")
+    |> Pleroma.Activity.Queries.by_object_id(id)
+    |> Pleroma.Repo.all()
+  end
 
   setup_all do
     Tesla.Mock.mock_global(fn env -> apply(HttpRequestMock, :request, [env]) end)
+    :ok
+  end
+
+  setup do
+    ConfigMock
+    |> stub_with(Pleroma.Test.StaticConfig)
+
     :ok
   end
 
@@ -795,6 +811,65 @@ defmodule Pleroma.Web.CommonAPITest do
         args: %{activity_id: activity.id},
         scheduled_at: expires_at
       )
+    end
+
+    test "it allows quote posting" do
+      user = insert(:user)
+
+      {:ok, quoted} = CommonAPI.post(user, %{status: "Hello world"})
+      {:ok, quote_post} = CommonAPI.post(user, %{status: "nice post", quote_id: quoted.id})
+
+      quoted = Object.normalize(quoted)
+      quote_post = Object.normalize(quote_post)
+
+      assert quote_post.data["quoteUrl"] == quoted.data["id"]
+
+      # The OP is not mentioned
+      refute quoted.data["actor"] in quote_post.data["to"]
+    end
+
+    test "quote posting with explicit addressing doesn't mention the OP" do
+      user = insert(:user)
+
+      {:ok, quoted} = CommonAPI.post(user, %{status: "Hello world"})
+
+      {:ok, quote_post} =
+        CommonAPI.post(user, %{status: "nice post", quote_id: quoted.id, to: []})
+
+      assert Object.normalize(quote_post).data["to"] == [Pleroma.Constants.as_public()]
+    end
+
+    test "quote posting visibility" do
+      user = insert(:user)
+      another_user = insert(:user)
+
+      {:ok, direct} = CommonAPI.post(user, %{status: ".", visibility: "direct"})
+      {:ok, private} = CommonAPI.post(user, %{status: ".", visibility: "private"})
+      {:ok, unlisted} = CommonAPI.post(user, %{status: ".", visibility: "unlisted"})
+      {:ok, local} = CommonAPI.post(user, %{status: ".", visibility: "local"})
+      {:ok, public} = CommonAPI.post(user, %{status: ".", visibility: "public"})
+
+      {:error, _} = CommonAPI.post(user, %{status: "nice", quote_id: direct.id})
+      {:ok, _} = CommonAPI.post(user, %{status: "nice", quote_id: private.id})
+      {:error, _} = CommonAPI.post(another_user, %{status: "nice", quote_id: private.id})
+      {:ok, _} = CommonAPI.post(user, %{status: "nice", quote_id: unlisted.id})
+      {:ok, _} = CommonAPI.post(another_user, %{status: "nice", quote_id: unlisted.id})
+      {:ok, _} = CommonAPI.post(user, %{status: "nice", quote_id: local.id})
+      {:ok, _} = CommonAPI.post(another_user, %{status: "nice", quote_id: local.id})
+      {:ok, _} = CommonAPI.post(user, %{status: "nice", quote_id: public.id})
+      {:ok, _} = CommonAPI.post(another_user, %{status: "nice", quote_id: public.id})
+    end
+
+    test "it properly mentions punycode domain" do
+      user = insert(:user)
+
+      _mentioned_user =
+        insert(:user, ap_id: "https://xn--i2raa.com/users/yyy", nickname: "yyy@xn--i2raa.com")
+
+      {:ok, activity} =
+        CommonAPI.post(user, %{status: "hey @yyy@xn--i2raa.com", content_type: "text/markdown"})
+
+      assert "https://xn--i2raa.com/users/yyy" in Object.normalize(activity).data["to"]
     end
   end
 
@@ -1765,6 +1840,56 @@ defmodule Pleroma.Web.CommonAPITest do
       assert updated_object.data["content"] == "mewmew 2"
       assert Map.get(updated_object.data, "summary", "") == ""
       assert Map.has_key?(updated_object.data, "updated")
+    end
+  end
+
+  describe "Group actors" do
+    setup do
+      poster = insert(:user)
+      group = insert(:user, actor_type: "Group")
+      other_group = insert(:user, actor_type: "Group")
+      %{poster: poster, group: group, other_group: other_group}
+    end
+
+    test "it boosts public posts", %{poster: poster, group: group} do
+      {:ok, post} = CommonAPI.post(poster, %{status: "hey @#{group.nickname}"})
+
+      announces = get_announces_of_object(post.object)
+      assert [_] = announces
+    end
+
+    test "it does not boost private posts", %{poster: poster, group: group} do
+      {:ok, private_post} =
+        CommonAPI.post(poster, %{status: "hey @#{group.nickname}", visibility: "private"})
+
+      assert [] = get_announces_of_object(private_post.object)
+    end
+
+    test "remote groups do not boost any posts", %{poster: poster} do
+      remote_group =
+        insert(:user, actor_type: "Group", local: false, nickname: "remote@example.com")
+
+      {:ok, post} = CommonAPI.post(poster, %{status: "hey @#{User.full_nickname(remote_group)}"})
+      assert remote_group.ap_id in post.data["to"]
+
+      announces = get_announces_of_object(post.object)
+      assert [] = announces
+    end
+
+    test "multiple groups mentioned", %{poster: poster, group: group, other_group: other_group} do
+      {:ok, post} =
+        CommonAPI.post(poster, %{status: "hey @#{group.nickname} @#{other_group.nickname}"})
+
+      announces = get_announces_of_object(post.object)
+      assert [_, _] = announces
+    end
+
+    test "it does not boost if group is blocking poster", %{poster: poster, group: group} do
+      {:ok, _} = CommonAPI.block(group, poster)
+      {:ok, post} = CommonAPI.post(poster, %{status: "hey @#{group.nickname}"})
+
+      announces = get_announces_of_object(post.object)
+      assert [] = announces
     end
   end
 end
