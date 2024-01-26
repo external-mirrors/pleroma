@@ -1598,7 +1598,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
        when is_binary(username) do
     generated = "#{username}@#{URI.parse(data["id"]).host}"
 
-    if !additional[:update] or Config.get([WebFinger, :update_nickname_on_user_fetch]) do
+    if (Config.get([WebFinger, :verify_nickname_on_initial_fetch]) and !additional[:update]) or
+         Config.get([WebFinger, :update_nickname_on_user_fetch]) do
       case WebFinger.finger(generated) do
         {:ok, %{"subject" => "acct:" <> acct}} -> acct
         _ -> generated
