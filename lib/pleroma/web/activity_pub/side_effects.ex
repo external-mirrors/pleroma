@@ -21,7 +21,6 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.Pipeline
   alias Pleroma.Web.ActivityPub.Utils
-  alias Pleroma.Web.Push
   alias Pleroma.Web.Streamer
   alias Pleroma.Workers.PollWorker
 
@@ -125,7 +124,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
         nil
     end
 
-    {:ok, notifications} = Notification.create_notifications(object, do_send: false)
+    {:ok, notifications} = Notification.create_notifications(object)
 
     meta =
       meta
@@ -202,7 +201,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   def handle(%{data: %{"type" => "Create"}} = activity, meta) do
     with {:ok, object, meta} <- handle_object_creation(meta[:object_data], activity, meta),
          %User{} = user <- User.get_cached_by_ap_id(activity.data["actor"]) do
-      {:ok, notifications} = Notification.create_notifications(activity, do_send: false)
+      {:ok, notifications} = Notification.create_notifications(activity)
       {:ok, _user} = ActivityPub.increase_note_count_if_public(user, object)
       {:ok, _user} = ActivityPub.update_last_status_at_if_public(user, object)
 
@@ -587,10 +586,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
   defp send_notifications(meta) do
     Keyword.get(meta, :notifications, [])
-    |> Enum.each(fn notification ->
-      Streamer.stream(["user", "user:notification"], notification)
-      Push.send(notification)
-    end)
+    |> Notification.send()
 
     meta
   end
