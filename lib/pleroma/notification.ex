@@ -748,4 +748,22 @@ defmodule Pleroma.Notification do
     )
     |> Repo.update_all(set: [seen: true])
   end
+
+  @spec expunge_read(User.t()) :: :ok
+  def expunge_read(user) do
+    keep_count = Pleroma.Config.get([__MODULE__, :keep])
+
+    old_notifs =
+      from(n in Notification,
+        where: n.user_id == ^user.id,
+        where: n.seen == true,
+        order_by: [desc: :id]
+      )
+      |> Repo.all()
+      |> Enum.drop(keep_count)
+
+    Repo.transaction(fn ->
+      Enum.each(old_notifs, &Repo.delete(&1))
+    end)
+  end
 end

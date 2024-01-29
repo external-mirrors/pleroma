@@ -913,6 +913,8 @@ config :pleroma, Pleroma.Application,
 
 config :pleroma, Pleroma.Uploaders.Uploader, timeout: 30_000
 
+config :pleroma, Pleroma.Notification, keep: 50
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{Mix.env()}.exs"
