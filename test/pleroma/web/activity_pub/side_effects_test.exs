@@ -347,6 +347,17 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
 
       assert new_note["formerRepresentations"]["totalItems"] == 1
     end
+
+    test "it generates new notifications if additional mentions are added" do
+      user = insert(:user, local: true)
+      friend = insert(:user, local: true, nickname: "friend")
+
+      {:ok, activity} = CommonAPI.post(user, %{status: "hey friend did you see this?"})
+
+      {:ok, _} = CommonAPI.update(user, activity, %{status: "hey @friend did you see this?"})
+
+      assert length(Notification.for_user(friend)) == 1
+    end
   end
 
   describe "update questions" do
