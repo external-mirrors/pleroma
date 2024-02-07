@@ -1,0 +1,5 @@
+- The original issue appeared to be that invalid hashtags on
+  Catodon instances were resulting in the post being dropped.
+  However, Catadon uses notes. I added a function to the
+  `Pleroma.Web.ActivityPub.Transmogrifier` module that accepts
+  a Note type and converts it to a Create type.
