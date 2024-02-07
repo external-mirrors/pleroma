@@ -277,6 +277,30 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
       refute is_nil(data["cc"])
     end
 
+    test "it ensures a post with an invalid has tag is not dropped" do
+      user = insert(:user)
+
+      data =
+        File.read!("test/fixtures/catodon-note-object-with-invalid-hash-tag.json")
+        |> Jason.decode!()
+        |> Map.put("actor", user.ap_id)
+        |> Map.put("cc", nil)
+
+      object =
+        data
+        |> Map.put("attributedTo", user.ap_id)
+        |> Map.put("cc", nil)
+        |> Map.put("id", user.ap_id <> "/notes/12345678")
+
+      data = Map.put(data, "object", object)
+
+      {:ok, %Activity{} = activity} = Transmogrifier.handle_incoming(data)
+
+      object = Object.normalize(activity)
+
+      assert String.contains?(object.data["content"], "#bad-hashtag")
+    end
+
     test "it strips internal likes" do
       data =
         File.read!("test/fixtures/mastodon-post-activity.json")

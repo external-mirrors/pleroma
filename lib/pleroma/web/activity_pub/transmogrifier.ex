@@ -397,12 +397,17 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
     end
   end
 
+  def handle_incoming(%{"type" => "Note"} = data, options) do
+    Map.put(data, "type", "Create")
+    |> handle_incoming(options)
+  end
+
   # disallow objects with bogus IDs
-  def handle_incoming(%{"id" => nil}, _options), do: :error
-  def handle_incoming(%{"id" => ""}, _options), do: :error
+  def handle_incoming(%{"id" => nil}, _options), do: {:error, "nil_id"}
+  def handle_incoming(%{"id" => ""}, _options), do: {:error, "empty_id"}
   # length of https:// = 8, should validate better, but good enough for now.
   def handle_incoming(%{"id" => id}, _options) when is_binary(id) and byte_size(id) < 8,
-    do: :error
+    do: {:error, "invalid_length"}
 
   def handle_incoming(
         %{"type" => "Listen", "object" => %{"type" => "Audio"} = object} = data,

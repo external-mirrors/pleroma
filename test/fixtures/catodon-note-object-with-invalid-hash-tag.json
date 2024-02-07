@@ -1,0 +1,64 @@
+{
+   "@context": [
+      "https://www.w3.org/ns/activitystreams",
+      "https://w3id.org/security/v1",
+      {
+         "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+         "movedToUri": "as:movedTo",
+         "sensitive": "as:sensitive",
+         "Hashtag": "as:Hashtag",
+         "quoteUri": "fedibird:quoteUri",
+         "quoteUrl": "as:quoteUrl",
+         "toot": "http://joinmastodon.org/ns#",
+         "Emoji": "toot:Emoji",
+         "featured": "toot:featured",
+         "discoverable": "toot:discoverable",
+         "schema": "http://schema.org#",
+         "PropertyValue": "schema:PropertyValue",
+         "value": "schema:value",
+         "misskey": "https://misskey-hub.net/ns#",
+         "_misskey_content": "misskey:_misskey_content",
+         "_misskey_quote": "misskey:_misskey_quote",
+         "_misskey_reaction": "misskey:_misskey_reaction",
+         "_misskey_votes": "misskey:_misskey_votes",
+         "_misskey_talk": "misskey:_misskey_talk",
+         "_misskey_summary": "misskey:_misskey_summary",
+         "isCat": "misskey:isCat",
+         "fedibird": "http://fedibird.com/ns#",
+         "vcard": "http://www.w3.org/2006/vcard/ns#",
+         "litepub": "http://litepub.social/ns#",
+         "ChatMessage": "litepub:ChatMessage",
+         "directMessage": "litepub:directMessage"
+      }
+   ],
+   "id": "https://example.org/notes/9paaptbjhp2v575c",
+   "type": "Note",
+   "attributedTo": "https://example.org/users/9pa9i3o1towdkwj2",
+   "summary": null,
+   "content": "<p><span>A post with a </span><a href=\"https://example.org/tags/bad-hashtag\" rel=\"tag\">#bad-hashtag</a></p>",
+   "contentMap": {
+      "en": "<p><span>A post with a </span><a href=\"https://example.org/tags/bad-hashtag\" rel=\"tag\">#bad-hashtag</a></p>"
+   },
+   "_misskey_content": "A post with a #bad-hashtag",
+   "source": {
+      "content": "A post with a #bad-hashtag",
+      "mediaType": "text/x.misskeymarkdown"
+   },
+   "published": "2024-02-03T23:54:57.583Z",
+   "to": [
+      "https://www.w3.org/ns/activitystreams#Public"
+   ],
+   "cc": [
+      "https://example.org/users/9pa9i3o1towdkwj2/followers"
+   ],
+   "inReplyTo": null,
+   "attachment": [],
+   "sensitive": false,
+   "tag": [
+      {
+         "type": "Hashtag",
+         "href": "https://example.org/tags/bad-hashtag",
+         "name": "#bad-hashtag"
+      }
+   ]
+}

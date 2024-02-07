@@ -63,7 +63,7 @@ defmodule Pleroma.User.Query do
             limit: pos_integer(),
             actor_types: [String.t()],
             birthday_day: pos_integer(),
-            birthday_month: pos_integer()
+            birthday_month: pos_integer(),
           }
           | map()
 
