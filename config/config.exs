@@ -431,7 +431,8 @@ config :pleroma, :rich_media,
     Pleroma.Web.RichMedia.Parsers.OEmbed
   ],
   failure_backoff: 60_000,
-  ttl_setters: [Pleroma.Web.RichMedia.Parser.TTL.AwsSignedUrl]
+  ttl_setters: [Pleroma.Web.RichMedia.Parser.TTL.AwsSignedUrl],
+  max_body: 5_000_000
 
 config :pleroma, :media_proxy,
   enabled: false,
