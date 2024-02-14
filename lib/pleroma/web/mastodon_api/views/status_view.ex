@@ -575,6 +575,13 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
       image: image_url,
       title: rich_media["title"] || "",
       description: rich_media["description"] || "",
+      author_name: "",
+      author_url: "",
+      html: "",
+      width: 0,
+      height: 0,
+      embed_url: "",
+      blurhash: nil,
       pleroma: %{
         opengraph:
           rich_media

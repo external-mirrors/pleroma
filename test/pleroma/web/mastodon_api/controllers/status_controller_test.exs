@@ -1739,7 +1739,14 @@ defmodule Pleroma.Web.MastodonAPI.StatusControllerTest do
             "description" =>
               "Directed by Michael Bay. With Sean Connery, Nicolas Cage, Ed Harris, John Spencer."
           }
-        }
+        },
+        "author_name" => "",
+        "author_url" => "",
+        "blurhash" => nil,
+        "embed_url" => "",
+        "height" => 0,
+        "html" => "",
+        "width" => 0
       }
 
       response =
@@ -1785,7 +1792,14 @@ defmodule Pleroma.Web.MastodonAPI.StatusControllerTest do
                    "type" => "website",
                    "url" => "https://example.com/ogp-missing-data"
                  }
-               }
+               },
+               "author_name" => "",
+               "author_url" => "",
+               "blurhash" => nil,
+               "embed_url" => "",
+               "height" => 0,
+               "html" => "",
+               "width" => 0
              }
     end
   end
