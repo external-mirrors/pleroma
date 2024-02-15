@@ -4,6 +4,7 @@ defmodule Pleroma.Search.Meilisearch do
 
   alias Pleroma.Activity
   alias Pleroma.Config.Getting, as: Config
+  alias Pleroma.Workers.SearchIndexingWorker
 
   import Pleroma.Search.DatabaseSearch
   import Ecto.Query
@@ -149,7 +150,13 @@ defmodule Pleroma.Search.Meilisearch do
   end
 
   @impl true
-  def add_to_index(activity) do
+  def add_to_index(%Pleroma.Activity{id: activity_id}) do
+    SearchIndexingWorker.enqueue("add_to_index", %{"activity" => activity_id})
+  end
+
+  def add_to_index(activity_id) when is_binary(activity_id) do
+    activity = Pleroma.Activity.get_by_id_with_object(activity_id)
+
     maybe_search_data = object_to_search_data(activity.object)
 
     if activity.data["type"] == "Create" and maybe_search_data do
@@ -175,7 +182,11 @@ defmodule Pleroma.Search.Meilisearch do
   end
 
   @impl true
-  def remove_from_index(object) do
-    meili_delete("/indexes/objects/documents/#{object.id}")
+  def remove_from_index(%Pleroma.Object{id: object_id}) do
+    SearchIndexingWorker.enqueue("remove_from_index", %{"object" => object_id})
+  end
+
+  def remove_from_index(object_id) when is_binary(object_id) do
+    meili_delete("/indexes/objects/documents/#{object_id}")
   end
 end

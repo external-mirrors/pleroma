@@ -6,18 +6,14 @@ defmodule Pleroma.Workers.SearchIndexingWorker do
   alias Pleroma.Config.Getting, as: Config
 
   def perform(%Job{args: %{"op" => "add_to_index", "activity" => activity_id}}) do
-    activity = Pleroma.Activity.get_by_id_with_object(activity_id)
-
     search_module = Config.get([Pleroma.Search, :module])
 
-    search_module.add_to_index(activity)
+    search_module.add_to_index(activity_id)
   end
 
   def perform(%Job{args: %{"op" => "remove_from_index", "object" => object_id}}) do
-    object = Pleroma.Object.get_by_id(object_id)
-
     search_module = Config.get([Pleroma.Search, :module])
 
-    search_module.remove_from_index(object)
+    search_module.remove_from_index(object_id)
   end
 end

@@ -8,10 +8,10 @@ defmodule Pleroma.Search.SearchBackend do
 
   @doc """
   Add the object associated with the activity to the search index.
-
-  The whole activity is passed, to allow filtering on things such as scope.
+  When the activity is passed we schedule the job; when the activity id is passed we execute the work.
   """
-  @callback add_to_index(activity :: Pleroma.Activity.t()) :: :ok | {:error, any()}
+  @callback add_to_index(activity :: Pleroma.Activity.t()) :: {:ok, Oban.Job.t()} | {:error, Oban.Job.changeset() | term()}
+  @callback add_to_index(activity_id :: String.t()) :: :ok | {:error, any()}
 
   @doc """
   Remove the object from the index.
@@ -19,6 +19,9 @@ defmodule Pleroma.Search.SearchBackend do
   Just the object, as opposed to the whole activity, is passed, since the object
   is what contains the actual content and there is no need for filtering when removing
   from index.
+
+  When the object is passed we schedule the job; when the object id is passed we execute the work.
   """
-  @callback remove_from_index(object :: Pleroma.Object.t()) :: :ok | {:error, any()}
+  @callback remove_from_index(object :: Pleroma.Object.t()) :: {:ok, Oban.Job.t()} | {:error, Oban.Job.changeset() | term()}
+  @callback remove_from_index(object_id :: String.t()) :: :ok | {:error, any()}
 end
