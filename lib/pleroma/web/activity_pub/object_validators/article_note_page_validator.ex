@@ -34,13 +34,15 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidator do
     |> apply_action(:insert)
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, meta \\ []) do
     data
-    |> cast_data()
-    |> validate_data()
+    |> cast_data(meta)
+    |> validate_data(meta)
   end
 
-  def cast_data(data) do
+  def cast_data(data, meta \\ []) do
+    data = fix(data, meta)
+
     %__MODULE__{}
     |> changeset(data)
   end
@@ -76,7 +78,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidator do
 
   def fix_attachments(data), do: data
 
-  defp fix(data) do
+  defp fix(data, _meta) do
     data
     |> CommonFixes.fix_actor()
     |> CommonFixes.fix_object_defaults()
@@ -90,21 +92,29 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidator do
   end
 
   def changeset(struct, data) do
-    data = fix(data)
-
     struct
-    |> cast(data, __schema__(:fields) -- [:attachment, :tag])
+    |> cast(data, __schema__(:fields) -- [:attachment, :tag, :generator])
     |> cast_embed(:attachment)
     |> cast_embed(:tag)
+    |> cast_embed(:generator)
   end
 
-  defp validate_data(data_cng) do
+  defp validate_data(data_cng, meta) do
     data_cng
     |> validate_inclusion(:type, ["Article", "Note", "Page"])
     |> validate_required([:id, :actor, :attributedTo, :type, :context])
-    |> CommonValidations.validate_any_presence([:cc, :to])
+    |> maybe_to_cc(meta)
     |> CommonValidations.validate_fields_match([:actor, :attributedTo])
     |> CommonValidations.validate_actor_presence()
     |> CommonValidations.validate_host_match()
+  end
+
+  defp maybe_to_cc(data_cng, meta) do
+    if meta[:local] != true do
+      data_cng
+      |> CommonValidations.validate_any_presence([:cc, :to])
+    else
+      data_cng
+    end
   end
 end

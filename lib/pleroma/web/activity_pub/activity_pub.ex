@@ -232,6 +232,21 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     end
   end
 
+  defp maybe_create_activity_expiration(%{data: %{"expires_at" => expires_at}} = activity)
+       when is_bitstring(expires_at) do
+    with {_, {:ok, expires_at, _}} <- {:datetime, DateTime.from_iso8601(expires_at)},
+         {:ok, _job} <-
+           Pleroma.Workers.PurgeExpiredActivity.enqueue(%{
+             activity_id: activity.id,
+             expires_at: expires_at
+           }) do
+      {:ok, activity}
+    else
+      {:datetime, _} -> {:ok, activity}
+      e -> e
+    end
+  end
+
   defp maybe_create_activity_expiration(activity), do: {:ok, activity}
 
   defp create_or_bump_conversation(activity, actor) do

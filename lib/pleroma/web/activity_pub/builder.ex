@@ -207,6 +207,7 @@ defmodule Pleroma.Web.ActivityPub.Builder do
     data =
       %{
         "type" => "Note",
+        "id" => Utils.generate_object_id(),
         "to" => draft.to,
         "cc" => draft.cc,
         "content" => draft.content_html,

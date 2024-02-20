@@ -23,7 +23,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.UndoValidator do
     end
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, _meta \\ []) do
     data
     |> cast_data()
     |> validate_data()

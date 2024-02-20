@@ -82,8 +82,17 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
   defp validate_data(cng, meta) do
     object = meta[:object_data]
 
+    required = [:actor, :type, :object]
+
+    required =
+      if meta[:local] == true do
+        required
+      else
+        required ++ [:to, :cc]
+      end
+
     cng
-    |> validate_required([:actor, :type, :object, :to, :cc])
+    |> validate_required(required)
     |> validate_inclusion(:type, ["Create"])
     |> CommonValidations.validate_actor_presence()
     |> validate_actors_match(object)

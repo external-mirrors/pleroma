@@ -36,7 +36,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.FollowValidator do
     |> validate_actor_presence(field_name: :object)
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, _meta \\ []) do
     data
     |> cast_data
     |> validate_data

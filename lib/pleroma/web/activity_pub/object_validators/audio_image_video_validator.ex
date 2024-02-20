@@ -31,7 +31,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AudioImageVideoValidator do
     |> apply_action(:insert)
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, _meta \\ []) do
     data
     |> cast_data()
     |> validate_data()
@@ -109,9 +109,10 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AudioImageVideoValidator do
     data = fix(data)
 
     struct
-    |> cast(data, __schema__(:fields) -- [:attachment, :tag])
+    |> cast(data, __schema__(:fields) -- [:attachment, :tag, :generator])
     |> cast_embed(:attachment, required: true)
     |> cast_embed(:tag)
+    |> cast_embed(:generator)
   end
 
   defp validate_data(data_cng) do

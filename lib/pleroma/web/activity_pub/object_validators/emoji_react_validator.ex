@@ -29,7 +29,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.EmojiReactValidator do
     field(:content, :string)
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, _meta \\ []) do
     data
     |> cast_data()
     |> validate_data()

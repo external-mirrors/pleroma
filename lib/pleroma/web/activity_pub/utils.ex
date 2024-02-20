@@ -691,7 +691,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   #### Create-related helpers
 
   def make_create_data(params, additional) do
-    published = params.published || make_date()
+    published = Map.get(params, :published) || make_date()
 
     %{
       "type" => "Create",
@@ -702,6 +702,11 @@ defmodule Pleroma.Web.ActivityPub.Utils do
       "context" => params.context
     }
     |> Map.merge(additional)
+    |> Maps.put_if_present(
+      "expires_at",
+      additional["expires_at"],
+      &{:ok, DateTime.to_iso8601(&1)}
+    )
   end
 
   #### Listen-related helpers

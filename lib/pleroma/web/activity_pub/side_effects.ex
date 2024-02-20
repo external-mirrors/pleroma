@@ -198,7 +198,6 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   # - Increase the user note count
   # - Increase the reply count
   # - Increase replies count
-  # - Set up ActivityExpiration
   # - Set up notifications
   # - Index incoming posts for search (if needed)
   @impl true

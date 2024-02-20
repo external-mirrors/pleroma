@@ -462,8 +462,29 @@ defmodule Pleroma.Web.CommonAPI do
 
   @spec post(User.t(), map()) :: {:ok, Activity.t()} | {:error, any()}
   def post(user, %{status: _} = data) do
-    with {:ok, draft} <- ActivityDraft.create(user, data) do
-      ActivityPub.create(draft.changes, draft.preview?)
+    published = Utils.make_date()
+
+    with {:ok, %{changes: changes, preview?: fake} = _draft} <- ActivityDraft.create(user, data),
+         changes <-
+           changes
+           |> Map.put_new(:published, published)
+           |> Map.put(
+             "object",
+             changes.object
+             |> Map.put_new("id", Utils.generate_object_id())
+             |> Map.put_new("published", published)
+             |> Map.merge(changes.additional)
+           ),
+         create_data <-
+           changes
+           |> Utils.make_create_data(changes.additional),
+         {:fake, false, _data} <- {:fake, fake, create_data},
+         {:ok, create, _} <- Pipeline.common_pipeline(create_data, local: true) do
+      {:ok, create}
+    else
+      {:fake, true, activity} -> {:ok, activity}
+      {:error, _} = e -> e
+      e -> {:error, e}
     end
   end
 

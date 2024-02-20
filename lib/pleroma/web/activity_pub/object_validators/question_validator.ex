@@ -40,7 +40,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator do
     |> apply_action(:insert)
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, _meta \\ []) do
     data
     |> cast_data()
     |> validate_data()
@@ -72,11 +72,12 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator do
     data = fix(data)
 
     struct
-    |> cast(data, __schema__(:fields) -- [:anyOf, :oneOf, :attachment, :tag])
+    |> cast(data, __schema__(:fields) -- [:anyOf, :oneOf, :attachment, :tag, :generator])
     |> cast_embed(:attachment)
     |> cast_embed(:anyOf)
     |> cast_embed(:oneOf)
     |> cast_embed(:tag)
+    |> cast_embed(:generator)
   end
 
   defp validate_data(data_cng) do

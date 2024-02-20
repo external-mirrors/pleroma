@@ -26,7 +26,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AddRemoveValidator do
     end
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, _meta \\ []) do
     {:ok, actor} = User.get_or_fetch_by_ap_id(data["actor"])
 
     {:ok, actor} = maybe_refetch_user(actor)

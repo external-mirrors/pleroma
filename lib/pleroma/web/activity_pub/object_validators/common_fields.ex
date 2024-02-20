@@ -5,6 +5,7 @@
 defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFields do
   alias Pleroma.EctoType.ActivityPub.ObjectValidators
   alias Pleroma.Web.ActivityPub.ObjectValidators.AttachmentValidator
+  alias Pleroma.Web.ActivityPub.ObjectValidators.GeneratorValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.TagValidator
 
   # Activities and Objects, except (Create)ChatMessage
@@ -64,6 +65,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFields do
 
       field(:likes, {:array, ObjectValidators.ObjectID}, default: [])
       field(:announcements, {:array, ObjectValidators.ObjectID}, default: [])
+
+      embeds_one(:generator, GeneratorValidator)
     end
   end
 end

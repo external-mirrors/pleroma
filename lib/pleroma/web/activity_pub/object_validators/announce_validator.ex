@@ -32,7 +32,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AnnounceValidator do
     field(:published, ObjectValidators.DateTime)
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, _meta \\ []) do
     data
     |> cast_data()
     |> validate_data()

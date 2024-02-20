@@ -144,7 +144,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
            do_separate_with_history(object, fn object ->
              with {:ok, object} <-
                     object
-                    |> validator.cast_and_validate()
+                    |> validator.cast_and_validate(meta)
                     |> Ecto.Changeset.apply_action(:insert) do
                object = stringify_keys(object)
 
