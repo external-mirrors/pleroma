@@ -12,8 +12,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.CommonAPI.Utils
   alias Pleroma.Web.MastodonAPI.AccountView
-  alias Pleroma.Web.PleromaAPI.ScrobbleView
   alias Pleroma.Web.MediaProxy
+  alias Pleroma.Web.PleromaAPI.ScrobbleView
 
   def render("index.json", %{users: users} = opts) do
     reading_user = opts[:for]
