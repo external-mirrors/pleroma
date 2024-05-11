@@ -577,22 +577,22 @@ config :pleroma, Oban,
     background: 5,
     remote_fetcher: 2,
     attachments_cleanup: 1,
+    new_users_digest: 1,
     mute_expire: 5,
     search_indexing: 10,
-    rich_media_expiration: 2,
-    prune_database: 1
+    rich_media_expiration: 2
   ],
   plugins: [Oban.Plugins.Pruner],
   crontab: [
     {"0 0 * * 0", Pleroma.Workers.Cron.DigestEmailsWorker},
-    {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker},
-    {"0 3 * * *", Pleroma.Workers.Cron.PruneDatabaseWorker}
+    {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker}
   ]
 
 config :pleroma, :workers,
   retries: [
     federator_incoming: 5,
-    federator_outgoing: 5
+    federator_outgoing: 5,
+    search_indexing: 2
   ]
 
 config :pleroma, Pleroma.Formatter,
