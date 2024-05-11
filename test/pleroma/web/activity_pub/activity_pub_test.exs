@@ -14,6 +14,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
   alias Pleroma.UnstubbedConfigMock, as: ConfigMock
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
+  alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.AdminAPI.AccountView
   alias Pleroma.Web.CommonAPI
@@ -2694,5 +2695,29 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
                "type" => "OrderedCollection",
                "first" => "https://social.example/users/alice/collections/featured?page=true"
              })
+  end
+
+  describe "persist/1" do
+    test "should not persist remote delete activities" do
+      poster = insert(:user, local: false)
+      {:ok, post} = CommonAPI.post(poster, %{status: "hhhhhh"})
+
+      {:ok, delete_data, meta} = Builder.delete(poster, post)
+      local_opts = Keyword.put(meta, :local, false)
+      {:ok, act, _meta} = ActivityPub.persist(delete_data, local_opts)
+      refute act.inserted_at
+    end
+
+    test "should not persist remote undo activities" do
+      poster = insert(:user, local: false)
+      liker = insert(:user, local: false)
+      {:ok, post} = CommonAPI.post(poster, %{status: "hhhhhh"})
+      {:ok, like} = CommonAPI.favorite(liker, post.id)
+
+      {:ok, undo_data, meta} = Builder.undo(liker, like)
+      local_opts = Keyword.put(meta, :local, false)
+      {:ok, act, _meta} = ActivityPub.persist(undo_data, local_opts)
+      refute act.inserted_at
+    end
   end
 end
