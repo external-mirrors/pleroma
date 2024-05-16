@@ -286,7 +286,8 @@ defmodule Pleroma.Notification do
       |> Marker.multi_set_last_read_id(user, "notifications")
       |> Repo.transaction()
 
-    for_user_query(user)
+    Notification
+    |> where(user_id: ^user_id)
     |> where([n], n.id in ^notification_ids)
     |> Repo.all()
   end
