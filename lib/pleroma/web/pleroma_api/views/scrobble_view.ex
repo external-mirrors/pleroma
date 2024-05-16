@@ -14,15 +14,27 @@ defmodule Pleroma.Web.PleromaAPI.ScrobbleView do
   alias Pleroma.Web.CommonAPI.Utils
   alias Pleroma.Web.MastodonAPI.AccountView
 
-  def render("show.json", %{activity: %Activity{data: %{"type" => "Listen"}} = activity} = opts) do
-    object = Object.normalize(activity, fetch: false)
+  def render("show.json", %{scrobble: %Activity{data: %{"type" => "Listen"}} = scrobble} = _opts) do
+    scrobble_schema_skeleton(scrobble)
+  end
 
+  def render("show.json", %{activity: %Activity{data: %{"type" => "Listen"}} = activity} = opts) do
     user = CommonAPI.get_user(activity.data["actor"])
-    created_at = Utils.to_masto_date(activity.data["published"])
+
+    scrobble_schema_skeleton(activity)
+    |> Map.put(:account, AccountView.render("show.json", %{user: user, for: opts[:for]}))
+  end
+
+  def render("index.json", opts) do
+    safe_render_many(opts.activities, __MODULE__, "show.json", opts)
+  end
+
+  defp scrobble_schema_skeleton(%Activity{data: %{"type" => "Listen"}} = scrobble) do
+    object = Object.normalize(scrobble, fetch: false)
+    created_at = Utils.to_masto_date(scrobble.data["published"])
 
     %{
-      id: activity.id,
-      account: AccountView.render("show.json", %{user: user, for: opts[:for]}),
+      id: scrobble.id,
       created_at: created_at,
       title: object.data["title"] |> HTML.strip_tags(),
       artist: object.data["artist"] |> HTML.strip_tags(),
@@ -30,9 +42,5 @@ defmodule Pleroma.Web.PleromaAPI.ScrobbleView do
       externalLink: object.data["externalLink"],
       length: object.data["length"]
     }
-  end
-
-  def render("index.json", opts) do
-    safe_render_many(opts.activities, __MODULE__, "show.json", opts)
   end
 end
