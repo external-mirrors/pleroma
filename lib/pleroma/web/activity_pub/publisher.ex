@@ -66,7 +66,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
   @doc """
   Determine if an activity can be represented by running it through Transmogrifier.
   """
-  def is_representable?(%Activity{} = activity) do
+  def representable?(%Activity{} = activity) do
     with {:ok, _data} <- Transmogrifier.prepare_outgoing(activity.data) do
       true
     else
@@ -129,6 +129,10 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
           _ -> {:error, e}
         end
 
+      {:error, :pool_full} ->
+        Logger.debug("Publisher snoozing worker job due to full connection pool")
+        {:snooze, 30}
+
       e ->
         unless params[:unreachable_since], do: Instances.set_unreachable(inbox)
         Logger.metadata(activity: id, inbox: inbox)
@@ -154,19 +158,18 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
     end
   end
 
-  defp should_federate?(inbox, public) do
-    if public do
-      true
-    else
-      %{host: host} = URI.parse(inbox)
+  def should_federate?(nil, _), do: false
+  def should_federate?(_, true), do: true
 
-      quarantined_instances =
-        Config.get([:instance, :quarantined_instances], [])
-        |> Pleroma.Web.ActivityPub.MRF.instance_list_from_tuples()
-        |> Pleroma.Web.ActivityPub.MRF.subdomains_regex()
+  def should_federate?(inbox, _) do
+    %{host: host} = URI.parse(inbox)
 
-      !Pleroma.Web.ActivityPub.MRF.subdomain_match?(quarantined_instances, host)
-    end
+    quarantined_instances =
+      Config.get([:instance, :quarantined_instances], [])
+      |> Pleroma.Web.ActivityPub.MRF.instance_list_from_tuples()
+      |> Pleroma.Web.ActivityPub.MRF.subdomains_regex()
+
+    !Pleroma.Web.ActivityPub.MRF.subdomain_match?(quarantined_instances, host)
   end
 
   @spec recipients(User.t(), Activity.t()) :: [[User.t()]]
@@ -246,7 +249,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
 
   def publish(%User{} = actor, %{data: %{"bcc" => bcc}} = activity)
       when is_list(bcc) and bcc != [] do
-    public = is_public?(activity)
+    public = public?(activity)
     {:ok, data} = Transmogrifier.prepare_outgoing(activity.data)
 
     [priority_recipients, recipients] = recipients(actor, activity)
@@ -291,7 +294,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
 
   # Publishes an activity to all relevant peers.
   def publish(%User{} = actor, %Activity{} = activity) do
-    public = is_public?(activity)
+    public = public?(activity)
 
     if public && Config.get([:instance, :allow_relay]) do
       Logger.debug(fn -> "Relaying #{activity.data["id"]} out" end)

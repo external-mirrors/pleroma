@@ -2424,20 +2424,20 @@ defmodule Pleroma.UserTest do
     end
   end
 
-  describe "is_internal_user?/1" do
+  describe "internal?/1" do
     test "non-internal user returns false" do
       user = insert(:user)
-      refute User.is_internal_user?(user)
+      refute User.internal?(user)
     end
 
     test "user with no nickname returns true" do
       user = insert(:user, %{nickname: nil})
-      assert User.is_internal_user?(user)
+      assert User.internal?(user)
     end
 
     test "user with internal-prefixed nickname returns true" do
       user = insert(:user, %{nickname: "internal.test"})
-      assert User.is_internal_user?(user)
+      assert User.internal?(user)
     end
   end
 
@@ -2894,6 +2894,20 @@ defmodule Pleroma.UserTest do
     end
   end
 
+  describe "get_familiar_followers/3" do
+    test "returns familiar followers for a pair of users" do
+      user1 = insert(:user)
+      %{id: id2} = user2 = insert(:user)
+      user3 = insert(:user)
+      _user4 = insert(:user)
+
+      User.follow(user1, user2)
+      User.follow(user2, user3)
+
+      assert [%{id: ^id2}] = User.get_familiar_followers(user3, user1)
+    end
+  end
+
   describe "account endorsements" do
     test "it pins people" do
       user = insert(:user)
@@ -2927,5 +2941,52 @@ defmodule Pleroma.UserTest do
 
       refute User.endorses?(user, pinned_user)
     end
+  end
+
+  test "it checks fields links for a backlink" do
+    user = insert(:user, ap_id: "https://social.example.org/users/lain")
+
+    fields = [
+      %{"name" => "Link", "value" => "http://example.com/rel_me/null"},
+      %{"name" => "Verified link", "value" => "http://example.com/rel_me/link"},
+      %{"name" => "Not a link", "value" => "i'm not a link"}
+    ]
+
+    user
+    |> User.update_and_set_cache(%{raw_fields: fields})
+
+    ObanHelpers.perform_all()
+
+    user = User.get_cached_by_id(user.id)
+
+    assert [
+             %{"verified_at" => nil},
+             %{"verified_at" => verified_at},
+             %{"verified_at" => nil}
+           ] = user.fields
+
+    assert is_binary(verified_at)
+  end
+
+  test "updating fields does not invalidate previously validated links" do
+    user = insert(:user, ap_id: "https://social.example.org/users/lain")
+
+    user
+    |> User.update_and_set_cache(%{
+      raw_fields: [%{"name" => "verified link", "value" => "http://example.com/rel_me/link"}]
+    })
+
+    ObanHelpers.perform_all()
+
+    %User{fields: [%{"verified_at" => verified_at}]} = user = User.get_cached_by_id(user.id)
+
+    user
+    |> User.update_and_set_cache(%{
+      raw_fields: [%{"name" => "Verified link", "value" => "http://example.com/rel_me/link"}]
+    })
+
+    user = User.get_cached_by_id(user.id)
+
+    assert [%{"verified_at" => ^verified_at}] = user.fields
   end
 end

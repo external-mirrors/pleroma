@@ -98,7 +98,13 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Status do
             nullable: true,
             description:
               "A hash computed by the (BlurHash algorithm)[https://github.com/woltapp/blurhash], for generating colorful preview thumbnails when media has not been downloaded yet."
-          }
+          },
+          image_description: %Schema{
+            type: :string,
+            description: "Alternate text that describes what is in the thumbnail"
+          },
+          title: %Schema{type: :string, description: "Title of linked resource"},
+          description: %Schema{type: :string, description: "Description of preview"}
         }
       },
       content: %Schema{type: :string, format: :html, description: "HTML-encoded status content"},

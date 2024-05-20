@@ -39,7 +39,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
         Operation.parameter(
           :with_muted,
           :query,
-          BooleanLike,
+          BooleanLike.schema(),
           "Include reactions from muted acccounts."
         )
       ],
@@ -82,7 +82,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
         Operation.parameter(
           :with_muted,
           :query,
-          BooleanLike,
+          BooleanLike.schema(),
           "Include reactions from muted acccounts."
         )
       ],
@@ -256,6 +256,18 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       description: "Privately bookmark a status",
       operationId: "StatusController.bookmark",
       parameters: [id_param()],
+      requestBody:
+        request_body("Parameters", %Schema{
+          title: "StatusUpdateRequest",
+          type: :object,
+          properties: %{
+            folder_id: %Schema{
+              nullable: true,
+              allOf: [FlakeID],
+              description: "ID of bookmarks folder, if any"
+            }
+          }
+        }),
       responses: %{
         200 => status_response()
       }
@@ -430,7 +442,15 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       summary: "Bookmarked statuses",
       description: "Statuses the user has bookmarked",
       operationId: "StatusController.bookmarks",
-      parameters: pagination_params(),
+      parameters: [
+        Operation.parameter(
+          :folder_id,
+          :query,
+          FlakeID.schema(),
+          "If provided, only display bookmarks from given folder"
+        )
+        | pagination_params()
+      ],
       security: [%{"oAuth" => ["read:bookmarks"]}],
       responses: %{
         200 => Operation.response("Array of Statuses", "application/json", array_of_statuses())
@@ -685,7 +705,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
   end
 
   def id_param do
-    Operation.parameter(:id, :path, FlakeID, "Status ID",
+    Operation.parameter(:id, :path, FlakeID.schema(), "Status ID",
       example: "9umDrYheeY451cQnEe",
       required: true
     )

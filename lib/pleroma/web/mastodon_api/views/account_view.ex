@@ -193,6 +193,25 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     render_many(targets, AccountView, "relationship.json", render_opts)
   end
 
+  def render("familiar_followers.json", %{users: users} = opts) do
+    opts =
+      opts
+      |> Map.merge(%{as: :user})
+      |> Map.delete(:users)
+
+    users
+    |> render_many(AccountView, "familiar_followers.json", opts)
+  end
+
+  def render("familiar_followers.json", %{user: %{id: id, accounts: accounts}} = opts) do
+    accounts =
+      accounts
+      |> render_many(AccountView, "show.json", opts)
+      |> Enum.filter(&Enum.any?/1)
+
+    %{id: id, accounts: accounts}
+  end
+
   defp do_render("show.json", %{user: user} = opts) do
     self = opts[:for] == user
 
@@ -214,7 +233,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         do: user.follower_count,
         else: 0
 
-    bot = is_bot?(user)
+    bot = bot?(user)
 
     emojis =
       Enum.map(user.emoji, fn {shortcode, raw_url} ->
@@ -471,7 +490,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
   defp image_url(%{"url" => [%{"href" => href} | _]}), do: href
   defp image_url(_), do: nil
 
-  defp is_bot?(user) do
+  defp bot?(user) do
     # Because older and/or Mastodon clients may not recognize a Group actor properly,
     # and currently the group actor can only boost things, we should let these clients
     # think groups are bots.
