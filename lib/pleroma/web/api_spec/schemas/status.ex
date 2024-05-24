@@ -102,9 +102,7 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Status do
           image_description: %Schema{
             type: :string,
             description: "Alternate text that describes what is in the thumbnail"
-          },
-          title: %Schema{type: :string, description: "Title of linked resource"},
-          description: %Schema{type: :string, description: "Description of preview"}
+          }
         }
       },
       content: %Schema{type: :string, format: :html, description: "HTML-encoded status content"},
