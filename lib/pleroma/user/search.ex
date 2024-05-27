@@ -91,6 +91,7 @@ defmodule Pleroma.User.Search do
     |> select_top_users(top_user_ids)
     |> trigram_rank(query_string)
     |> boost_search_rank(for_user, top_user_ids)
+    |> suppress_inactive_users_search_rank()
     |> subquery()
     |> order_by(desc: :search_rank)
     |> maybe_restrict_local(for_user)
@@ -258,6 +259,42 @@ defmodule Pleroma.User.Search do
              ELSE (?) END
             """,
             u.id in ^top_user_ids,
+            u.search_rank
+          )
+      }
+    )
+  end
+
+  defp last_status_at_search_rank(query) do
+    # :last_status_at ranking logic
+    # is nil / no known posts? Nerf it -9001
+    # within the last day? +.25
+    # within the last 7 days? +.1
+    # -- OK, so the account must be stale... --
+    # within the last month? -.1
+    # within the last 3 months? -.2
+    # Older than 3 months, stale account. -.5
+    from(u in subquery(query),
+      select_merge: %{
+        search_rank:
+          fragment(
+            """
+             CASE WHEN (?) THEN - 9001
+             WHEN (?) THEN (?) + .25
+             WHEN (?) THEN (?) + .1
+             WHEN (?) THEN (?) - .1
+             WHEN (?) THEN (?) - .2
+             ELSE (?) -.5 END
+            """,
+            is_nil(u.last_status_at),
+            u.last_status_at >= from_now(-1, "day"),
+            u.search_rank,
+            u.last_status_at >= from_now(-7, "day"),
+            u.search_rank,
+            u.last_status_at >= from_now(-30, "day"),
+            u.search_rank,
+            u.last_status_at >= from_now(-90, "day"),
+            u.search_rank,
             u.search_rank
           )
       }
