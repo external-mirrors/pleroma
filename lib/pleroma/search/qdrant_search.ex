@@ -157,26 +157,59 @@ defmodule Pleroma.Search.QdrantSearch do
 end
 
 defmodule Pleroma.Search.QdrantSearch.OpenAIClient do
-  use Tesla
   alias Pleroma.Config.Getting, as: Config
+  alias Pleroma.HTTP
 
-  plug(Tesla.Middleware.BaseUrl, Config.get([Pleroma.Search.QdrantSearch, :openai_url]))
-  plug(Tesla.Middleware.JSON)
+  def post(path, body) do
+    encoded = Jason.encode!(body)
+    HTTP.request(:post, make_url(path), encoded, headers(), pool: :default)
+  end
 
-  plug(Tesla.Middleware.Headers, [
-    {"Authorization",
-     "Bearer #{Pleroma.Config.get([Pleroma.Search.QdrantSearch, :openai_api_key])}"}
-  ])
+  defp make_url(path) do
+    Config.get([Pleroma.Search.QdrantSearch, :openai_url])
+    |> URI.parse()
+    |> Map.put(:path, path)
+    |> URI.to_string()
+  end
+
+  defp headers do
+    [
+      {"content-type", "application/json"},
+      {"Authorization",
+       "Bearer #{Pleroma.Config.get([Pleroma.Search.QdrantSearch, :openai_api_key])}"}
+    ]
+  end
 end
 
 defmodule Pleroma.Search.QdrantSearch.QdrantClient do
-  use Tesla
   alias Pleroma.Config.Getting, as: Config
+  alias Pleroma.HTTP
 
-  plug(Tesla.Middleware.BaseUrl, Config.get([Pleroma.Search.QdrantSearch, :qdrant_url]))
-  plug(Tesla.Middleware.JSON)
+  def delete(path) do
+    HTTP.request(:delete, make_url(path), "", [], pool: :default)
+  end
 
-  plug(Tesla.Middleware.Headers, [
-    {"api-key", Pleroma.Config.get([Pleroma.Search.QdrantSearch, :qdrant_api_key])}
-  ])
+  def post(path, body) do
+    encoded = Jason.encode!(body)
+    HTTP.request(:post, make_url(path), encoded, headers(), pool: :default)
+  end
+
+  def put(path, body) do
+    encoded = Jason.encode!(body)
+    HTTP.request(:put, make_url(path), encoded, headers(), pool: :default)
+  end
+
+  defp make_url(path) do
+    Config.get([Pleroma.Search.QdrantSearch, :qdrant_url])
+    |> URI.parse()
+    |> Map.put(:path, path)
+    |> URI.to_string()
+  end
+
+  defp headers do
+    [
+      {"content-type", "application/json"},
+      {"api-key", Pleroma.Config.get([Pleroma.Search.QdrantSearch, :qdrant_api_key])}
+    ]
+  end
 end
