@@ -220,6 +220,7 @@ defmodule Pleroma.ReverseProxy do
              Keyword.get(opts, :max_body_length, @max_body_length)
            ),
          {:ok, conn} <- chunk(conn, data) do
+      Pleroma.Chaos.kill_random_worker(self())
       chunk_reply(conn, client, opts, sent_so_far, duration)
     else
       :done -> {:ok, conn}
