@@ -30,7 +30,8 @@ defmodule Pleroma.Gun.ConnectionPool.WorkerSupervisor do
           start_worker(opts, true)
         end
 
-      res ->
+      {:ok, pid} = res ->
+        Task.start(fn -> Pleroma.Chaos.kill_random_worker(pid) end)
         res
     end
   end

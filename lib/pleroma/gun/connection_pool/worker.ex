@@ -35,7 +35,8 @@ defmodule Pleroma.Gun.ConnectionPool.Worker do
          key: key,
          timer: nil,
          client_monitors: %{client_pid => Process.monitor(client_pid)},
-         protocol: protocol
+         protocol: protocol,
+         pool: Keyword.get(opts, :pool)
        }, :hibernate}
     else
       err ->
