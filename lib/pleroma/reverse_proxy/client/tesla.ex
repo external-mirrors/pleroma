@@ -20,7 +20,7 @@ defmodule Pleroma.ReverseProxy.Client.Tesla do
   def request(method, url, headers, body, opts \\ []) do
     check_adapter()
 
-    opts = Keyword.put(opts, :body_as, :chunks)
+    opts = Keyword.merge(opts, body_as: :stream, close_conn: false)
 
     with {:ok, response} <-
            Pleroma.HTTP.request(
