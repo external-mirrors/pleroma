@@ -7,8 +7,8 @@ defmodule Pleroma.Search.Elasticsearch do
 
   alias Pleroma.Activity
   alias Pleroma.Object.Fetcher
-  alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Search.Elasticsearch.Parsers
+  alias Pleroma.Web.ActivityPub.Visibility
 
   def es_query(:activity, query, offset, limit) do
     must = Parsers.Activity.parse(query)
