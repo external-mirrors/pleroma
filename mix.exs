@@ -184,6 +184,12 @@ defmodule Pleroma.Mixfile do
       {:exile, "~> 0.10.0"},
       {:bandit, "~> 1.5.2"},
       {:websock_adapter, "~> 0.5.6"},
+      {:search_parser,
+       git: "https://github.com/FloatingGhost/pleroma-contrib-search-parser.git",
+       ref: "08971a81e68686f9ac465cfb6661d51c5e4e1e7f"},
+      {:nimble_parsec, "~> 1.3", override: true},
+      {:elasticsearch,
+       git: "https://akkoma.dev/AkkomaGang/elasticsearch-elixir.git", ref: "main"},
 
       ## dev & test
       {:phoenix_live_reload, "~> 1.3.3", only: :dev},
