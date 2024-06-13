@@ -115,7 +115,8 @@ defmodule Pleroma.Application do
         background_migrators() ++
         shout_child(shout_enabled?()) ++
         [Pleroma.Gopher.Server] ++
-        [Pleroma.Search.Healthcheck]
+        [Pleroma.Search.Healthcheck] ++
+        elasticsearch()
 
     # See http://elixir-lang.org/docs/stable/elixir/Supervisor.html
     # for other strategies and supported options
@@ -302,5 +303,15 @@ defmodule Pleroma.Application do
 
       ConcurrentLimiter.new(module, max_running, max_waiting)
     end)
+  end
+
+  defp elasticsearch do
+    config = Config.get([Pleroma.Search, :module])
+
+    if config == Pleroma.Search.Elasticsearch do
+      [Pleroma.Search.Elasticsearch.Cluster]
+    else
+      []
+    end
   end
 end
