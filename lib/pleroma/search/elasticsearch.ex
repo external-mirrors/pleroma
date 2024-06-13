@@ -6,6 +6,7 @@ defmodule Pleroma.Search.Elasticsearch do
   @behaviour Pleroma.Search.SearchBackend
 
   alias Pleroma.Activity
+  alias Pleroma.Config
   alias Pleroma.Object.Fetcher
   alias Pleroma.Search.Elasticsearch.Parsers
   alias Pleroma.Web.ActivityPub.Visibility
@@ -40,6 +41,7 @@ defmodule Pleroma.Search.Elasticsearch do
     end
   end
 
+  @impl true
   def search(user, query, options) do
     limit = Enum.min([Keyword.get(options, :limit), 40])
     offset = Keyword.get(options, :offset, 0)
@@ -87,5 +89,22 @@ defmodule Pleroma.Search.Elasticsearch do
   @impl true
   def remove_from_index(object) do
     Elasticsearch.delete_document(Pleroma.Search.Elasticsearch.Cluster, object, "activities")
+  end
+
+  @impl true
+  def create_index, do: :ok
+
+  @impl true
+  def drop_index, do: :ok
+
+  @impl true
+  def healthcheck_endpoints do
+    endpoint =
+      Config.get([Pleroma.Search.Elasticsearch.Cluster, :url])
+      |> URI.parse()
+      |> Map.put(:path, "/healthz")
+      |> URI.to_string()
+
+    [endpoint]
   end
 end
