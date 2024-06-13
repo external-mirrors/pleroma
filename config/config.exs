@@ -923,6 +923,22 @@ config :pleroma, Pleroma.Search.Meilisearch,
   private_key: nil,
   initial_indexing_chunk_size: 100_000
 
+config :pleroma, Pleroma.Search.Elasticsearch.Cluster,
+  url: "http://localhost:9200",
+  username: "elastic",
+  password: "changeme",
+  api: Elasticsearch.API.HTTP,
+  json_library: Jason,
+  indexes: %{
+    activities: %{
+      settings: "priv/es-mappings/activity.json",
+      store: Pleroma.Search.Elasticsearch.Store,
+      sources: [Pleroma.Activity],
+      bulk_page_size: 1000,
+      bulk_wait_interval: 15_000
+    }
+  }
+
 config :pleroma, Pleroma.Application,
   background_migrators: true,
   internal_fetch: true,
