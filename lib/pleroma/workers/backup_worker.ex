@@ -13,12 +13,12 @@ defmodule Pleroma.Workers.BackupWorker do
         args: %{"op" => "process", "backup_id" => backup_id}
       }) do
     with {:ok, %Backup{} = backup} <- Backup.get(backup_id),
-         {:ok, zip_path} <- Backup.run(backup.user),
-         {:ok, _} <- Backup.upload(backup, zip_path),
-         {:ok, _job} <- Backup.schedule_delete(backup),
-         :ok <- Backup.remove_outdated(backup.user),
-         :ok <- maybe_deliver_email(backup) do
-      {:ok, backup}
+         {:ok, updated_backup} <- Backup.run(backup.user),
+         {:ok, uploaded_backup} <- Backup.upload(updated_backup),
+         {:ok, _job} <- Backup.schedule_delete(uploaded_backup),
+         :ok <- Backup.remove_outdated(uploaded_backup.user),
+         :ok <- maybe_deliver_email(uploaded_backup) do
+      {:ok, uploaded_backup}
     end
   end
 

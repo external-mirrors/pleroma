@@ -5,6 +5,7 @@
 defmodule Pleroma.User.Backup do
   use Ecto.Schema
 
+  import Ecto.Changeset
   import Ecto.Query
   import Pleroma.Web.Gettext
 
@@ -16,7 +17,6 @@ defmodule Pleroma.User.Backup do
   alias Pleroma.Config
   alias Pleroma.Repo
   alias Pleroma.User
-  alias Pleroma.User.Backup.State
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.ActivityPub.UserView
@@ -29,8 +29,7 @@ defmodule Pleroma.User.Backup do
     field(:file_name, :string)
     field(:file_size, :integer, default: 0)
     field(:processed, :boolean, default: false)
-    field(:state, State, default: :invalid)
-    field(:processed_number, :integer, default: 0)
+    field(:tempfile, :string)
 
     belongs_to(:user, User, type: FlakeId.Ecto.CompatType)
 
@@ -73,10 +72,8 @@ defmodule Pleroma.User.Backup do
     name = "archive-#{user.nickname}-#{datetime}-#{rand_str}.zip"
 
     %__MODULE__{
-      user_id: user.id,
       content_type: "application/zip",
-      file_name: name,
-      state: :pending
+      file_name: name
     }
   end
 
@@ -135,6 +132,7 @@ defmodule Pleroma.User.Backup do
   end
 
   @doc "Lists all existing backups for a user"
+  @spec list(User.t()) :: [Ecto.Schema.t() | term()]
   def list(%User{id: user_id}) do
     __MODULE__
     |> where(user_id: ^user_id)
@@ -158,6 +156,21 @@ defmodule Pleroma.User.Backup do
 
   def get(id), do: Repo.get(__MODULE__, id)
 
+  @doc "Generates changeset for %Pleroma.User.Backup{}"
+  @spec changeset(%__MODULE__{}, map()) :: %Ecto.Changeset{}
+  def changeset(backup \\ %__MODULE__{}, attrs) do
+    backup
+    |> cast(attrs, [:content_type, :file_name, :file_size, :processed, :tempfile])
+  end
+
+  @doc "Updates the backup record"
+  @spec update_backup(%__MODULE__{}, map()) :: {:ok, %__MODULE__{}} | {:error, %Ecto.Changeset{}}
+  def update_backup(%__MODULE__{} = backup, attrs) do
+    backup
+    |> changeset(attrs)
+    |> Repo.update()
+  end
+
   @files [
     ~c"actor.json",
     ~c"outbox.json",
@@ -167,7 +180,7 @@ defmodule Pleroma.User.Backup do
     ~c"following.json"
   ]
 
-  @spec run(t()) :: {:ok, String.t()} | {:error, :failed}
+  @spec run(t()) :: {:ok, t()} | {:error, :failed}
   def run(%__MODULE__{} = backup) do
     backup = Repo.preload(backup, :user)
     dir = backup_tempdir(backup)
@@ -180,8 +193,9 @@ defmodule Pleroma.User.Backup do
          :ok <- followers(dir, backup.user),
          :ok <- following(dir, backup.user),
          {:ok, zip_path} <- :zip.create(backup.file_name, @files, cwd: dir),
-         {:ok, _} <- File.rm_rf(dir) do
-      {:ok, zip_path}
+         {:ok, _} <- File.rm_rf(dir),
+         {:ok, updated_backup} <- update_backup(backup, %{tempfile: zip_path}) do
+      {:ok, updated_backup}
     else
       _ ->
         cleanup(backup)
@@ -194,18 +208,18 @@ defmodule Pleroma.User.Backup do
     Path.join(dir, name)
   end
 
-  def upload(%__MODULE__{} = backup, zip_path) do
+  def upload(%__MODULE__{tempfile: tempfile} = backup) when is_binary(tempfile) do
     uploader = Config.get([Pleroma.Upload, :uploader])
 
     upload = %Pleroma.Upload{
       name: backup.file_name,
-      tempfile: zip_path,
+      tempfile: tempfile,
       content_type: backup.content_type,
       path: Path.join("backups", backup.file_name)
     }
 
     with {:ok, _} <- Pleroma.Uploaders.Uploader.put_file(uploader, upload),
-         :ok <- File.rm(zip_path) do
+         :ok <- File.rm(tempfile) do
       {:ok, upload}
     end
   end
