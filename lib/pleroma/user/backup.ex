@@ -208,6 +208,8 @@ defmodule Pleroma.User.Backup do
     Path.join(dir, name)
   end
 
+  @doc "Uploads the completed backup and marks it as processed"
+  @spec upload(t()) :: {:ok, Pleroma.Upload.t()}
   def upload(%__MODULE__{tempfile: tempfile} = backup) when is_binary(tempfile) do
     uploader = Config.get([Pleroma.Upload, :uploader])
 
@@ -219,6 +221,7 @@ defmodule Pleroma.User.Backup do
     }
 
     with {:ok, _} <- Pleroma.Uploaders.Uploader.put_file(uploader, upload),
+         {:ok, _updated_backup} <- update(backup, %{processed: true}),
          :ok <- File.rm(tempfile) do
       {:ok, upload}
     end
