@@ -155,7 +155,8 @@ defmodule Pleroma.Search.Meilisearch do
   end
 
   @impl true
-  def add_to_index(activity) do
+  @spec add_to_index(Activity.t()) :: :ok | {:error, any()}
+  def add_to_index(%Activity{} = activity) do
     maybe_search_data = object_to_search_data(activity.object)
 
     if activity.data["type"] == "Create" and maybe_search_data do
@@ -179,6 +180,8 @@ defmodule Pleroma.Search.Meilisearch do
       :ok
     end
   end
+
+  def add_to_index(_), do: :ok
 
   @impl true
   def remove_from_index(object) do
