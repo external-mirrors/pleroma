@@ -577,6 +577,37 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
     audio_url = proxied_url(rich_media["audio"], page_url_data)
     video_url = proxied_url(rich_media["video"], page_url_data)
 
+    # REFACTOR THIS UGLY HACK
+    authors =
+      if Map.has_key?(rich_media, "authors") do
+        authors = Map.get(rich_media, "authors")
+
+        Enum.map(authors, fn x ->
+          case Pleroma.User.get_cached_by_nickname(x) do
+            %Pleroma.User{} = user ->
+              [
+                %{
+                  "name" => "",
+                  "url" => "",
+                  "account" => AccountView.render("show.json", %{user: user, for: nil})
+                }
+              ]
+
+            _ ->
+              nil
+          end
+        end)
+        |> List.flatten()
+      else
+        [
+          %{
+            "name" => "",
+            "url" => "",
+            "account" => nil
+          }
+        ]
+      end
+
     %{
       type: "link",
       provider_name: page_url_data.host,
@@ -592,7 +623,8 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
           |> Maps.put_if_present("image", image_url)
           |> Maps.put_if_present("audio", audio_url)
           |> Maps.put_if_present("video", video_url)
-      }
+      },
+      authors: authors
     }
   end
 
