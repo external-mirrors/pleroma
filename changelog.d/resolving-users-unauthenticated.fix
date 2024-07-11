@@ -1,0 +1,1 @@
+Account lookups for unauthenticated users was checking the :limit_to_local_content setting meant for restricting Search access

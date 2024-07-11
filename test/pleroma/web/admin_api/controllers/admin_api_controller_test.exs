@@ -789,15 +789,6 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
     end
   end
 
-  test "gets a remote users when [:instance, :limit_to_local_content] is set to :unauthenticated",
-       %{conn: conn} do
-    clear_config(Pleroma.Config.get([:instance, :limit_to_local_content]), :unauthenticated)
-    user = insert(:user, %{local: false, nickname: "u@peer1.com"})
-    conn = get(conn, "/api/pleroma/admin/users/#{user.nickname}/credentials")
-
-    assert json_response(conn, 200)
-  end
-
   describe "GET /users/:nickname/credentials" do
     test "gets the user credentials", %{conn: conn} do
       clear_config([:instance, :admin_privileges], [:users_manage_credentials])

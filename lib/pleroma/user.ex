@@ -310,7 +310,7 @@ defmodule Pleroma.User do
   @spec visible_for(User.t(), User.t() | nil) ::
           :visible
           | :invisible
-          | :restricted_unauthenticated
+          | :restrict_unauthenticated
           | :deactivated
           | :confirmation_pending
   def visible_for(user, for_user \\ nil)
@@ -1288,16 +1288,17 @@ defmodule Pleroma.User do
   end
 
   def get_cached_by_nickname_or_id(nickname_or_id, opts \\ []) do
-    restrict_to_local = Config.get([:instance, :limit_to_local_content])
+    visibility = visible_for(opts[:for])
+    restrict_remote_profiles = Config.restrict_unauthenticated_access?(:profiles, :remote)
 
     cond do
       is_integer(nickname_or_id) or FlakeId.flake_id?(nickname_or_id) ->
         get_cached_by_id(nickname_or_id) || get_cached_by_nickname(nickname_or_id)
 
-      restrict_to_local == false or not String.contains?(nickname_or_id, "@") ->
+      match?(:visible, visibility) ->
         get_cached_by_nickname(nickname_or_id)
 
-      restrict_to_local == :unauthenticated and match?(%User{}, opts[:for]) ->
+      match?(false, restrict_remote_profiles) or not String.contains?(nickname_or_id, "@") ->
         get_cached_by_nickname(nickname_or_id)
 
       true ->

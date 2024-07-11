@@ -87,7 +87,9 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
     end
 
     test "works by nickname for remote users" do
-      clear_config([:instance, :limit_to_local_content], false)
+      clear_config([:restrict_unauthenticated],
+        profiles: %{local: false, remote: false}
+      )
 
       user = insert(:user, nickname: "user@example.com", local: false)
 
@@ -97,36 +99,16 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
                |> json_response_and_validate_schema(200)
     end
 
-    test "respects limit_to_local_content == :all for remote user nicknames" do
-      clear_config([:instance, :limit_to_local_content], :all)
+    test "respects :restrict_unauthenticated for remote user nicknames" do
+      clear_config([:restrict_unauthenticated],
+        profiles: %{local: false, remote: true}
+      )
 
       user = insert(:user, nickname: "user@example.com", local: false)
 
       assert build_conn()
              |> get("/api/v1/accounts/#{user.nickname}")
              |> json_response_and_validate_schema(404)
-    end
-
-    test "respects limit_to_local_content == :unauthenticated for remote user nicknames" do
-      clear_config([:instance, :limit_to_local_content], :unauthenticated)
-
-      user = insert(:user, nickname: "user@example.com", local: false)
-      reading_user = insert(:user)
-
-      conn =
-        build_conn()
-        |> get("/api/v1/accounts/#{user.nickname}")
-
-      assert json_response_and_validate_schema(conn, 404)
-
-      conn =
-        build_conn()
-        |> assign(:user, reading_user)
-        |> assign(:token, insert(:oauth_token, user: reading_user, scopes: ["read:accounts"]))
-        |> get("/api/v1/accounts/#{user.nickname}")
-
-      assert %{"id" => id} = json_response_and_validate_schema(conn, 200)
-      assert id == user.id
     end
 
     test "accounts fetches correct account for nicknames beginning with numbers", %{conn: conn} do

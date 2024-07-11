@@ -2529,48 +2529,58 @@ defmodule Pleroma.UserTest do
       [local_user: local_user, remote_user: remote_user]
     end
 
-    setup do: clear_config([:instance, :limit_to_local_content])
+    setup do: clear_config([:restrict_unauthenticated])
 
-    test "allows getting remote users by id no matter what :limit_to_local_content is set to", %{
-      remote_user: remote_user
-    } do
-      clear_config([:instance, :limit_to_local_content], false)
+    test "allows getting remote users by id no matter what :restrict_unauthenticated is set to",
+         %{
+           remote_user: remote_user
+         } do
+      clear_config([:restrict_unauthenticated],
+        profiles: %{local: false, remote: false}
+      )
+
       assert %User{} = User.get_cached_by_nickname_or_id(remote_user.id)
 
-      clear_config([:instance, :limit_to_local_content], true)
-      assert %User{} = User.get_cached_by_nickname_or_id(remote_user.id)
-
-      clear_config([:instance, :limit_to_local_content], :unauthenticated)
+      clear_config([:restrict_unauthenticated], profiles: %{local: true, remote: true})
       assert %User{} = User.get_cached_by_nickname_or_id(remote_user.id)
     end
 
-    test "disallows getting remote users by nickname without authentication when :limit_to_local_content is set to :unauthenticated",
+    test "disallows getting remote users by nickname without authentication when :restrict_unauthenticated",
          %{remote_user: remote_user} do
-      clear_config([:instance, :limit_to_local_content], :unauthenticated)
+      clear_config([:restrict_unauthenticated],
+        profiles: %{local: false, remote: true}
+      )
+
       assert nil == User.get_cached_by_nickname_or_id(remote_user.nickname)
     end
 
-    test "allows getting remote users by nickname with authentication when :limit_to_local_content is set to :unauthenticated",
+    test "allows getting remote users by nickname with authentication when :restrict_unauthenticated",
          %{remote_user: remote_user, local_user: local_user} do
-      clear_config([:instance, :limit_to_local_content], :unauthenticated)
+      clear_config([:restrict_unauthenticated],
+        profiles: %{local: false, remote: true}
+      )
+
       assert %User{} = User.get_cached_by_nickname_or_id(remote_user.nickname, for: local_user)
     end
 
-    test "disallows getting remote users by nickname when :limit_to_local_content is set to true",
+    test "disallows getting remote users by nickname when :restrict_unauthenticated",
          %{remote_user: remote_user} do
-      clear_config([:instance, :limit_to_local_content], true)
+      clear_config([:restrict_unauthenticated],
+        profiles: %{local: false, remote: true}
+      )
+
       assert nil == User.get_cached_by_nickname_or_id(remote_user.nickname)
     end
 
-    test "allows getting local users by nickname no matter what :limit_to_local_content is set to",
+    test "allows getting local users by nickname no matter what :restrict_unauthenticated is set to",
          %{local_user: local_user} do
-      clear_config([:instance, :limit_to_local_content], false)
+      clear_config([:restrict_unauthenticated], profiles: %{local: true, remote: true})
       assert %User{} = User.get_cached_by_nickname_or_id(local_user.nickname)
 
-      clear_config([:instance, :limit_to_local_content], true)
-      assert %User{} = User.get_cached_by_nickname_or_id(local_user.nickname)
+      clear_config([:restrict_unauthenticated],
+        profiles: %{local: false, remote: false}
+      )
 
-      clear_config([:instance, :limit_to_local_content], :unauthenticated)
       assert %User{} = User.get_cached_by_nickname_or_id(local_user.nickname)
     end
   end
