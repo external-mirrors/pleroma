@@ -587,12 +587,11 @@ config :pleroma, Oban,
     activity_expiration: 10,
     federator_incoming: 5,
     federator_outgoing: 5,
-    ingestion_queue: 50,
     web_push: 50,
     transmogrifier: 20,
-    background: 5,
+    background: 20,
     search_indexing: [limit: 10, paused: true],
-    slow: 1
+    slow: 5
   ],
   plugins: [Oban.Plugins.Pruner],
   crontab: [
