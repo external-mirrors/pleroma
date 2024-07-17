@@ -65,12 +65,6 @@ defmodule ExifGpsStripper do
          acc
        ) do
     case chunk_type do
-      "GPS " ->
-        strip_png_chunks(rest, acc)
-
-      "gps " ->
-        strip_png_chunks(rest, acc)
-
       "eXIf" ->
         strip_png_chunks(rest, acc)
 
