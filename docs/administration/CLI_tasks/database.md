@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Database maintenance tasks
 
 {! backend/administration/CLI_tasks/general_cli_task_info.include !}

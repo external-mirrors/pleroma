@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Prometheus / OpenTelemetry Metrics
 
 Pleroma includes support for exporting metrics via the [prom_ex](https://github.com/akoutmos/prom_ex) library.

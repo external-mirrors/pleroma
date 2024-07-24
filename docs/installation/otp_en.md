@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Installing on Linux using OTP releases
 
 {! backend/installation/otp_vs_from_source.include !}

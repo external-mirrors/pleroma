@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Storing Remote Media
 
 Pleroma does not store remote/federated media by default. The best way to achieve this is to change Nginx to keep its reverse proxy cache

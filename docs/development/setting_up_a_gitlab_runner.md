@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Setting up a Gitlab-runner
 
 When you push changes, a pipeline will start some automated jobs. These are done with so called [runners](https://docs.gitlab.com/runner/), services that run somewhere on a server and run these automated jobs. These jobs typically run tests and should pass. If not, you probably need to fix something.

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Static Directory
 
 Static frontend files are shipped with pleroma. If you want to overwrite or update these without problems during upgrades, you can write your custom versions to the static directory.

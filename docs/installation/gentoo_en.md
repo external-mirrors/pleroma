@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Manual install on Gentoo GNU/Linux
 
 {! backend/installation/otp_vs_from_source.include !}

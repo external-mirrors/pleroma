@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Optional software packages needed for specific functionality
 
 For specific Pleroma functionality (which is disabled by default) some or all of the below packages are required:

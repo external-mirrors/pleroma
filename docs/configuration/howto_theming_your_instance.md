@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Theming your instance
 
 To add a custom theme to your instance, you'll first need to get a custom theme, upload it to the server, make it available to the instance and eventually you can set it as default.

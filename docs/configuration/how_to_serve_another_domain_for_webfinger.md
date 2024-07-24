@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # How to use a different domain name for Pleroma and the users it serves
 
 Pleroma users are primarily identified by a `user@example.org` handle, and you might want this identifier to be the same as your email or jabber account, for instance.

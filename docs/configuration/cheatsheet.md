@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Configuration Cheat Sheet
 
 This is a cheat sheet for Pleroma configuration file, any setting possible to configure should be listed here.

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Optimizing PostgreSQL performance
 
 Pleroma performance is largely dependent on performance of the underlying database. Better performance can be achieved by adjusting a few settings.

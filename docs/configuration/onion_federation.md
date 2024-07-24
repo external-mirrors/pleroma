@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Easy Onion Federation (Tor)
 Tor can free people from the necessity of a domain, in addition to helping protect their privacy. As Pleroma's goal is to empower the people and let as many as possible host an instance with as little resources as possible, the ability to host an instance with a small, cheap computer like a RaspberryPi along with Tor, would be a great way to achieve that.  
 In addition, federating with such instances will also help furthering that goal.

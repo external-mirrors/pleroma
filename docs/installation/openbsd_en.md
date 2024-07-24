@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Installing on OpenBSD
 
 This guide describes the installation and configuration of pleroma (and the required software to run it) on a single OpenBSD 6.6 server.

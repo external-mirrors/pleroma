@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # I2P Federation and Accessibility
 
 This guide is going to focus on the Pleroma federation aspect. The actual installation is neatly explained in the official documentation, and more likely to remain up-to-date.

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Updating your instance
 
 You should **always check the [release notes/changelog](https://git.pleroma.social/pleroma/pleroma/-/releases)** in case there are config deprecations, special update steps, etc.

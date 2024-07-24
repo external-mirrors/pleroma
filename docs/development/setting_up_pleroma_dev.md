@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Setting up a Pleroma development environment
 
 Pleroma requires some adjustments from the defaults for running the instance locally. The following should help you to get started.

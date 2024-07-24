@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Chats
 
 Chats are a way to represent an IM-style conversation between two actors. They are not the same as direct messages and they are not `Status`es, even though they have a lot in common.

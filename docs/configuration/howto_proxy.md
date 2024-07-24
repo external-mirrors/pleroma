@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # How to configure upstream proxy for federation
 If you want to proxify all http requests (e.g. for TOR) that pleroma makes to an upstream proxy server, edit you config file (`dev.secret.exs` or `prod.secret.exs`) and add the following:
 

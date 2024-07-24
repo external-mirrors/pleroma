@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Configuring Ejabberd (XMPP Server) to use Pleroma for authentication
 
 If you want to give your Pleroma users an XMPP (chat) account, you can configure [Ejabberd](https://github.com/processone/ejabberd) to use your Pleroma server for user authentication, automatically giving every local user an XMPP account.

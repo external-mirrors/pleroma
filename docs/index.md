@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Introduction to Pleroma
 ## What is Pleroma?
 Pleroma is a federated social networking platform, compatible with Mastodon and other ActivityPub implementations. It is free software licensed under the AGPLv3.

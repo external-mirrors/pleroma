@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Message Rewrite Facility
 
 The Message Rewrite Facility (MRF) is a subsystem that is implemented as a series of hooks that allows the administrator to rewrite or discard messages.

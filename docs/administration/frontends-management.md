@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Managing installed frontends
 
 Pleroma lets you install multiple frontends including multiple versions of same frontend. Right now it's only possible to switch which frontend is the default, but in the future it would be possible for user to select which frontend they prefer to use.

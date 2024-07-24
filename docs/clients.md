@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Pleroma Clients
 Note: Additional clients may be working but theses are officially supporting Pleroma.
 Feel free to contact us to be added to this list!

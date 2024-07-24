@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # How to enable text search for Chinese, Japanese and Korean
 
 Pleroma's full text search feature is powered by PostgreSQL's native [text search](https://www.postgresql.org/docs/current/textsearch.html), it works well out of box for most of languages, but needs extra configurations for some asian languages like Chinese, Japanese and Korean (CJK).

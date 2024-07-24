@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 Pleroma Authors <https://pleroma.social/>
+
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
 # Optimizing the BEAM
 
 Pleroma is built upon the Erlang/OTP VM known as BEAM. The BEAM VM is highly optimized for latency, but this has drawbacks in environments without dedicated hardware. One of the tricks used by the BEAM VM is [busy waiting](https://en.wikipedia.org/wiki/Busy_waiting). This allows the application to pretend to be busy working so the OS kernel does not pause the application process and switch to another process waiting for the CPU to execute its workload. It does this by spinning for a period of time which inflates the apparent CPU usage of the application so it is immediately ready to execute another task. This can be observed with utilities like **top(1)** which will show consistently high CPU usage for the process. Switching between processes is a rather expensive operation and also clears CPU caches further affecting latency and performance. The goal of busy waiting is to avoid this penalty.
