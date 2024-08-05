@@ -1,0 +1,1 @@
+Add a Publisher cache to reduce database queries when publishing activities.
