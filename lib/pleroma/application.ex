@@ -168,7 +168,8 @@ defmodule Pleroma.Application do
         limit: 500_000
       ),
       build_cachex("rel_me", limit: 2500),
-      build_cachex("host_meta", default_ttl: :timer.minutes(120), limit: 5000)
+      build_cachex("host_meta", default_ttl: :timer.minutes(120), limit: 5000),
+      build_cachex("publisher", default_ttl: :timer.minutes(30), limit: 2500)
     ]
   end
 

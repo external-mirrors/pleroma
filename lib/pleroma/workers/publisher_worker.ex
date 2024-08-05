@@ -8,13 +8,17 @@ defmodule Pleroma.Workers.PublisherWorker do
 
   use Pleroma.Workers.WorkerHelper, queue: "federator_outgoing"
 
+  @cachex Pleroma.Config.get([:cachex, :provider], Cachex)
+
   def backoff(%Job{attempt: attempt}) when is_integer(attempt) do
     Pleroma.Workers.WorkerHelper.sidekiq_backoff(attempt, 5)
   end
 
   @impl Oban.Worker
   def perform(%Job{args: %{"op" => "publish", "activity_id" => activity_id}}) do
-    activity = Activity.get_by_id(activity_id)
+    activity = Activity.get_by_id_with_user_actor(activity_id)
+    {:ok, true} = @cachex.put(:publisher_cache, activity_id, activity)
+
     Federator.perform(:publish, activity)
   end
 

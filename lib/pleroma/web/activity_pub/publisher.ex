@@ -21,6 +21,8 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
 
   require Logger
 
+  @cachex Pleroma.Config.get([:cachex, :provider], Cachex)
+
   @moduledoc """
   ActivityPub outgoing federation module.
   """
@@ -84,7 +86,15 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
   * `cc`: the cc recipients relevant to this inbox (optional)
   """
   def publish_one(%{inbox: inbox, activity_id: activity_id} = params) do
-    activity = Activity.get_by_id_with_user_actor(activity_id)
+    activity =
+      with {:ok, nil} <- @cachex.get(:publisher_cache, activity_id),
+           %Activity{} = activity <- Activity.get_by_id_with_user_actor(activity_id),
+           {:ok, _} <- @cachex.put(:publisher_cache, activity_id, activity) do
+        activity
+      else
+        {:ok, %Activity{} = activity} -> activity
+      end
+
     actor = activity.user_actor
 
     ap_id = activity.data["id"]
