@@ -93,6 +93,7 @@ defmodule Pleroma.Application do
     # Define workers and child supervisors to be supervised
     children =
       [
+        Pleroma.Cache,
         Pleroma.PromEx,
         Pleroma.Repo,
         Config.TransferTask,

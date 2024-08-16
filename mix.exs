@@ -203,6 +203,8 @@ defmodule Pleroma.Mixfile do
       {:websock_adapter, "~> 0.5.6"},
       {:oban_live_dashboard, "~> 0.1.1"},
       {:multipart, "~> 0.4.0", optional: true},
+      {:nebulex, "~> 2.6"},
+      {:decorator, "~> 1.4"},
 
       ## dev & test
       {:phoenix_live_reload, "~> 1.3.3", only: :dev},
