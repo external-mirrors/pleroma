@@ -43,7 +43,10 @@
 # is restricted to this project.
 import Config
 
+config :pleroma, nebulex_cache: Pleroma.Cache
+
 config :pleroma, Pleroma.Cache,
+  stats: true,
   # When using :shards as backend
   # backend: :shards,
   # GC interval for pushing new generation: 12 hrs

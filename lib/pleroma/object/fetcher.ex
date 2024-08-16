@@ -28,8 +28,7 @@ defmodule Pleroma.Object.Fetcher do
          {:ok, new_object, _} <-
            Object.Updater.do_update_and_invalidate_cache(
              object,
-             new_data,
-             _touch_changeset? = true
+             new_data
            ) do
       {:ok, new_object}
     else
@@ -61,7 +60,7 @@ defmodule Pleroma.Object.Fetcher do
   # Note: will create a Create activity, which we need internally at the moment.
   @spec fetch_object_from_id(String.t(), list()) :: {:ok, Object.t()} | {:error | :reject, any()}
   def fetch_object_from_id(id, options \\ []) do
-    with {_, nil} <- {:fetch_object, Object.get_cached_by_ap_id(id)},
+    with {_, nil} <- {:fetch_object, Object.get_by_ap_id(id)},
          {_, true} <- {:allowed_depth, Federator.allowed_thread_distance?(options[:depth])},
          {_, {:ok, data}} <- {:fetch, fetch_and_contain_remote_object_from_id(id)},
          {_, nil} <- {:normalize, Object.normalize(data, fetch: false)},

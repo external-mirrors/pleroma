@@ -8,7 +8,6 @@ defmodule Pleroma.Web.ActivityPub.SideEffects.DeleteTest do
 
   alias Pleroma.Activity
   alias Pleroma.Object
-  alias Pleroma.Repo
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
@@ -135,8 +134,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects.DeleteTest do
     } do
       {:ok, _object} =
         object
-        |> Object.change(%{data: Map.delete(object.data, "actor")})
-        |> Repo.update()
+        |> Object.update(%{data: Map.delete(object.data, "actor")})
 
       LoggerMock
       |> expect(:error, fn str -> assert str =~ "The object doesn't have an actor" end)

@@ -246,17 +246,7 @@ defmodule Pleroma.Object.Updater do
     end
   end
 
-  defp maybe_touch_changeset(changeset, true) do
-    updated_at =
-      NaiveDateTime.utc_now()
-      |> NaiveDateTime.truncate(:second)
-
-    Ecto.Changeset.put_change(changeset, :updated_at, updated_at)
-  end
-
-  defp maybe_touch_changeset(changeset, _), do: changeset
-
-  def do_update_and_invalidate_cache(orig_object, updated_object, touch_changeset? \\ false) do
+  def do_update_and_invalidate_cache(orig_object, updated_object) do
     orig_object_ap_id = updated_object["id"]
     orig_object_data = orig_object.data
 
@@ -266,15 +256,9 @@ defmodule Pleroma.Object.Updater do
       used_history_in_new_object?: used_history_in_new_object?
     } = make_new_object_data_from_update_object(orig_object_data, updated_object)
 
-    changeset =
-      orig_object
-      |> Repo.preload(:hashtags)
-      |> Object.change(%{data: updated_object_data})
-      |> maybe_touch_changeset(touch_changeset?)
+    preloaded_object = Repo.preload(orig_object, :hashtags)
 
-    with {:ok, new_object} <- Repo.update(changeset),
-         {:ok, _} <- Object.invalid_object_cache(new_object),
-         {:ok, _} <- Object.set_cache(new_object),
+    with {:ok, new_object} <- Object.update(preloaded_object, %{data: updated_object_data}),
          # The metadata/utils.ex uses the object id for the cache.
          {:ok, _} <- Pleroma.Activity.HTML.invalidate_cache_for(new_object.id) do
       if used_history_in_new_object? do

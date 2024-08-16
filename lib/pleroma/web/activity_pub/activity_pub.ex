@@ -1800,7 +1800,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   def enqueue_pin_fetches(%{pinned_objects: pins}) do
     # enqueue a task to fetch all pinned objects
     Enum.each(pins, fn {ap_id, _} ->
-      if is_nil(Object.get_cached_by_ap_id(ap_id)) do
+      if is_nil(Object.get_by_ap_id(ap_id)) do
         Pleroma.Workers.RemoteFetcherWorker.new(%{
           "op" => "fetch_remote",
           "id" => ap_id,

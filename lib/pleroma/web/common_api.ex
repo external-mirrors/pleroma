@@ -351,7 +351,7 @@ defmodule Pleroma.Web.CommonAPI do
           Activity.normalize(activity.data)
         end)
 
-      object = Object.get_cached_by_ap_id(object.data["id"])
+      object = Object.get_by_ap_id(object.data["id"])
       {:ok, answer_activities, object}
     end
   end
@@ -672,8 +672,7 @@ defmodule Pleroma.Web.CommonAPI do
 
     {:ok, object} =
       object
-      |> Object.change(%{data: new_data})
-      |> Object.update_and_set_cache()
+      |> Object.update(%{data: new_data})
 
     {:ok, Map.put(activity, :object, object)}
   end

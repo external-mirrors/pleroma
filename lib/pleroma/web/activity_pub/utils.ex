@@ -319,8 +319,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
       )
 
     object
-    |> Changeset.change(data: data)
-    |> Object.update_and_set_cache()
+    |> Object.update(%{data: data})
   end
 
   @spec add_emoji_reaction_to_object(Activity.t(), Object.t()) ::
@@ -881,8 +880,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
     {:ok, object} =
       activity.object
-      |> Object.change(%{data: object_data})
-      |> Object.update_and_set_cache()
+      |> Object.update(%{data: object_data})
 
     activity_data =
       activity.data

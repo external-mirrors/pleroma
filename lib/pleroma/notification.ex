@@ -540,7 +540,7 @@ defmodule Pleroma.Notification do
   # For some activities, only notify the author of the object
   def get_potential_receiver_ap_ids(%{data: %{"type" => type, "object" => object_id}})
       when type in ~w{Like Announce EmojiReact} do
-    case Object.get_cached_by_ap_id(object_id) do
+    case Object.get_by_ap_id(object_id) do
       %Object{data: %{"actor" => actor}} ->
         [actor]
 

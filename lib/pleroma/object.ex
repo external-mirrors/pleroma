@@ -4,6 +4,7 @@
 
 defmodule Pleroma.Object do
   use Ecto.Schema
+  use Nebulex.Caching
 
   import Ecto.Query
   import Ecto.Changeset
@@ -24,7 +25,7 @@ defmodule Pleroma.Object do
 
   @derive {Jason.Encoder, only: [:data]}
 
-  @cachex Pleroma.Config.get([:cachex, :provider], Cachex)
+  @nebulex Pleroma.Config.get([:nebulex_cache], Pleroma.Cache)
 
   schema "objects" do
     field(:data, :map)
@@ -52,17 +53,23 @@ defmodule Pleroma.Object do
 
   def create(data) do
     %Object{}
-    |> Object.change(%{data: data})
+    |> Object.changeset(%{data: data})
     |> Repo.insert()
   end
 
-  def change(struct, params \\ %{}) do
-    struct
-    |> cast(params, [:data])
+  def changeset(object, attrs \\ %{}) do
+    object
+    |> cast(attrs, [:data])
     |> validate_required([:data])
     |> unique_constraint(:ap_id, name: :objects_unique_apid_index)
     # Expecting `maybe_handle_hashtags_change/1` to run last:
-    |> maybe_handle_hashtags_change(struct)
+    |> maybe_handle_hashtags_change(object)
+  end
+
+  @decorate cache_evict(cache: @nebulex, key: {Object, object.data["id"]})
+  def update(object, attrs) do
+    changeset(object, attrs)
+    |> Repo.update()
   end
 
   # Note: not checking activity type (assuming non-legacy objects are associated with Create act.)
@@ -122,6 +129,7 @@ defmodule Pleroma.Object do
 
   def get_by_ap_id(nil), do: nil
 
+  @decorate cacheable(cache: @nebulex, key: {Object, ap_id}, opts: [ttl: 25_000])
   def get_by_ap_id(ap_id) do
     Repo.one(from(object in Object, where: fragment("(?)->>'id' = ?", object.data, ^ap_id)))
   end
@@ -186,7 +194,7 @@ defmodule Pleroma.Object do
         end
 
       true ->
-        get_cached_by_ap_id(ap_id)
+        get_by_ap_id(ap_id)
     end
   end
 
@@ -204,20 +212,6 @@ defmodule Pleroma.Object do
   # Legacy objects can be accessed by anybody
   def authorize_access(%Object{}, %User{}), do: :ok
 
-  @spec get_cached_by_ap_id(String.t()) :: Object.t() | nil
-  def get_cached_by_ap_id(ap_id) do
-    key = "object:#{ap_id}"
-
-    with {:ok, nil} <- @cachex.get(:object_cache, key),
-         object when not is_nil(object) <- get_by_ap_id(ap_id),
-         {:ok, true} <- @cachex.put(:object_cache, key, object) do
-      object
-    else
-      {:ok, object} -> object
-      nil -> nil
-    end
-  end
-
   def make_tombstone(%Object{data: %{"id" => id, "type" => type}}, deleted \\ DateTime.utc_now()) do
     %ObjectTombstone{
       id: id,
@@ -232,17 +226,16 @@ defmodule Pleroma.Object do
 
     with {:ok, object} <-
            object
-           |> Object.change(%{data: tombstone})
-           |> Repo.update() do
+           |> Object.update(%{data: tombstone}) do
       Hashtag.unlink(object)
       {:ok, object}
     end
   end
 
+  @decorate cache_evict(cache: @nebulex, key: {Object, id})
   def delete(%Object{data: %{"id" => id}} = object) do
     with {:ok, _obj} = swap_object_with_tombstone(object),
-         deleted_activity = Activity.delete_all_by_object_ap_id(id),
-         {:ok, _} <- invalid_object_cache(object) do
+         deleted_activity = Activity.delete_all_by_object_ap_id(id) do
       cleanup_attachments(
         Config.get([:instance, :cleanup_attachments]),
         object
@@ -261,30 +254,14 @@ defmodule Pleroma.Object do
 
   def cleanup_attachments(_, _), do: {:ok, nil}
 
+  @decorate cache_evict(cache: @nebulex, key: {Object, object.data["id"]})
   def prune(%Object{data: %{"id" => _id}} = object) do
-    with {:ok, object} <- Repo.delete(object),
-         {:ok, _} <- invalid_object_cache(object) do
+    with {:ok, object} <- Repo.delete(object) do
       {:ok, object}
     end
   end
 
-  def invalid_object_cache(%Object{data: %{"id" => id}}) do
-    with {:ok, true} <- @cachex.del(:object_cache, "object:#{id}") do
-      @cachex.del(:web_resp_cache, URI.parse(id).path)
-    end
-  end
-
-  def set_cache(%Object{data: %{"id" => ap_id}} = object) do
-    @cachex.put(:object_cache, "object:#{ap_id}", object)
-    {:ok, object}
-  end
-
-  def update_and_set_cache(changeset) do
-    with {:ok, object} <- Repo.update(changeset) do
-      set_cache(object)
-    end
-  end
-
+  @decorate cache_evict(cache: @nebulex, key: {Object, ap_id})
   def increase_replies_count(ap_id) do
     Object
     |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
@@ -302,16 +279,13 @@ defmodule Pleroma.Object do
       ]
     )
     |> Repo.update_all([])
-    |> case do
-      {1, [object]} -> set_cache(object)
-      _ -> {:error, "Not found"}
-    end
   end
 
   defp poll_is_multiple?(%Object{data: %{"anyOf" => [_ | _]}}), do: true
 
   defp poll_is_multiple?(_), do: false
 
+  @decorate cache_evict(cache: @nebulex, key: {Object, ap_id})
   def decrease_replies_count(ap_id) do
     Object
     |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
@@ -329,12 +303,9 @@ defmodule Pleroma.Object do
       ]
     )
     |> Repo.update_all([])
-    |> case do
-      {1, [object]} -> set_cache(object)
-      _ -> {:error, "Not found"}
-    end
   end
 
+  @decorate cache_evict(cache: @nebulex, key: {Object, ap_id})
   def increase_quotes_count(ap_id) do
     Object
     |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
@@ -352,12 +323,9 @@ defmodule Pleroma.Object do
       ]
     )
     |> Repo.update_all([])
-    |> case do
-      {1, [object]} -> set_cache(object)
-      _ -> {:error, "Not found"}
-    end
   end
 
+  @decorate cache_evict(cache: @nebulex, key: {Object, ap_id})
   def decrease_quotes_count(ap_id) do
     Object
     |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
@@ -375,12 +343,9 @@ defmodule Pleroma.Object do
       ]
     )
     |> Repo.update_all([])
-    |> case do
-      {1, [object]} -> set_cache(object)
-      _ -> {:error, "Not found"}
-    end
   end
 
+  @decorate cache_evict(cache: @nebulex, key: {Object, ap_id})
   def increase_vote_count(ap_id, name, actor) do
     with %Object{} = object <- Object.normalize(ap_id, fetch: false),
          "Question" <- object.data["type"] do
@@ -404,18 +369,17 @@ defmodule Pleroma.Object do
         |> Map.put("voters", voters)
 
       object
-      |> Object.change(%{data: data})
-      |> update_and_set_cache()
+      |> Object.update(%{data: data})
     else
       _ -> :noop
     end
   end
 
   @doc "Updates data field of an object"
+  @decorate cache_evict(cache: @nebulex, key: {Object, object.data["id"]})
   def update_data(%Object{data: data} = object, attrs \\ %{}) do
     object
-    |> Object.change(%{data: Map.merge(data || %{}, attrs)})
-    |> Repo.update()
+    |> Object.update(%{data: Map.merge(data || %{}, attrs)})
   end
 
   def local?(%Object{data: %{"id" => id}}) do

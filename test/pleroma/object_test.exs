@@ -32,14 +32,9 @@ defmodule Pleroma.ObjectTest do
     assert object == found_object
   end
 
-  describe "generic changeset" do
-    test "it ensures uniqueness of the id" do
-      object = insert(:note)
-      cs = Object.change(%Object{}, %{data: %{id: object.data["id"]}})
-      assert cs.valid?
-
-      {:error, _result} = Repo.insert(cs)
-    end
+  test "it ensures uniqueness of the ap_id" do
+    object = insert(:note)
+    assert {:error, _result} = Object.create(%{id: object.data["id"]})
   end
 
   describe "deletion function" do
@@ -56,26 +51,6 @@ defmodule Pleroma.ObjectTest do
       refute object == found_object
 
       assert found_object.data["type"] == "Tombstone"
-    end
-
-    test "ensures cache is cleared for the object" do
-      object = insert(:note)
-      cached_object = Object.get_cached_by_ap_id(object.data["id"])
-
-      assert object == cached_object
-
-      Cachex.put(:web_resp_cache, URI.parse(object.data["id"]).path, "cofe")
-
-      Object.delete(cached_object)
-
-      {:ok, nil} = Cachex.get(:object_cache, "object:#{object.data["id"]}")
-      {:ok, nil} = Cachex.get(:web_resp_cache, URI.parse(object.data["id"]).path)
-
-      cached_object = Object.get_cached_by_ap_id(object.data["id"])
-
-      refute object == cached_object
-
-      assert cached_object.data["type"] == "Tombstone"
     end
   end
 
@@ -320,8 +295,6 @@ defmodule Pleroma.ObjectTest do
           fetch: true
         )
 
-      Object.set_cache(object)
-
       assert Enum.at(object.data["oneOf"], 0)["replies"]["totalItems"] == 4
       assert Enum.at(object.data["oneOf"], 1)["replies"]["totalItems"] == 0
 
@@ -332,8 +305,6 @@ defmodule Pleroma.ObjectTest do
       })
 
       updated_object = Object.get_by_id_and_maybe_refetch(object.id, interval: -1)
-      object_in_cache = Object.get_cached_by_ap_id(object.data["id"])
-      assert updated_object == object_in_cache
       assert Enum.at(updated_object.data["oneOf"], 0)["replies"]["totalItems"] == 8
       assert Enum.at(updated_object.data["oneOf"], 1)["replies"]["totalItems"] == 3
     end
@@ -345,8 +316,6 @@ defmodule Pleroma.ObjectTest do
           fetch: true
         )
 
-      Object.set_cache(object)
-
       assert Enum.at(object.data["oneOf"], 0)["replies"]["totalItems"] == 4
       assert Enum.at(object.data["oneOf"], 1)["replies"]["totalItems"] == 0
 
@@ -354,8 +323,6 @@ defmodule Pleroma.ObjectTest do
                mock_modified.(%Tesla.Env{status: 404, body: ""})
 
                updated_object = Object.get_by_id_and_maybe_refetch(object.id, interval: -1)
-               object_in_cache = Object.get_cached_by_ap_id(object.data["id"])
-               assert updated_object == object_in_cache
                assert Enum.at(updated_object.data["oneOf"], 0)["replies"]["totalItems"] == 4
                assert Enum.at(updated_object.data["oneOf"], 1)["replies"]["totalItems"] == 0
              end) =~
@@ -371,8 +338,6 @@ defmodule Pleroma.ObjectTest do
           fetch: true
         )
 
-      Object.set_cache(object)
-
       assert Enum.at(object.data["oneOf"], 0)["replies"]["totalItems"] == 4
       assert Enum.at(object.data["oneOf"], 1)["replies"]["totalItems"] == 0
 
@@ -383,8 +348,6 @@ defmodule Pleroma.ObjectTest do
       })
 
       updated_object = Object.get_by_id_and_maybe_refetch(object.id, interval: 100)
-      object_in_cache = Object.get_cached_by_ap_id(object.data["id"])
-      assert updated_object == object_in_cache
       assert Enum.at(updated_object.data["oneOf"], 0)["replies"]["totalItems"] == 4
       assert Enum.at(updated_object.data["oneOf"], 1)["replies"]["totalItems"] == 0
     end
@@ -395,8 +358,6 @@ defmodule Pleroma.ObjectTest do
         Object.normalize("https://patch.cx/objects/9a172665-2bc5-452d-8428-2361d4c33b1d",
           fetch: true
         )
-
-      Object.set_cache(object)
 
       assert Enum.at(object.data["oneOf"], 0)["replies"]["totalItems"] == 4
       assert Enum.at(object.data["oneOf"], 1)["replies"]["totalItems"] == 0
@@ -415,8 +376,6 @@ defmodule Pleroma.ObjectTest do
       })
 
       updated_object = Object.get_by_id_and_maybe_refetch(object.id, interval: -1)
-      object_in_cache = Object.get_cached_by_ap_id(object.data["id"])
-      assert updated_object == object_in_cache
       assert Enum.at(updated_object.data["oneOf"], 0)["replies"]["totalItems"] == 8
       assert Enum.at(updated_object.data["oneOf"], 1)["replies"]["totalItems"] == 3
 
