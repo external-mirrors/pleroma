@@ -26,6 +26,7 @@ defmodule Pleroma.Object do
   @derive {Jason.Encoder, only: [:data]}
 
   @nebulex Pleroma.Config.get([:nebulex_cache], Pleroma.Cache)
+  @nebulex_ttl 25_000
 
   schema "objects" do
     field(:data, :map)
@@ -66,10 +67,17 @@ defmodule Pleroma.Object do
     |> maybe_handle_hashtags_change(object)
   end
 
-  @decorate cache_evict(cache: @nebulex, key: {Object, object.data["id"]})
   def update(object, attrs) do
-    changeset(object, attrs)
-    |> Repo.update()
+    changes = changeset(object, attrs)
+
+    case Repo.update(changes) do
+      {:ok, %Object{} = object} ->
+        @nebulex.put({Object, object.data["id"]}, object, ttl: @nebulex_ttl)
+        {:ok, object}
+
+      e ->
+        e
+    end
   end
 
   # Note: not checking activity type (assuming non-legacy objects are associated with Create act.)
@@ -129,7 +137,7 @@ defmodule Pleroma.Object do
 
   def get_by_ap_id(nil), do: nil
 
-  @decorate cacheable(cache: @nebulex, key: {Object, ap_id}, opts: [ttl: 25_000])
+  @decorate cacheable(cache: @nebulex, key: {Object, ap_id}, opts: [ttl: @nebulex_ttl])
   def get_by_ap_id(ap_id) do
     Repo.one(from(object in Object, where: fragment("(?)->>'id' = ?", object.data, ^ap_id)))
   end
