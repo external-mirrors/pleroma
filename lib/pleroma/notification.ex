@@ -489,7 +489,7 @@ defmodule Pleroma.Notification do
 
   NOTE: might be called for FAKE Activities, see ActivityPub.Utils.get_notified_from_object/1
   """
-  @spec get_notified_from_activity(Activity.t(), boolean()) :: {list(User.t()), list(User.t())}
+  @spec get_notified_from_activity(Activity.t(), boolean()) :: list(User.t())
   def get_notified_from_activity(activity, local_only \\ true)
 
   def get_notified_from_activity(%Activity{data: %{"type" => type}} = activity, local_only)
@@ -734,7 +734,7 @@ defmodule Pleroma.Notification do
 
   def mark_as_read?(activity, target_user) do
     user = Activity.user_actor(activity)
-    User.mutes_user?(target_user, user) || CommonAPI.thread_muted?(target_user, activity)
+    User.mutes_user?(target_user, user) || CommonAPI.thread_muted?(activity, target_user)
   end
 
   def for_user_and_activity(user, activity) do
@@ -757,8 +757,9 @@ defmodule Pleroma.Notification do
     |> Repo.update_all(set: [seen: true])
   end
 
-  @spec send(list(Notification.t())) :: :ok
-  def send(notifications) do
+  @doc "Streams a list of notifications over websockets and web push"
+  @spec stream(list(Notification.t())) :: :ok
+  def stream(notifications) do
     Enum.each(notifications, fn notification ->
       Streamer.stream(["user", "user:notification"], notification)
       Push.send(notification)

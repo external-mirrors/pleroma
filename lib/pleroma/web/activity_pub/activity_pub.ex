@@ -201,7 +201,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   def notify_and_stream(activity) do
     {:ok, notifications} = Notification.create_notifications(activity)
-    Notification.send(notifications)
+    Notification.stream(notifications)
 
     original_activity =
       case activity do
@@ -222,10 +222,12 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
          %{data: %{"expires_at" => %DateTime{} = expires_at}} = activity
        ) do
     with {:ok, _job} <-
-           Pleroma.Workers.PurgeExpiredActivity.enqueue(%{
-             activity_id: activity.id,
-             expires_at: expires_at
-           }) do
+           Pleroma.Workers.PurgeExpiredActivity.enqueue(
+             %{
+               activity_id: activity.id
+             },
+             scheduled_at: expires_at
+           ) do
       {:ok, activity}
     end
   end
@@ -446,10 +448,12 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
          _ <- notify_and_stream(activity) do
       maybe_federate(activity)
 
-      BackgroundWorker.enqueue("move_following", %{
+      BackgroundWorker.new(%{
+        "op" => "move_following",
         "origin_id" => origin.id,
         "target_id" => target.id
       })
+      |> Oban.insert()
 
       {:ok, activity}
     else
@@ -979,8 +983,9 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   defp restrict_replies(query, %{exclude_replies: true}) do
     from(
-      [_activity, object] in query,
-      where: fragment("?->>'inReplyTo' is null", object.data)
+      [activity, object] in query,
+      where:
+        fragment("?->>'inReplyTo' is null or ?->>'type' = 'Announce'", object.data, activity.data)
     )
   end
 
@@ -1660,7 +1665,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
        }}
     else
       {:error, _} = e -> e
-      e -> {:error, e}
     end
   end
 
@@ -1793,24 +1797,27 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     end
   end
 
-  def pinned_fetch_task(nil), do: nil
-
-  def pinned_fetch_task(%{pinned_objects: pins}) do
-    if Enum.all?(pins, fn {ap_id, _} ->
-         Object.get_cached_by_ap_id(ap_id) ||
-           match?({:ok, _object}, Fetcher.fetch_object_from_id(ap_id))
-       end) do
-      :ok
-    else
-      :error
-    end
+  def enqueue_pin_fetches(%{pinned_objects: pins}) do
+    # enqueue a task to fetch all pinned objects
+    Enum.each(pins, fn {ap_id, _} ->
+      if is_nil(Object.get_cached_by_ap_id(ap_id)) do
+        Pleroma.Workers.RemoteFetcherWorker.new(%{
+          "op" => "fetch_remote",
+          "id" => ap_id,
+          "depth" => 1
+        })
+        |> Oban.insert()
+      end
+    end)
   end
+
+  def enqueue_pin_fetches(_), do: nil
 
   def make_user_from_ap_id(ap_id, additional \\ []) do
     user = User.get_cached_by_ap_id(ap_id)
 
     with {:ok, data} <- fetch_and_prepare_user_from_ap_id(ap_id, additional) do
-      {:ok, _pid} = Task.start(fn -> pinned_fetch_task(data) end)
+      enqueue_pin_fetches(data)
 
       if user do
         user

@@ -22,7 +22,6 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.MastodonAPI.ListView
   alias Pleroma.Web.MastodonAPI.MastodonAPI
-  alias Pleroma.Web.MastodonAPI.MastodonAPIController
   alias Pleroma.Web.MastodonAPI.StatusView
   alias Pleroma.Web.OAuth.OAuthController
   alias Pleroma.Web.Plugs.OAuthScopesPlug
@@ -51,7 +50,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
   plug(
     OAuthScopesPlug,
     %{scopes: ["read:accounts"]}
-    when action in [:verify_credentials, :endorsements, :identity_proofs]
+    when action in [:verify_credentials, :endorsements]
   )
 
   plug(
@@ -460,7 +459,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
   end
 
   def unfollow(%{assigns: %{user: follower, account: followed}} = conn, _params) do
-    with {:ok, follower} <- CommonAPI.unfollow(follower, followed) do
+    with {:ok, follower} <- CommonAPI.unfollow(followed, follower) do
       render(conn, "relationship.json", user: follower, target: followed)
     end
   end
@@ -495,7 +494,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
 
   @doc "POST /api/v1/accounts/:id/block"
   def block(%{assigns: %{user: blocker, account: blocked}} = conn, _params) do
-    with {:ok, _activity} <- CommonAPI.block(blocker, blocked) do
+    with {:ok, _activity} <- CommonAPI.block(blocked, blocker) do
       render(conn, "relationship.json", user: blocker, target: blocked)
     else
       {:error, message} -> json_response(conn, :forbidden, %{error: message})
@@ -504,7 +503,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
 
   @doc "POST /api/v1/accounts/:id/unblock"
   def unblock(%{assigns: %{user: blocker, account: blocked}} = conn, _params) do
-    with {:ok, _activity} <- CommonAPI.unblock(blocker, blocked) do
+    with {:ok, _activity} <- CommonAPI.unblock(blocked, blocker) do
       render(conn, "relationship.json", user: blocker, target: blocked)
     else
       {:error, message} -> json_response(conn, :forbidden, %{error: message})
@@ -660,7 +659,4 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
   defp get_familiar_followers(user, current_user) do
     User.get_familiar_followers(user, current_user)
   end
-
-  @doc "GET /api/v1/identity_proofs"
-  def identity_proofs(conn, params), do: MastodonAPIController.empty_array(conn, params)
 end

@@ -38,6 +38,8 @@ defmodule Pleroma.User do
   alias Pleroma.Web.OAuth
   alias Pleroma.Web.RelMe
   alias Pleroma.Workers.BackgroundWorker
+  alias Pleroma.Workers.DeleteWorker
+  alias Pleroma.Workers.UserRefreshWorker
 
   require Logger
   require Pleroma.Constants
@@ -461,6 +463,7 @@ defmodule Pleroma.User do
   def remote_user_changeset(struct \\ %User{local: false}, params) do
     bio_limit = Config.get([:instance, :user_bio_length], 5000)
     name_limit = Config.get([:instance, :user_name_length], 100)
+    fields_limit = Config.get([:instance, :max_remote_account_fields], 0)
 
     name =
       case params[:name] do
@@ -474,6 +477,7 @@ defmodule Pleroma.User do
       |> Map.put_new(:last_refreshed_at, NaiveDateTime.utc_now())
       |> truncate_if_exists(:name, name_limit)
       |> truncate_if_exists(:bio, bio_limit)
+      |> Map.update(:fields, [], &Enum.take(&1, fields_limit))
       |> truncate_fields_param()
       |> fix_follower_address()
 
@@ -734,7 +738,8 @@ defmodule Pleroma.User do
   end
 
   def force_password_reset_async(user) do
-    BackgroundWorker.enqueue("force_password_reset", %{"user_id" => user.id})
+    BackgroundWorker.new(%{"op" => "force_password_reset", "user_id" => user.id})
+    |> Oban.insert()
   end
 
   @spec force_password_reset(User.t()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
@@ -1216,7 +1221,8 @@ defmodule Pleroma.User do
   def update_and_set_cache(changeset) do
     with {:ok, user} <- Repo.update(changeset, stale_error_field: :id) do
       if get_change(changeset, :raw_fields) do
-        BackgroundWorker.enqueue("verify_fields_links", %{"user_id" => user.id})
+        BackgroundWorker.new(%{"op" => "verify_fields_links", "user_id" => user.id})
+        |> Oban.insert()
       end
 
       set_cache(user)
@@ -1587,11 +1593,11 @@ defmodule Pleroma.User do
               )) ||
              {:ok, nil} do
       if duration > 0 do
-        Pleroma.Workers.MuteExpireWorker.enqueue(
-          "unmute_user",
-          %{"muter_id" => muter.id, "mutee_id" => mutee.id},
+        Pleroma.Workers.MuteExpireWorker.new(
+          %{"op" => "unmute_user", "muter_id" => muter.id, "mutee_id" => mutee.id},
           scheduled_at: expires_at
         )
+        |> Oban.insert()
       end
 
       @cachex.del(:user_cache, "muted_users_ap_ids:#{muter.ap_id}")
@@ -1834,7 +1840,8 @@ defmodule Pleroma.User do
   defp maybe_filter_on_ap_id(query, _ap_ids), do: query
 
   def set_activation_async(user, status \\ true) do
-    BackgroundWorker.enqueue("user_activation", %{"user_id" => user.id, "status" => status})
+    BackgroundWorker.new(%{"op" => "user_activation", "user_id" => user.id, "status" => status})
+    |> Oban.insert()
   end
 
   @spec set_activation([User.t()], boolean()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
@@ -1981,7 +1988,9 @@ defmodule Pleroma.User do
   def delete(%User{} = user) do
     # Purge the user immediately
     purge(user)
-    BackgroundWorker.enqueue("delete_user", %{"user_id" => user.id})
+
+    DeleteWorker.new(%{"op" => "delete_user", "user_id" => user.id})
+    |> Oban.insert()
   end
 
   # *Actually* delete the user from the DB
@@ -2053,7 +2062,8 @@ defmodule Pleroma.User do
            %{scheme: scheme, userinfo: nil, host: host}
            when not_empty_string(host) and scheme in ["http", "https"] <-
              URI.parse(value),
-           {:not_idn, true} <- {:not_idn, to_string(:idna.encode(host)) == host},
+           {:not_idn, true} <-
+             {:not_idn, match?(^host, to_string(:idna.encode(to_charlist(host))))},
            "me" <- Pleroma.Web.RelMe.maybe_put_rel_me(value, profile_urls) do
         CommonUtils.to_masto_date(NaiveDateTime.utc_now())
       else
@@ -2153,20 +2163,20 @@ defmodule Pleroma.User do
 
   def fetch_by_ap_id(ap_id), do: ActivityPub.make_user_from_ap_id(ap_id)
 
+  @spec get_or_fetch_by_ap_id(String.t()) :: {:ok, User.t()} | {:error, any()}
   def get_or_fetch_by_ap_id(ap_id) do
-    cached_user = get_cached_by_ap_id(ap_id)
+    with cached_user = %User{} <- get_cached_by_ap_id(ap_id),
+         _ <- maybe_refresh(cached_user) do
+      {:ok, cached_user}
+    else
+      _ -> fetch_by_ap_id(ap_id)
+    end
+  end
 
-    maybe_fetched_user = needs_update?(cached_user) && fetch_by_ap_id(ap_id)
-
-    case {cached_user, maybe_fetched_user} do
-      {_, {:ok, %User{} = user}} ->
-        {:ok, user}
-
-      {%User{} = user, _} ->
-        {:ok, user}
-
-      _ ->
-        {:error, :not_found}
+  defp maybe_refresh(user) do
+    if needs_update?(user) do
+      UserRefreshWorker.new(%{"ap_id" => user.ap_id})
+      |> Oban.insert()
     end
   end
 
@@ -2727,7 +2737,7 @@ defmodule Pleroma.User do
     end
   end
 
-  @spec add_to_block(User.t(), User.t()) ::
+  @spec remove_from_block(User.t(), User.t()) ::
           {:ok, UserRelationship.t()} | {:ok, nil} | {:error, Ecto.Changeset.t()}
   defp remove_from_block(%User{} = user, %User{} = blocked) do
     with {:ok, relationship} <- UserRelationship.delete_block(user, blocked) do

@@ -51,7 +51,11 @@ defmodule Pleroma.Application do
     Pleroma.HTML.compile_scrubbers()
     Pleroma.Config.Oban.warn()
     Config.DeprecationWarnings.warn()
-    Pleroma.Web.Plugs.HTTPSecurityPlug.warn_if_disabled()
+
+    if Config.get([Pleroma.Web.Plugs.HTTPSecurityPlug, :enable], true) do
+      Pleroma.Web.Plugs.HTTPSecurityPlug.warn_if_disabled()
+    end
+
     Pleroma.ApplicationRequirements.verify!()
     load_custom_modules()
     Pleroma.Docs.JSON.compile()
@@ -287,8 +291,6 @@ defmodule Pleroma.Application do
     config = Config.get(ConcurrentLimiter, [])
 
     [
-      Pleroma.Web.RichMedia.Helpers,
-      Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicy,
       Pleroma.Search
     ]
     |> Enum.each(fn module ->
