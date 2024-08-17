@@ -286,6 +286,10 @@ defmodule Pleroma.Object do
       ]
     )
     |> Repo.update_all([])
+    |> case do
+      {1, [object]} -> {:ok, object}
+      _ -> {:error, "Not found"}
+    end
   end
 
   defp poll_is_multiple?(%Object{data: %{"anyOf" => [_ | _]}}), do: true
@@ -310,6 +314,10 @@ defmodule Pleroma.Object do
       ]
     )
     |> Repo.update_all([])
+    |> case do
+      {1, [object]} -> {:ok, object}
+      _ -> {:error, "Not found"}
+    end
   end
 
   @decorate cache_evict(cache: @nebulex, key: {Object, ap_id})
@@ -330,6 +338,10 @@ defmodule Pleroma.Object do
       ]
     )
     |> Repo.update_all([])
+    |> case do
+      {1, [object]} -> {:ok, object}
+      _ -> {:error, "Not found"}
+    end
   end
 
   @decorate cache_evict(cache: @nebulex, key: {Object, ap_id})
@@ -350,6 +362,10 @@ defmodule Pleroma.Object do
       ]
     )
     |> Repo.update_all([])
+    |> case do
+      {1, [object]} -> {:ok, object}
+      _ -> {:error, "Not found"}
+    end
   end
 
   def increase_vote_count(ap_id, name, actor) do
