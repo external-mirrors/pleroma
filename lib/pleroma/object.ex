@@ -67,17 +67,15 @@ defmodule Pleroma.Object do
     |> maybe_handle_hashtags_change(object)
   end
 
+  @decorate cache_put(
+              cache: @nebulex,
+              keys: [{Object, object.id}, {Object, object.data["id"]}],
+              match: &match_update/1,
+              opts: [ttl: @nebulex_ttl]
+            )
   def update(object, attrs) do
-    changes = changeset(object, attrs)
-
-    case Repo.update(changes) do
-      {:ok, %Object{} = object} ->
-        @nebulex.put({Object, object.data["id"]}, object, ttl: @nebulex_ttl)
-        {:ok, object}
-
-      e ->
-        e
-    end
+    changeset(object, attrs)
+    |> Repo.update()
   end
 
   # Note: not checking activity type (assuming non-legacy objects are associated with Create act.)
@@ -112,6 +110,7 @@ defmodule Pleroma.Object do
   defp hashtags_changed?(_, _), do: false
 
   def get_by_id(nil), do: nil
+  @decorate cacheable(cache: @nebulex, key: {Object, id}, opts: [ttl: @nebulex_ttl])
   def get_by_id(id), do: Repo.get(Object, id)
 
   @spec get_by_id_and_maybe_refetch(integer(), list()) :: Object.t() | nil
@@ -476,4 +475,7 @@ defmodule Pleroma.Object do
       []
     end
   end
+
+  defp match_update({:ok, value}), do: {true, value}
+  defp match_update({:error, _}), do: false
 end
