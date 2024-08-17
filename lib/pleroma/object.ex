@@ -383,7 +383,6 @@ defmodule Pleroma.Object do
   end
 
   @doc "Updates data field of an object"
-  @decorate cache_evict(cache: @nebulex, key: {Object, object.data["id"]})
   def update_data(%Object{data: data} = object, attrs \\ %{}) do
     object
     |> Object.update(%{data: Map.merge(data || %{}, attrs)})
