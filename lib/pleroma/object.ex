@@ -239,7 +239,7 @@ defmodule Pleroma.Object do
     end
   end
 
-  @decorate cache_evict(cache: @nebulex, key: {Object, id})
+  @decorate cache_evict(cache: @nebulex, keys: [{Object, id}, {Object, object.id}])
   def delete(%Object{data: %{"id" => id}} = object) do
     with {:ok, _obj} = swap_object_with_tombstone(object),
          deleted_activity = Activity.delete_all_by_object_ap_id(id) do
@@ -261,7 +261,7 @@ defmodule Pleroma.Object do
 
   def cleanup_attachments(_, _), do: {:ok, nil}
 
-  @decorate cache_evict(cache: @nebulex, key: {Object, object.data["id"]})
+  @decorate cache_evict(cache: @nebulex, keys: [{Object, object.id}, {Object, object.data["id"]}])
   def prune(%Object{data: %{"id" => _id}} = object) do
     with {:ok, object} <- Repo.delete(object) do
       {:ok, object}
