@@ -352,7 +352,6 @@ defmodule Pleroma.Object do
     |> Repo.update_all([])
   end
 
-  @decorate cache_evict(cache: @nebulex, key: {Object, ap_id})
   def increase_vote_count(ap_id, name, actor) do
     with %Object{} = object <- Object.normalize(ap_id, fetch: false),
          "Question" <- object.data["type"] do
