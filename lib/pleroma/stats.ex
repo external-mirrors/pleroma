@@ -11,6 +11,8 @@ defmodule Pleroma.Stats do
   alias Pleroma.Repo
   alias Pleroma.User
 
+  require Logger
+
   @interval :timer.seconds(60)
 
   def start_link(_) do
@@ -55,6 +57,14 @@ defmodule Pleroma.Stats do
     peers
   end
 
+  @doc "Returns Oban queue counts for available, executing, and retryable states"
+  @spec get_oban() :: map()
+  def get_oban do
+    %{oban: oban_counts} = GenServer.call(__MODULE__, :get_state)
+
+    oban_counts
+  end
+
   @spec calculate_stat_data() :: %{
           peers: list(),
           stats: %{
@@ -63,6 +73,11 @@ defmodule Pleroma.Stats do
             user_count: non_neg_integer()
           }
         }
+  @doc """
+  Calculates stat data and exports some metrics through telemetry.
+
+  Executes automatically on a 60 second interval by default.
+  """
   def calculate_stat_data do
     peers =
       from(
@@ -87,6 +102,21 @@ defmodule Pleroma.Stats do
 
     user_count = Repo.aggregate(users_query, :count, :id)
 
+    # Logs Oban counts
+    get_oban_counts()
+
+    # Logs / Telemetry for local visibility counts
+    get_status_visibility_count()
+
+    # Telemetry for local stats
+    %{domains: domain_count, notes: status_count, users: user_count}
+    |> Enum.each(fn {k, v} ->
+      :telemetry.execute(
+        [:pleroma, :stats, :local, k],
+        %{count: v}
+      )
+    end)
+
     %{
       peers: peers,
       stats: %{
@@ -97,13 +127,19 @@ defmodule Pleroma.Stats do
     }
   end
 
-  @spec get_status_visibility_count(String.t() | nil) :: map()
-  def get_status_visibility_count(instance \\ nil) do
-    if is_nil(instance) do
-      CounterCache.get_sum()
-    else
-      CounterCache.get_by_instance(instance)
-    end
+  @spec get_status_visibility_count :: map()
+  def get_status_visibility_count do
+    result = CounterCache.get_sum()
+
+    Enum.each(result, fn {k, v} ->
+      :telemetry.execute(
+        [:pleroma, :stats, :global, :activities],
+        %{count: v},
+        %{visibility: k}
+      )
+    end)
+
+    result
   end
 
   @impl true
@@ -133,5 +169,33 @@ defmodule Pleroma.Stats do
     new_stats = calculate_stat_data()
     Process.send_after(self(), :run_update, @interval)
     {:noreply, new_stats}
+  end
+
+  def get_oban_counts do
+    result =
+      from(j in Oban.Job,
+        where: j.state in ^["executing", "available", "retryable"],
+        group_by: [j.queue, j.state],
+        select: {j.queue, j.state, count(j.id)}
+      )
+      |> Pleroma.Repo.all()
+      |> Enum.group_by(fn {key, _, _} -> key end)
+      |> Enum.reduce(%{}, fn {k, v}, acc ->
+        queues = Map.new(v, fn {_, state, count} -> {state, count} end)
+
+        Map.put(acc, k, queues)
+      end)
+
+    for {queue, states} <- result do
+      queue_text =
+        for {state, count} <- states do
+          "#{state}: #{count}"
+        end
+        |> Enum.join(" || ")
+
+      Logger.info("Oban Queue Stats for :#{queue} || #{queue_text}")
+    end
+
+    result
   end
 end

@@ -18,10 +18,27 @@ defmodule Pleroma.Web.Auth.PleromaAuthenticator do
          {_, %User{} = user} <- {:user, fetch_user(name)},
          {_, true} <- {:checkpw, AuthenticationPlug.checkpw(password, user.password_hash)},
          {:ok, user} <- AuthenticationPlug.maybe_update_password(user, password) do
+      :telemetry.execute(
+        [:pleroma, :user, :o_auth, :success],
+        %{count: 1},
+        %{ip: :inet.ntoa(conn.remote_ip), nickname: name}
+      )
+
       {:ok, user}
     else
-      {:error, _reason} = error -> error
-      error -> {:error, error}
+      {:checkpw, false} ->
+        oauth_telemetry(conn)
+        {:error, :invalid_password}
+
+      {:user, nil} ->
+        oauth_telemetry(conn)
+        {:error, :invalid_user}
+
+      {:error, _reason} = error ->
+        error
+
+      error ->
+        {:error, error}
     end
   end
 
@@ -121,4 +138,14 @@ defmodule Pleroma.Web.Auth.PleromaAuthenticator do
   end
 
   def change_password(_, _, _, _), do: {:error, :password_confirmation}
+
+  defp oauth_telemetry(conn) do
+    {:ok, {name, _password}} = fetch_credentials(conn)
+
+    :telemetry.execute(
+      [:pleroma, :user, :o_auth, :failure],
+      %{count: 1},
+      %{ip: :inet.ntoa(conn.remote_ip), nickname: name}
+    )
+  end
 end

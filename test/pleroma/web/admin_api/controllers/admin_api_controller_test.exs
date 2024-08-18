@@ -1036,13 +1036,14 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
 
     test "status visibility count", %{conn: conn} do
       user = insert(:user)
+      instance = Pleroma.Web.Endpoint.url() |> String.split("//") |> Enum.at(1)
       CommonAPI.post(user, %{visibility: "public", status: "hey"})
       CommonAPI.post(user, %{visibility: "unlisted", status: "hey"})
       CommonAPI.post(user, %{visibility: "unlisted", status: "hey"})
 
       response =
         conn
-        |> get("/api/pleroma/admin/stats")
+        |> get("/api/pleroma/admin/stats", %{"instance" => instance})
         |> json_response(200)
 
       assert %{"direct" => 0, "private" => 0, "public" => 1, "unlisted" => 2} =

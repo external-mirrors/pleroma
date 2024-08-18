@@ -36,6 +36,7 @@ defmodule Pleroma.Web.OAuth.Token do
   def get_by_token(token) do
     token
     |> Query.get_by_token()
+    |> Query.preload([:user])
     |> Repo.find_resource()
   end
 
@@ -44,6 +45,7 @@ defmodule Pleroma.Web.OAuth.Token do
   def get_by_token(%App{id: app_id} = _app, token) do
     Query.get_by_app(app_id)
     |> Query.get_by_token(token)
+    |> Query.preload([:user])
     |> Repo.find_resource()
   end
 

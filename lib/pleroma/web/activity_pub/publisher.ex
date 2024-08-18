@@ -307,6 +307,18 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
         |> Instances.filter_reachable()
       end)
 
+    :telemetry.execute(
+      [:pleroma, :activitypub, :publisher],
+      %{count: 1, sum: Enum.count(priority_inboxes ++ other_inboxes)},
+      %{
+        activity: activity,
+        actor: actor,
+        nickname: Map.get(actor, :nickname),
+        inboxes: priority_inboxes ++ other_inboxes,
+        type: Map.get(activity, :data)["type"]
+      }
+    )
+
     Repo.checkout(fn ->
       Enum.each([priority_inboxes, other_inboxes], fn inboxes ->
         Enum.each(inboxes, fn inbox ->
@@ -347,6 +359,18 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
       end)
 
     inboxes = inboxes -- priority_inboxes
+
+    :telemetry.execute(
+      [:pleroma, :activitypub, :publisher],
+      %{count: 1, sum: Enum.count(inboxes ++ priority_inboxes)},
+      %{
+        activity: activity,
+        actor: actor,
+        nickname: Map.get(actor, :nickname),
+        inboxes: inboxes ++ priority_inboxes,
+        type: Map.get(activity, :data)["type"]
+      }
+    )
 
     [{priority_inboxes, 0}, {inboxes, 1}]
     |> Enum.each(fn {inboxes, priority} ->

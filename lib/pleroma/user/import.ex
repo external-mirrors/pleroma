@@ -12,7 +12,7 @@ defmodule Pleroma.User.Import do
 
   require Logger
 
-  @spec perform(atom(), User.t(), String.t()) :: :ok | {:error, any()}
+  @spec perform(atom(), User.t(), String.t()) :: {:ok, User.t()} | {:error, any()}
   def perform(:mute_import, %User{} = user, actor) do
     with {:ok, %User{} = muted_user} <- User.get_or_fetch(actor),
          {_, false} <- {:existing_mute, User.mutes_user?(user, muted_user)},

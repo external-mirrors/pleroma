@@ -1013,7 +1013,12 @@ defmodule Pleroma.Web.Router do
 
   scope "/" do
     pipe_through([:pleroma_html, :authenticate, :require_admin])
-    live_dashboard("/phoenix/live_dashboard", additional_pages: [oban: Oban.LiveDashboard])
+
+    live_dashboard("/phoenix/live_dashboard",
+      metrics: Pleroma.Web.Telemetry,
+      metrics_history: {Pleroma.Web.MetricsStorage, :metrics_history, []},
+      additional_pages: [oban: Oban.LiveDashboard]
+    )
   end
 
   # Test-only routes needed to test action dispatching and plug chain execution

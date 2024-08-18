@@ -87,7 +87,7 @@ defmodule Pleroma.Upload do
     end
   end
 
-  @spec store(source, options :: [option()]) :: {:ok, map()} | {:error, any()}
+  @spec store(source, options :: [option()]) :: {:ok, Upload.t(), map()} | {:error, any()}
   @doc "Store a file. If using a `Plug.Upload{}` as the source, be sure to use `Majic.Plug` to ensure its content_type and filename is correct."
   def store(upload, opts \\ []) do
     opts = get_opts(opts)
@@ -100,7 +100,7 @@ defmodule Pleroma.Upload do
            {:description_limit,
             String.length(description) <= Pleroma.Config.get([:instance, :description_limit])},
          {:ok, url_spec} <- Pleroma.Uploaders.Uploader.put_file(opts.uploader, upload) do
-      {:ok,
+      {:ok, upload,
        %{
          "id" => Utils.generate_object_id(),
          "type" => opts.activity_type,

@@ -986,7 +986,7 @@ defmodule Pleroma.User do
 
   @doc "Inserts provided changeset, performs post-registration actions (confirmation email sending etc.)"
   def register(%Ecto.Changeset{} = changeset) do
-    with {:ok, user} <- Repo.insert(changeset) do
+    with {:ok, user} <- create(changeset) do
       post_register_action(user)
     end
   end
@@ -1275,6 +1275,12 @@ defmodule Pleroma.User do
         BackgroundWorker.new(%{"op" => "verify_fields_links", "user_id" => user.id})
         |> Oban.insert()
       end
+
+      :telemetry.execute(
+        [:pleroma, :user, :update],
+        %{count: 1},
+        %{nickname: user.nickname, user: user}
+      )
 
       set_cache(user)
     end
@@ -1975,6 +1981,12 @@ defmodule Pleroma.User do
   def confirm(%User{is_confirmed: false} = user) do
     with chg <- confirmation_changeset(user, set_confirmation: true),
          {:ok, user} <- update_and_set_cache(chg) do
+      :telemetry.execute(
+        [:pleroma, :user, :account, :confirm],
+        %{count: 1},
+        %{user: user}
+      )
+
       post_register_action(user)
       {:ok, user}
     end
@@ -2004,6 +2016,20 @@ defmodule Pleroma.User do
     |> cast_embed(:notification_settings)
     |> validate_required([:notification_settings])
     |> update_and_set_cache()
+  end
+
+  @spec create(Ecto.Changeset.t()) :: {:ok, User.t()} | {:error, any()}
+  def create(%Ecto.Changeset{} = changeset) do
+    with {:ok, %User{} = user} <- Repo.insert(changeset),
+         {:ok, user} <- set_cache(user) do
+      :telemetry.execute(
+        [:pleroma, :user, :create],
+        %{count: 1},
+        %{nickname: user.nickname, user: user}
+      )
+
+      {:ok, user}
+    end
   end
 
   @spec purge_user_changeset(User.t()) :: Ecto.Changeset.t()
@@ -2062,6 +2088,12 @@ defmodule Pleroma.User do
   def delete(%User{} = user) do
     # Purge the user immediately
     purge(user)
+
+    :telemetry.execute(
+      [:pleroma, :user, :delete],
+      %{count: 1},
+      %{nickname: user.nickname, user: user}
+    )
 
     DeleteWorker.new(%{"op" => "delete_user", "user_id" => user.id})
     |> Oban.insert()
@@ -2298,8 +2330,7 @@ defmodule Pleroma.User do
     |> change
     |> put_private_key()
     |> unique_constraint(:nickname)
-    |> Repo.insert()
-    |> set_cache()
+    |> create()
   end
 
   def public_key(%{public_key: public_key_pem}) when is_binary(public_key_pem) do

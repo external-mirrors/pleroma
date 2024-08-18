@@ -71,8 +71,8 @@ defmodule Pleroma.Gun.ConnectionPool.Worker do
 
     :telemetry.execute(
       [:pleroma, :connection_pool, :client, :add],
-      %{client_pid: client_pid, clients: used_by},
-      %{key: state.key, protocol: protocol}
+      %{count: 1, start_time: time},
+      %{client_pid: client_pid, clients: used_by, key: state.key, protocol: protocol}
     )
 
     state =
@@ -115,23 +115,27 @@ defmodule Pleroma.Gun.ConnectionPool.Worker do
   def handle_info(:idle_close, state) do
     # Gun monitors the owner process, and will close the connection automatically
     # when it's terminated
+    update_telemetry_worker_count()
     {:stop, :normal, state}
   end
 
   @impl true
   def handle_info({:gun_up, _pid, _protocol}, state) do
+    update_telemetry_worker_count()
     {:noreply, state, :hibernate}
   end
 
   # Gracefully shutdown if the connection got closed without any streams left
   @impl true
   def handle_info({:gun_down, _pid, _protocol, _reason, []}, state) do
+    update_telemetry_worker_count()
     {:stop, :normal, state}
   end
 
   # Otherwise, wait for retry
   @impl true
   def handle_info({:gun_down, _pid, _protocol, _reason, _killed_streams}, state) do
+    update_telemetry_worker_count()
     {:noreply, state, :hibernate}
   end
 
@@ -139,9 +143,11 @@ defmodule Pleroma.Gun.ConnectionPool.Worker do
   def handle_info({:DOWN, _ref, :process, pid, reason}, state) do
     :telemetry.execute(
       [:pleroma, :connection_pool, :client, :dead],
-      %{client_pid: pid, reason: reason},
-      %{key: state.key}
+      %{count: 1},
+      %{client_pid: pid, reason: reason, key: state.key}
     )
+
+    update_telemetry_worker_count()
 
     handle_cast({:remove_client, pid}, state)
   end
@@ -149,5 +155,13 @@ defmodule Pleroma.Gun.ConnectionPool.Worker do
   # LRFU policy: https://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.55.1478
   defp crf(time_delta, prev_crf) do
     1 + :math.pow(0.5, 0.0001 * time_delta) * prev_crf
+  end
+
+  def update_telemetry_worker_count do
+    :telemetry.execute(
+      [:pleroma, :connection_pool, :worker],
+      %{count: Registry.count(Pleroma.Gun.ConnectionPool)},
+      %{}
+    )
   end
 end

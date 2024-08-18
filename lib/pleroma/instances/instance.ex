@@ -93,6 +93,7 @@ defmodule Pleroma.Instances.Instance do
 
   def set_reachable(url_or_host) when is_binary(url_or_host) do
     host = host(url_or_host)
+    instance = Repo.get_by(Instance, %{host: host})
 
     result =
       %Instance{host: host}
@@ -100,6 +101,12 @@ defmodule Pleroma.Instances.Instance do
       |> Repo.insert(on_conflict: {:replace, [:unreachable_since]}, conflict_target: :host)
 
     Pleroma.Workers.ReachabilityWorker.delete_jobs_for_host(host)
+
+    :telemetry.execute(
+      [:pleroma, :instance, :reachable],
+      %{count: 1},
+      %{instance: instance}
+    )
 
     result
   end
@@ -111,25 +118,34 @@ defmodule Pleroma.Instances.Instance do
   def set_unreachable(url_or_host, unreachable_since) when is_binary(url_or_host) do
     unreachable_since = parse_datetime(unreachable_since) || NaiveDateTime.utc_now()
     host = host(url_or_host)
-    existing_record = Repo.get_by(Instance, %{host: host})
+    instance = Repo.get_by(Instance, %{host: host})
 
     changes = %{unreachable_since: unreachable_since}
 
-    cond do
-      is_nil(existing_record) ->
-        %Instance{}
-        |> changeset(Map.put(changes, :host, host))
-        |> Repo.insert()
+    result =
+      cond do
+        is_nil(instance) ->
+          %Instance{}
+          |> changeset(Map.put(changes, :host, host))
+          |> Repo.insert()
 
-      existing_record.unreachable_since &&
-          NaiveDateTime.compare(existing_record.unreachable_since, unreachable_since) != :gt ->
-        {:ok, existing_record}
+        instance.unreachable_since &&
+            NaiveDateTime.compare(instance.unreachable_since, unreachable_since) != :gt ->
+          {:ok, instance}
 
-      true ->
-        existing_record
-        |> changeset(changes)
-        |> Repo.update()
-    end
+        true ->
+          instance
+          |> changeset(changes)
+          |> Repo.update()
+      end
+
+    :telemetry.execute(
+      [:pleroma, :instance, :unreachable],
+      %{count: 1},
+      %{instance: instance}
+    )
+
+    result
   end
 
   def set_unreachable(_, _), do: {:error, nil}
@@ -150,17 +166,17 @@ defmodule Pleroma.Instances.Instance do
   defp parse_datetime(datetime), do: datetime
 
   def get_or_update_favicon(%URI{host: host} = instance_uri) do
-    existing_record = Repo.get_by(Instance, %{host: host})
+    instance = Repo.get_by(Instance, %{host: host})
     now = NaiveDateTime.utc_now()
 
-    if existing_record && existing_record.favicon_updated_at &&
-         NaiveDateTime.diff(now, existing_record.favicon_updated_at) < 86_400 do
-      existing_record.favicon
+    if instance && instance.favicon_updated_at &&
+         NaiveDateTime.diff(now, instance.favicon_updated_at) < 86_400 do
+      instance.favicon
     else
       favicon = scrape_favicon(instance_uri)
 
-      if existing_record do
-        existing_record
+      if instance do
+        instance
         |> changeset(%{favicon: favicon, favicon_updated_at: now})
         |> Repo.update()
       else
@@ -210,17 +226,17 @@ defmodule Pleroma.Instances.Instance do
   end
 
   def get_or_update_metadata(%URI{host: host} = instance_uri) do
-    existing_record = Repo.get_by(Instance, %{host: host})
+    instance = Repo.get_by(Instance, %{host: host})
     now = NaiveDateTime.utc_now()
 
-    if existing_record && existing_record.metadata_updated_at &&
-         NaiveDateTime.diff(now, existing_record.metadata_updated_at) < 86_400 do
-      existing_record.metadata
+    if instance && instance.metadata_updated_at &&
+         NaiveDateTime.diff(now, instance.metadata_updated_at) < 86_400 do
+      instance.metadata
     else
       metadata = scrape_metadata(instance_uri)
 
-      if existing_record do
-        existing_record
+      if instance do
+        instance
         |> changeset(%{metadata: metadata, metadata_updated_at: now})
         |> Repo.update()
       else

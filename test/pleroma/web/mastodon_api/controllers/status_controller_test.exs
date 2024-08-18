@@ -22,6 +22,9 @@ defmodule Pleroma.Web.MastodonAPI.StatusControllerTest do
 
   import Mox
   import Pleroma.Factory
+  import TelemetryTest
+
+  setup [:telemetry_listen]
 
   setup do: clear_config([:instance, :federating])
   setup do: clear_config([:instance, :allow_relay])
@@ -200,6 +203,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusControllerTest do
                |> json_response_and_validate_schema(422)
     end
 
+    @tag telemetry_listen: [:pleroma, :upload, :success]
     test "posting an undefined status with an attachment", %{user: user, conn: conn} do
       file = %Plug.Upload{
         content_type: "image/jpeg",
@@ -208,6 +212,15 @@ defmodule Pleroma.Web.MastodonAPI.StatusControllerTest do
       }
 
       {:ok, upload} = ActivityPub.upload(file, actor: user.ap_id)
+
+      nickname = user.nickname
+
+      assert_receive {:telemetry_event,
+                      %{
+                        event: [:pleroma, :upload, :success],
+                        measurements: %{count: 1, duration: _, size: _},
+                        metadata: %{filename: _, nickname: ^nickname}
+                      }}
 
       conn =
         conn

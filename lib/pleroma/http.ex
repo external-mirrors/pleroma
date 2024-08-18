@@ -130,7 +130,11 @@ defmodule Pleroma.HTTP do
   end
 
   defp default_middleware,
-    do: [Tesla.Middleware.FollowRedirects, Pleroma.Tesla.Middleware.EncodeUrl]
+    do: [
+      Tesla.Middleware.FollowRedirects,
+      Pleroma.Tesla.Middleware.EncodeUrl,
+      Tesla.Middleware.Telemetry
+    ]
 
   def encode_url(url) when is_binary(url) do
     URI.parse(url)

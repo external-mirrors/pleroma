@@ -24,7 +24,7 @@ defmodule Pleroma.Web.Plugs.UploadedMediaPlugTest do
       filename: "nice_tf.jpg"
     }
 
-    {:ok, data} = Upload.store(file)
+    {:ok, %Upload{}, data} = Upload.store(file)
     [%{"href" => attachment_url} | _] = data["url"]
     [attachment_url: attachment_url]
   end

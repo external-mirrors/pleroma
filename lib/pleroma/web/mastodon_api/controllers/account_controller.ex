@@ -113,6 +113,12 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
     with :ok <- validate_email_param(params),
          :ok <- TwitterAPI.validate_captcha(app, params),
          {:ok, user} <- TwitterAPI.register_user(params),
+         :ok <-
+           :telemetry.execute(
+             [:pleroma, :user, :account, :register],
+             %{count: 1},
+             %{ip: conn.remote_ip, nickname: user.nickname}
+           ),
          {_, {:ok, token}} <-
            {:login, OAuthController.login(user, app, app.scopes)} do
       OAuthController.after_token_exchange(conn, %{user: user, token: token})

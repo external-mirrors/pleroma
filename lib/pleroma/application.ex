@@ -43,7 +43,10 @@ defmodule Pleroma.Application do
     # every time the application is restarted, so we disable module
     # conflicts at runtime
     Code.compiler_options(ignore_module_conflict: true)
-    Pleroma.Telemetry.Logger.attach()
+    # Disable warnings_as_errors at runtime, it breaks Phoenix live reload
+    # due to protocol consolidation warnings
+    Code.compiler_options(warnings_as_errors: false)
+    Pleroma.Telemetry.Logger.setup()
     Config.Holder.save_default()
     Pleroma.HTML.compile_scrubbers()
     Pleroma.Config.Oban.warn()
@@ -78,6 +81,8 @@ defmodule Pleroma.Application do
     # Define workers and child supervisors to be supervised
     children =
       [
+        Pleroma.Web.Telemetry,
+        {Pleroma.Web.MetricsStorage, Pleroma.Web.Telemetry.metrics()},
         Pleroma.PromEx,
         Pleroma.LDAP,
         Pleroma.Repo,

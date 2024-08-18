@@ -11,7 +11,7 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIController do
   alias Pleroma.Config
   alias Pleroma.MFA
   alias Pleroma.ModerationLog
-  alias Pleroma.Stats
+  alias Pleroma.CounterCache
   alias Pleroma.User
   alias Pleroma.User.Backup
   alias Pleroma.Web.ActivityPub.ActivityPub
@@ -423,7 +423,7 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIController do
   end
 
   def stats(conn, params) do
-    counters = Stats.get_status_visibility_count(params["instance"])
+    counters = CounterCache.get_by_instance(params["instance"])
 
     json(conn, %{"status_visibility" => counters})
   end

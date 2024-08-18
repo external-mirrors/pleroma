@@ -20,9 +20,26 @@ defmodule Pleroma.Web.Auth.LDAPAuthenticator do
   def get_user(%Plug.Conn{} = conn) do
     with {:ldap, true} <- {:ldap, Pleroma.Config.get([:ldap, :enabled])},
          {:ok, {name, password}} <- fetch_credentials(conn),
-         %User{} = user <- LDAP.bind_user(name, password) do
+         {:checkpw, %User{} = user} <- {:checkpw, LDAP.bind_user(name, password)} do
+      :telemetry.execute(
+        [:pleroma, :user, :o_auth, :success],
+        %{count: 1},
+        %{ip: :inet.ntoa(conn.remote_ip), nickname: name}
+      )
+
       {:ok, user}
     else
+      {:checkpw, _} = e ->
+        {:ok, {name, _password}} = fetch_credentials(conn)
+
+        :telemetry.execute(
+          [:pleroma, :user, :o_auth, :failure],
+          %{count: 1},
+          %{ip: :inet.ntoa(conn.remote_ip), nickname: name}
+        )
+
+        {:error, e}
+
       {:ldap, _} ->
         @base.get_user(conn)
 

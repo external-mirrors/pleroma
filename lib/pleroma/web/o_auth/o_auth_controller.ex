@@ -381,6 +381,12 @@ defmodule Pleroma.Web.OAuth.OAuthController do
   def token_revoke(%Plug.Conn{} = conn, %{"token" => token}) do
     with {:ok, %Token{} = oauth_token} <- Token.get_by_token(token),
          {:ok, oauth_token} <- RevokeToken.revoke(oauth_token) do
+      :telemetry.execute(
+        [:pleroma, :user, :o_auth, :revoke],
+        %{count: 1},
+        %{ip: :inet.ntoa(conn.remote_ip), nickname: oauth_token.user.nickname}
+      )
+
       conn =
         with session_token = AuthHelper.get_session_token(conn),
              %Token{token: ^session_token} <- oauth_token do

@@ -36,7 +36,7 @@ defmodule Pleroma.Gun.ConnectionPool.Reclaimer do
       |> round
       |> max(1)
 
-    :telemetry.execute([:pleroma, :connection_pool, :reclaim, :start], %{}, %{
+    :telemetry.execute([:pleroma, :connection_pool, :reclaim, :start], %{count: 1}, %{
       max_connections: max_connections,
       reclaim_max: reclaim_max
     })
@@ -56,7 +56,7 @@ defmodule Pleroma.Gun.ConnectionPool.Reclaimer do
       [] ->
         :telemetry.execute(
           [:pleroma, :connection_pool, :reclaim, :stop],
-          %{reclaimed_count: 0},
+          %{count: 0},
           %{
             max_connections: max_connections
           }
@@ -79,7 +79,7 @@ defmodule Pleroma.Gun.ConnectionPool.Reclaimer do
 
         :telemetry.execute(
           [:pleroma, :connection_pool, :reclaim, :stop],
-          %{reclaimed_count: Enum.count(reclaimed)},
+          %{count: Enum.count(reclaimed)},
           %{max_connections: max_connections}
         )
 

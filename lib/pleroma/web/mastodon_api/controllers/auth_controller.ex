@@ -17,6 +17,12 @@ defmodule Pleroma.Web.MastodonAPI.AuthController do
   def password_reset(conn, params) do
     nickname_or_email = params["email"] || params["nickname"]
 
+    :telemetry.execute(
+      [:pleroma, :user, :account, :password_reset],
+      %{count: 1},
+      %{for: nickname_or_email, ip: :inet.ntoa(conn.remote_ip)}
+    )
+
     TwitterAPI.password_reset(nickname_or_email)
 
     json_response(conn, :no_content, "")

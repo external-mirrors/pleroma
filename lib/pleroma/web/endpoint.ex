@@ -136,7 +136,6 @@ defmodule Pleroma.Web.Endpoint do
 
   plug(Pleroma.Web.Plugs.TrailingFormatPlug)
   plug(Plug.RequestId)
-  plug(Plug.Logger, log: :debug)
 
   plug(Plug.Parsers,
     parsers: [:urlencoded, Pleroma.Web.Multipart, :json],

@@ -9,7 +9,11 @@ defmodule Pleroma.Workers.UserRefreshWorker do
 
   @impl true
   def perform(%Job{args: %{"ap_id" => ap_id}}) do
-    User.fetch_by_ap_id(ap_id)
+    case User.fetch_by_ap_id(ap_id) do
+      {:error, :not_found} -> {:cancel, :not_found}
+      {:error, :forbidden} -> {:cancel, :forbidden}
+      result -> result
+    end
   end
 
   @impl true

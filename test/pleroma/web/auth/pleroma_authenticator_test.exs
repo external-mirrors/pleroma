@@ -37,7 +37,7 @@ defmodule Pleroma.Web.Auth.PleromaAuthenticatorTest do
     params = %{"authorization" => %{"name" => name, "password" => "password"}}
     res = PleromaAuthenticator.get_user(%Plug.Conn{params: params})
 
-    assert {:error, {:checkpw, false}} == res
+    assert {:error, :invalid_password} == res
   end
 
   test "get_user/grant_type_password", %{user: user, name: name, password: password} do

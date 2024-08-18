@@ -76,7 +76,7 @@ defmodule Mix.Tasks.Pleroma.Uploads do
     |> Task.async_stream(
       fn {upload, root_path} ->
         case Upload.store(upload, uploader: uploader, filters: [], size_limit: nil) do
-          {:ok, _} ->
+          {:ok, _, _} ->
             if delete?, do: File.rm_rf!(root_path)
             Logger.debug("uploaded: #{inspect(upload.path)} #{inspect(upload)}")
             :ok

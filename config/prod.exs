@@ -24,6 +24,8 @@ config :logger, Logger.Backends.Console, level: :info
 config :logger, :console, level: :info
 config :logger, :ex_syslogger, level: :info
 
+config :pleroma, Pleroma.Telemetry, phoenix_logs: false
+
 # ## SSL Support
 #
 # To get SSL working, you will need to add the `https` key

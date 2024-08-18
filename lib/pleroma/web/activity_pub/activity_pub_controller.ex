@@ -52,7 +52,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
     when action in [:activity, :object]
   )
 
-  plug(:log_inbox_metadata when action in [:inbox])
+  plug(:inbox_telemetry when action in [:inbox])
   plug(:relay_active? when action in [:relay])
 
   defp relay_active?(conn, _) do
@@ -519,12 +519,20 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
     |> json(dgettext("errors", "error"))
   end
 
-  defp log_inbox_metadata(%{params: %{"actor" => actor, "type" => type}} = conn, _) do
-    Logger.metadata(actor: actor, type: type)
+  defp inbox_telemetry(%{params: %{"actor" => actor, "id" => ap_id, "type" => type}} = conn, _) do
+    actor_host = URI.parse(actor).host
+    Logger.metadata(actor: actor, ap_id: ap_id, type: type, actor_host: actor_host)
+
+    :telemetry.execute(
+      [:pleroma, :activitypub, :inbox],
+      %{count: 1},
+      %{host: actor_host, ap_id: ap_id, type: type}
+    )
+
     conn
   end
 
-  defp log_inbox_metadata(conn, _), do: conn
+  defp inbox_telemetry(conn, _), do: conn
 
   def upload_media(%{assigns: %{user: %User{} = user}} = conn, %{"file" => file} = data) do
     with {:ok, object} <-

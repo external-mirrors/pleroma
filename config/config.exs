@@ -133,18 +133,20 @@ config :pleroma, Pleroma.Web.Endpoint,
   ]
 
 # Configures Elixir's Logger
-config :logger, backends: [:console]
+config :logger, backends: [:console, RingLogger]
 
 config :logger, :console,
   level: :debug,
   format: "\n$time $metadata[$level] $message\n",
-  metadata: [:actor, :path, :type, :user]
+  metadata: []
+
+config :logger, RingLogger, max_size: 1024
 
 config :logger, :ex_syslogger,
   level: :debug,
   ident: "pleroma",
   format: "$metadata[$level] $message",
-  metadata: [:actor, :path, :type, :user]
+  metadata: []
 
 config :mime, :types, %{
   "application/xml" => ["xml"],
@@ -957,6 +959,8 @@ config :pleroma, Pleroma.Search.QdrantSearch,
   qdrant_index_configuration: %{
     vectors: %{size: 384, distance: "Cosine"}
   }
+
+config :pleroma, Pleroma.Telemetry, phoenix_logs: true
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

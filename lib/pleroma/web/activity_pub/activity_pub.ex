@@ -1539,8 +1539,27 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   @spec upload(Upload.source(), keyword()) :: {:ok, Object.t()} | {:error, any()}
   def upload(file, opts \\ []) do
-    with {:ok, data} <- Upload.store(sanitize_upload_file(file), opts) do
+    start_time = :erlang.monotonic_time(:millisecond)
+
+    with {:ok, upload, data} <- Upload.store(sanitize_upload_file(file), opts) do
       obj_data = Maps.put_if_present(data, "actor", opts[:actor])
+      stop_time = :erlang.monotonic_time(:millisecond)
+
+      nickname =
+        with true <- is_binary(opts[:actor]),
+             %User{nickname: nickname} <- User.get_cached_by_ap_id(opts[:actor]) do
+          nickname
+        else
+          _ -> "UNDEFINED"
+        end
+
+      {:ok, %{size: upload_size}} = File.stat(upload.tempfile)
+
+      :telemetry.execute(
+        [:pleroma, :upload, :success],
+        %{count: 1, duration: stop_time - start_time, size: upload_size},
+        %{nickname: nickname, filename: upload.path}
+      )
 
       Repo.insert(%Object{data: obj_data})
     end
@@ -1860,8 +1879,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
         data
         |> User.remote_user_changeset()
-        |> Repo.insert()
-        |> User.set_cache()
+        |> User.create()
       end
     end
   end

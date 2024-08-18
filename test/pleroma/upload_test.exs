@@ -58,7 +58,7 @@ defmodule Pleroma.UploadTest do
     test "it returns file" do
       File.cp!("test/fixtures/image.jpg", "test/fixtures/image_tmp.jpg")
 
-      assert {:ok, result} = Upload.store(@upload_file)
+      assert {:ok, %Upload{}, result} = Upload.store(@upload_file)
 
       assert result ==
                %{
@@ -140,7 +140,7 @@ defmodule Pleroma.UploadTest do
         filename: "image.jpg"
       }
 
-      {:ok, data} = Upload.store(file)
+      {:ok, %Upload{}, data} = Upload.store(file)
 
       assert %{"url" => [%{"href" => url}]} = data
 
@@ -159,7 +159,7 @@ defmodule Pleroma.UploadTest do
         filename: "an [image.jpg"
       }
 
-      {:ok, data} = Upload.store(file, filters: [Pleroma.Upload.Filter.Dedupe])
+      {:ok, %Upload{}, data} = Upload.store(file, filters: [Pleroma.Upload.Filter.Dedupe])
 
       assert List.first(data["url"])["href"] ==
                Path.join([Pleroma.Upload.base_url(), expected_path])
@@ -174,7 +174,7 @@ defmodule Pleroma.UploadTest do
         filename: "an [image.jpg"
       }
 
-      {:ok, data} = Upload.store(file)
+      {:ok, %Upload{}, data} = Upload.store(file)
       assert data["name"] == "an [image.jpg"
     end
 
@@ -183,7 +183,7 @@ defmodule Pleroma.UploadTest do
         img: "data:image/png;base64,#{Base.encode64(File.read!("test/fixtures/image.jpg"))}"
       }
 
-      {:ok, data} = Upload.store(params)
+      {:ok, %Upload{}, data} = Upload.store(params)
       assert hd(data["url"])["mediaType"] == "image/jpeg"
     end
 
@@ -194,7 +194,7 @@ defmodule Pleroma.UploadTest do
         img: "data:image/png;base64,#{Base.encode64(File.read!("test/fixtures/image.jpg"))}"
       }
 
-      {:ok, data} = Upload.store(params)
+      {:ok, %Upload{}, data} = Upload.store(params)
       assert String.ends_with?(data["name"], ".jpg")
     end
 
@@ -207,7 +207,8 @@ defmodule Pleroma.UploadTest do
         filename: "an [image.jpg"
       }
 
-      {:ok, data} = Upload.store(file, filters: [Pleroma.Upload.Filter.AnonymizeFilename])
+      {:ok, %Upload{}, data} =
+        Upload.store(file, filters: [Pleroma.Upload.Filter.AnonymizeFilename])
 
       refute data["name"] == "an [image.jpg"
     end
@@ -221,7 +222,7 @@ defmodule Pleroma.UploadTest do
         filename: "an… image.jpg"
       }
 
-      {:ok, data} = Upload.store(file)
+      {:ok, %Upload{}, data} = Upload.store(file)
       [attachment_url | _] = data["url"]
 
       assert Path.basename(attachment_url["href"]) == "an%E2%80%A6%20image.jpg"
@@ -236,7 +237,7 @@ defmodule Pleroma.UploadTest do
         filename: ":?#[]@!$&\\'()*+,;=.jpg"
       }
 
-      {:ok, data} = Upload.store(file)
+      {:ok, %Upload{}, data} = Upload.store(file)
       [attachment_url | _] = data["url"]
 
       assert Path.basename(attachment_url["href"]) ==
@@ -260,7 +261,7 @@ defmodule Pleroma.UploadTest do
         filename: "image.jpg"
       }
 
-      {:ok, data} = Upload.store(file, base_url: base_url)
+      {:ok, %Upload{}, data} = Upload.store(file, base_url: base_url)
 
       assert %{"url" => [%{"href" => url}]} = data
 

@@ -118,9 +118,9 @@ defmodule Pleroma.Web.Federator do
         Logger.debug("Already had #{params["id"]}")
         {:error, :already_present}
 
-      {:actor, e} ->
+      {:actor, {:error, _} = e} ->
         Logger.debug("Unhandled actor #{actor}, #{inspect(e)}")
-        {:error, e}
+        e
 
       {:reject, reason} = e ->
         Logger.debug("Rejected by MRF: #{inspect(reason)}")
