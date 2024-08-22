@@ -929,6 +929,24 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     end
   end
 
+  #### Delete-related helpers
+
+  def check_deleting_user(
+        %{
+          "type" => "Delete",
+          "actor" => actor
+        } = activity
+      ) do
+    with %User{} <- User.get_cached_by_ap_id(actor) do
+      {:ok, activity}
+    else
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  def check_deleting_user(activity), do: {:ok, activity}
+
   def get_existing_votes(actor, %{data: %{"id" => id}}) do
     actor
     |> Activity.Queries.by_actor()
