@@ -161,7 +161,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
         {:error, false}
 
       {:containment, _} = error ->
-        error
+        {:error, error}
 
       {:error, _} = error ->
         error
