@@ -89,6 +89,11 @@ defmodule Pleroma.Object.Fetcher do
     end
   end
 
+  defp log_fetch_error(id, error) do
+    Logger.metadata(object: id)
+    Logger.debug("Object rejected while fetching #{id} #{inspect(error)}")
+  end
+
   defp prepare_activity_params(data) do
     %{
       "type" => "Create",
