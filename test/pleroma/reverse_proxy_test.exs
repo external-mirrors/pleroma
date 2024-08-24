@@ -115,7 +115,7 @@ defmodule Pleroma.ReverseProxyTest do
       assert capture_log(fn ->
                ReverseProxy.call(conn, "/huge-file", max_body_length: 4)
              end) =~
-               "[error] Elixir.Pleroma.ReverseProxy: request to \"/huge-file\" failed: :body_too_large"
+               "[debug] Elixir.Pleroma.ReverseProxy: request to \"/huge-file\" failed: :body_too_large"
 
       assert {:ok, true} == Cachex.get(:failed_proxy_url_cache, "/huge-file")
 

@@ -163,7 +163,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiLinkSpamPolicyTest do
 
       assert capture_log(fn ->
                {:reject, _} = AntiLinkSpamPolicy.filter(message)
-             end) =~ "[error] Could not decode user at fetch http://invalid.actor"
+             end) =~ "[debug] Could not decode user at fetch http://invalid.actor"
     end
 
     test "it rejects posts with links" do
@@ -173,7 +173,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiLinkSpamPolicyTest do
 
       assert capture_log(fn ->
                {:reject, _} = AntiLinkSpamPolicy.filter(message)
-             end) =~ "[error] Could not decode user at fetch http://invalid.actor"
+             end) =~ "[debug] Could not decode user at fetch http://invalid.actor"
     end
   end
 

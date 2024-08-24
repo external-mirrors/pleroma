@@ -41,7 +41,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.UndoHandlingTest do
       |> Jason.decode!()
       |> Map.put("object", activity.data["object"])
 
-    assert Transmogrifier.handle_incoming(data) == :error
+    assert Transmogrifier.handle_incoming(data) == {:error, :invalid_undo}
   end
 
   test "it works for incoming unlikes with an existing like activity" do

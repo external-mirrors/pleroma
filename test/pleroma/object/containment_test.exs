@@ -75,7 +75,7 @@ defmodule Pleroma.Object.ContainmentTest do
       assert capture_log(fn ->
                {:error, _} = User.get_or_fetch_by_ap_id("https://n1u.moe/users/rye")
              end) =~
-               "[error] Could not decode user at fetch https://n1u.moe/users/rye"
+               "[debug] Could not decode user at fetch https://n1u.moe/users/rye"
     end
 
     test "contain_origin_from_id() gracefully handles cases where no ID is present" do

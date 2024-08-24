@@ -546,6 +546,8 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
          {:ok, activity} <- ActivityPub.unfollow(follower, followed, id, false) do
       User.unfollow(follower, followed)
       {:ok, activity}
+    else
+      _ -> {:error, :invalid_undo}
     end
   end
 
@@ -559,6 +561,8 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
       when type in ["Like", "EmojiReact", "Announce", "Block"] do
     with {:ok, activity, _} <- Pipeline.common_pipeline(data, local: false) do
       {:ok, activity}
+    else
+      _ -> {:error, :invalid_undo}
     end
   end
 
@@ -575,6 +579,8 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
       activity
       |> Map.put("object", data)
       |> handle_incoming(options)
+    else
+      _ -> {:error, :invalid_undo}
     end
   end
 
@@ -591,6 +597,8 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
          {:ok, %User{} = target_user} <- User.get_or_fetch_by_ap_id(target_actor),
          true <- origin_actor in target_user.also_known_as do
       ActivityPub.move(origin_user, target_user, false)
+    else
+      _ -> {:error, :invalid_move}
     end
   end
 

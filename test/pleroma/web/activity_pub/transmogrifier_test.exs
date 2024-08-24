@@ -95,7 +95,7 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
         "target" => new_user.ap_id
       }
 
-      assert :error = Transmogrifier.handle_incoming(message)
+      assert {:error, :invalid_move} = Transmogrifier.handle_incoming(message)
 
       {:ok, _new_user} = User.update_and_set_cache(new_user, %{also_known_as: [old_user.ap_id]})
 
