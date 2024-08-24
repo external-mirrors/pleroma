@@ -61,6 +61,7 @@ defmodule Pleroma.Workers.ReceiverWorker do
   defp process_errors(errors) do
     case errors do
       {:error, :origin_containment_failed} -> {:cancel, :origin_containment_failed}
+      {:error, {:containment, :error}} -> {:cancel, :containment}
       {:error, :already_present} -> {:cancel, :already_present}
       {:error, {:validate_object, _} = reason} -> {:cancel, reason}
       {:error, {:validate, {:error, _changeset} = reason}} -> {:cancel, reason}
