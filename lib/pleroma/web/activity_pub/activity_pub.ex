@@ -1736,11 +1736,11 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
         {:error, e}
 
       {:error, {:reject, reason} = e} ->
-        Logger.info("Rejected user #{ap_id}: #{inspect(reason)}")
+        Logger.debug("Rejected user #{ap_id}: #{inspect(reason)}")
         {:error, e}
 
       {:error, e} ->
-        Logger.error("Could not decode user at fetch #{ap_id}, #{inspect(e)}")
+        Logger.debug("Could not decode user at fetch #{ap_id}, #{inspect(e)}")
         {:error, e}
     end
   end
@@ -1792,7 +1792,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       {:ok, pin_data_from_featured_collection(data)}
     else
       e ->
-        Logger.error("Could not decode featured collection at fetch #{ap_id}, #{inspect(e)}")
+        Logger.debug("Could not decode featured collection at fetch #{ap_id}, #{inspect(e)}")
         {:ok, %{}}
     end
   end
