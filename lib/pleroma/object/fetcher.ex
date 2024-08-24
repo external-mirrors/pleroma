@@ -33,8 +33,7 @@ defmodule Pleroma.Object.Fetcher do
            ) do
       {:ok, new_object}
     else
-      e ->
-        Logger.error("Error while processing object: #{inspect(e)}")
+      {:error, e} ->
         {:error, e}
     end
   end
