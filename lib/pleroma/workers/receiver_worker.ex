@@ -33,7 +33,7 @@ defmodule Pleroma.Workers.ReceiverWorker do
       query_string: query_string
     }
 
-    with {:ok, %User{} = _actor} <- User.get_or_fetch_by_ap_id(conn_data.params["actor"]),
+    with {:user, {:ok, %User{is_active: true} = _actor}} <- {:user, User.get_or_fetch_by_ap_id(conn_data.params["actor"])},
          {:ok, _public_key} <- Signature.refetch_public_key(conn_data),
          {:signature, true} <- {:signature, Signature.validate_signature(conn_data)},
          {:ok, res} <- Federator.perform(:incoming_ap_doc, params) do
@@ -69,7 +69,9 @@ defmodule Pleroma.Workers.ReceiverWorker do
       {:signature, false} -> {:cancel, :invalid_signature}
       {:error, "Object has been deleted"} = reason -> {:cancel, reason}
       {:error, {:side_effects, {:error, :no_object_actor}} = reason} -> {:cancel, reason}
-      {:error, :not_found} = reason -> {:cancel, reason}
+      {:error, :forbidden} -> {:cancel, :forbidden}
+      {:error, :not_found} -> {:cancel, :not_found}
+      {:user, _} -> {:cancel, :user}
       {:error, _} = e -> e
       e -> {:error, e}
     end
