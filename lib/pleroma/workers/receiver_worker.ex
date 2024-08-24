@@ -54,7 +54,7 @@ defmodule Pleroma.Workers.ReceiverWorker do
   @impl true
   def timeout(%_{args: %{"timeout" => timeout}}), do: timeout
 
-  def timeout(_job), do: :timer.seconds(5)
+  def timeout(_job), do: :timer.seconds(10)
 
   defp process_errors({:error, {:error, _} = error}), do: process_errors(error)
 
