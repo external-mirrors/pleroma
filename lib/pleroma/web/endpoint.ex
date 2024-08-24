@@ -62,6 +62,16 @@ defmodule Pleroma.Web.Endpoint do
       "cache-control" => @static_cache_control
     }
   )
+  plug(
+    :not_found,
+    at: "/",
+    from: :pleroma,
+    only: ["emoji", "images"],
+    cache_control_for_etags: @static_cache_control,
+    headers: %{
+      "cache-control" => @static_cache_control
+    }
+  )
 
   plug(Pleroma.Web.Plugs.InstanceStatic,
     at: "/",
@@ -191,5 +201,9 @@ defmodule Pleroma.Web.Endpoint do
 
   def websocket_url do
     String.replace_leading(url(), "http", "ws")
+  end
+
+  def not_found(conn) do
+    send_resp(conn, 404, "not found")
   end
 end

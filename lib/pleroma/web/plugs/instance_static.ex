@@ -18,7 +18,7 @@ defmodule Pleroma.Web.Plugs.InstanceStatic do
 
     static_path = Path.join(Application.app_dir(:pleroma, "priv/static/"), path)
 
-    (File.exists?(instance_path) && instance_path) || (File.exists?(static_path) && static_path)
+    (File.exists?(instance_path) && instance_path) || static_path
   end
 
   def init(opts) do
