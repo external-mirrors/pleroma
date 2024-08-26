@@ -53,6 +53,8 @@ defmodule Pleroma.Web.ActivityPub.MRF do
 
   @required_description_keys [:key, :related_policy]
 
+  @success_types [:ok, :pass, :filter]
+
   def filter_one(policy, message) do
     Code.ensure_loaded(policy)
 
@@ -69,7 +71,8 @@ defmodule Pleroma.Web.ActivityPub.MRF do
     else
       main_result = policy.filter(message)
 
-      with {_, {:ok, main_message}} <- {:main, main_result},
+      with {_, {result_type, main_message}} when result_type in @success_types <-
+             {:main, main_result},
            {_,
             %{
               "formerRepresentations" => %{
@@ -82,8 +85,9 @@ defmodule Pleroma.Web.ActivityPub.MRF do
                 object["formerRepresentations"],
                 object,
                 fn item ->
-                  with {:ok, filtered} <- policy.filter(Map.put(message, "object", item)) do
-                    {:ok, filtered["object"]}
+                  with {result_type, filtered} when result_type in @success_types <-
+                         policy.filter(Map.put(message, "object", item)) do
+                    {:filter, filtered["object"]}
                   else
                     e -> e
                   end
@@ -114,7 +118,8 @@ defmodule Pleroma.Web.ActivityPub.MRF do
     ap_id = message["object"]
 
     if object && ap_id do
-      with {:ok, message} <- filter(Map.put(message, "object", object)) do
+      with {type, message} when type in @success_types <-
+             filter(Map.put(message, "object", object)) do
         meta = Keyword.put(meta, :object_data, message["object"])
         {:ok, Map.put(message, "object", ap_id), meta}
       else
