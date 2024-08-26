@@ -113,7 +113,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContent do
         do: "<span class=\"recipients-inline\">#{added_mentions}</span>",
         else: ""
 
-    content =
+    updated_content =
       cond do
         # For Markdown posts, insert the mentions inside the first <p> tag
         recipients_inline != "" && String.starts_with?(content, "<p>") ->
@@ -126,11 +126,18 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContent do
           content
       end
 
-    {:ok, put_in(activity["object"]["content"], content)}
+    if match?(^content, updated_content) do
+      {:pass, activity}
+    else
+      updated_activity = put_in(activity["object"]["content"], updated_content)
+      {:filter, updated_activity}
+    end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

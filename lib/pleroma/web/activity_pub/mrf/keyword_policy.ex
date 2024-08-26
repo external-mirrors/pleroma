@@ -33,7 +33,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.KeywordPolicy do
              if Enum.any?(Pleroma.Config.get([:mrf_keyword, :reject]), fn pattern ->
                   string_matches?(payload, pattern)
                 end) do
-               {:reject, "[KeywordPolicy] Matches with rejected keyword"}
+               {:reject, "Matches rejected keyword"}
              else
                {:ok, activity}
              end
@@ -112,18 +112,23 @@ defmodule Pleroma.Web.ActivityPub.MRF.KeywordPolicy do
   def filter(%{"type" => type, "object" => %{"content" => _content}} = activity)
       when type in ["Create", "Update"] do
     with {:ok, activity} <- check_reject(activity),
-         {:ok, activity} <- check_ftl_removal(activity),
-         {:ok, activity} <- check_replace(activity) do
-      {:ok, activity}
+         {:ok, processed_activity} <- check_ftl_removal(activity),
+         {:ok, processed_activity} <- check_replace(processed_activity) do
+      if match?(^activity, processed_activity) do
+        {:pass, processed_activity}
+      else
+        {:filter, processed_activity}
+      end
     else
-      {:reject, nil} -> {:reject, "[KeywordPolicy] "}
-      {:reject, _} = e -> e
-      _e -> {:reject, "[KeywordPolicy] "}
+      {:reject, reason} ->
+        {:reject, %{activity: activity, reason: reason}}
     end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe do

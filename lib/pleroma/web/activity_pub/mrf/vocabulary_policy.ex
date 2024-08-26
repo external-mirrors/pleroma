@@ -8,33 +8,36 @@ defmodule Pleroma.Web.ActivityPub.MRF.VocabularyPolicy do
   @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
   @impl true
-  def filter(%{"type" => "Undo", "object" => object} = activity) do
-    with {:ok, _} <- filter(object) do
-      {:ok, activity}
-    else
-      {:reject, _} = e -> e
-    end
-  end
+  def filter(%{"type" => "Undo", "object" => object} = _activity), do: filter(object)
 
   def filter(%{"type" => activity_type} = activity) do
     with accepted_vocabulary <- Pleroma.Config.get([:mrf_vocabulary, :accept]),
          rejected_vocabulary <- Pleroma.Config.get([:mrf_vocabulary, :reject]),
          {_, true} <-
-           {:accepted,
+           {:accepted_vocab,
             Enum.empty?(accepted_vocabulary) || Enum.member?(accepted_vocabulary, activity_type)},
          {_, false} <-
-           {:rejected,
+           {:rejected_vocab,
             length(rejected_vocabulary) > 0 && Enum.member?(rejected_vocabulary, activity_type)},
-         {:ok, _} <- filter(activity["object"]) do
-      {:ok, activity}
+         {:pass, _} <- filter(activity["object"]) do
+      {:pass, activity}
     else
-      {:reject, _} = e -> e
-      {:accepted, _} -> {:reject, "[VocabularyPolicy] #{activity_type} not in accept list"}
-      {:rejected, _} -> {:reject, "[VocabularyPolicy] #{activity_type} in reject list"}
+      {:reject, reason} ->
+        {:reject, %{activity: activity, reason: reason}}
+
+      {:accepted_vocab, _} ->
+        reason = "#{activity_type} not in accept list"
+        {:reject, %{activity: activity, reason: reason}}
+
+      {:rejected_vocab, _} ->
+        reason = "#{activity_type} in reject list"
+        {:reject, %{activity: activity, reason: reason}}
     end
   end
 
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe,

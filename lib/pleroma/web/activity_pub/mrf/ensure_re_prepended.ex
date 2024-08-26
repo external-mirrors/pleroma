@@ -38,10 +38,16 @@ defmodule Pleroma.Web.ActivityPub.MRF.EnsureRePrepended do
 
     activity = Map.put(activity, "object", child)
 
-    {:ok, activity}
+    if match?(^child, object["inReplyTo"]) do
+      {:pass, activity}
+    else
+      {:filter, activity}
+    end
   end
 
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   def describe, do: {:ok, %{}}
 end

@@ -44,7 +44,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.EmojiPolicy do
            end),
          activity <- Map.put(activity, "object", object),
          activity <- maybe_delist(activity) do
-      {:ok, activity}
+      {:filter, activity}
     end
   end
 
@@ -52,7 +52,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.EmojiPolicy do
   def filter(%{"type" => type} = object) when type in Pleroma.Constants.actor_types() do
     with object <- process_remove(object, :url, config_remove_url()),
          object <- process_remove(object, :shortcode, config_remove_shortcode()) do
-      {:ok, object}
+      {:filter, object}
     end
   end
 
@@ -60,16 +60,17 @@ defmodule Pleroma.Web.ActivityPub.MRF.EmojiPolicy do
   def filter(%{"type" => "EmojiReact"} = object) do
     with {:ok, _} <-
            matched_emoji_checker(config_remove_url(), config_remove_shortcode()).(object) do
-      {:ok, object}
+      {:filter, object}
     else
       _ ->
-        {:reject, "[EmojiPolicy] Rejected for having disallowed emoji"}
+        reason = "Has disallowed emoji"
+        {:reject, %{activity: object, reason: reason}}
     end
   end
 
   @impl true
   def filter(activity) do
-    {:ok, activity}
+    {:pass, activity}
   end
 
   defp match_string?(string, pattern) when is_binary(pattern) do

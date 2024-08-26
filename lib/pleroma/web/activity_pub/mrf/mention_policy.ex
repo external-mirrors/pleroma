@@ -14,14 +14,17 @@ defmodule Pleroma.Web.ActivityPub.MRF.MentionPolicy do
 
     if rejected_mention =
          Enum.find(recipients, fn recipient -> Enum.member?(reject_actors, recipient) end) do
-      {:reject, "[MentionPolicy] Rejected for mention of #{rejected_mention}"}
+      reason = "Rejected for mention of #{rejected_mention}"
+      {:reject, %{activity: activity, reason: reason}}
     else
-      {:ok, activity}
+      {:pass, activity}
     end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

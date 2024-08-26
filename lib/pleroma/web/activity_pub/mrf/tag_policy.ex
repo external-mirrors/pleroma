@@ -125,26 +125,40 @@ defmodule Pleroma.Web.ActivityPub.MRF.TagPolicy do
     if user.local == true do
       {:ok, activity}
     else
-      {:reject,
-       "[TagPolicy] Follow from #{actor} tagged with mrf_tag:disable-remote-subscription"}
+      reason = "Follow from #{actor} tagged with mrf_tag:disable-remote-subscription"
+      {:reject, %{activity: activity, reason: reason}}
     end
   end
 
-  defp process_tag("mrf_tag:disable-any-subscription", %{"type" => "Follow", "actor" => actor}),
-    do: {:reject, "[TagPolicy] Follow from #{actor} tagged with mrf_tag:disable-any-subscription"}
+  defp process_tag(
+         "mrf_tag:disable-any-subscription",
+         %{"type" => "Follow", "actor" => actor} = activity
+       ) do
+    reason = "Follow from #{actor} tagged with mrf_tag:disable-any-subscription"
+    {:reject, %{activity: activity, reason: reason}}
+  end
 
   defp process_tag(_, activity), do: {:ok, activity}
 
   def filter_activity(actor, activity) do
-    User.get_cached_by_ap_id(actor)
-    |> get_tags()
-    |> Enum.reduce({:ok, activity}, fn
-      tag, {:ok, activity} ->
-        process_tag(tag, activity)
+    result =
+      User.get_cached_by_ap_id(actor)
+      |> get_tags()
+      |> Enum.reduce({:ok, activity}, fn
+        tag, {:ok, activity} ->
+          process_tag(tag, activity)
 
-      _, error ->
-        error
-    end)
+        _, error ->
+          error
+      end)
+
+    case result do
+      {:ok, activity} ->
+        {:pass, activity}
+
+      {:reject, _} = reject ->
+        reject
+    end
   end
 
   @impl true
@@ -156,7 +170,9 @@ defmodule Pleroma.Web.ActivityPub.MRF.TagPolicy do
     do: filter_activity(actor, activity)
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

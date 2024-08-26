@@ -17,11 +17,13 @@ defmodule Pleroma.Web.ActivityPub.MRF.NoPlaceholderTextPolicy do
         } = activity
       )
       when type in ["Create", "Update"] and content in [".", "<p>.</p>"] do
-    {:ok, put_in(activity, ["object", "content"], "")}
+    {:filter, put_in(activity, ["object", "content"], "")}
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

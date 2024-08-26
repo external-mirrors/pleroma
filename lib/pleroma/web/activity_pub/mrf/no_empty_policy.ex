@@ -15,14 +15,17 @@ defmodule Pleroma.Web.ActivityPub.MRF.NoEmptyPolicy do
          true <- note?(activity),
          false <- has_attachment?(activity),
          true <- only_mentions?(activity) do
-      {:reject, "[NoEmptyPolicy]"}
+      reason = "no content"
+      {:reject, %{activity: activity, reason: reason}}
     else
       _ ->
-        {:ok, activity}
+        {:pass, activity}
     end
   end
 
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   defp local?(actor) do
     if actor |> String.starts_with?("#{Endpoint.url()}") do

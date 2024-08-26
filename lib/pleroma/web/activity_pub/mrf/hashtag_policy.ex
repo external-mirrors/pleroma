@@ -21,7 +21,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.HashtagPolicy do
 
   defp check_reject(activity, hashtags) do
     if Enum.any?(Config.get([:mrf_hashtag, :reject]), fn match -> match in hashtags end) do
-      {:reject, "[HashtagPolicy] Matches with rejected keyword"}
+      reason = "Matches with rejected keyword"
+      {:reject, %{activity: activity, reason: reason}}
     else
       {:ok, activity}
     end
@@ -83,23 +84,29 @@ defmodule Pleroma.Web.ActivityPub.MRF.HashtagPolicy do
     hashtags = Object.hashtags(%Object{data: object}) ++ historical_hashtags
 
     if hashtags != [] do
-      with {:ok, activity} <- check_reject(activity, hashtags),
-           {:ok, activity} <-
+      with {:ok, processed_activity} <- check_reject(activity, hashtags),
+           {:ok, processed_activity} <-
              (if type == "Create" do
-                check_ftl_removal(activity, hashtags)
+                check_ftl_removal(processed_activity, hashtags)
               else
-                {:ok, activity}
+                {:ok, processed_activity}
               end),
-           {:ok, activity} <- check_sensitive(activity) do
-        {:ok, activity}
+           {:ok, processed_activity} <- check_sensitive(processed_activity) do
+        if match?(^activity, processed_activity) do
+          {:pass, processed_activity}
+        else
+          {:filter, processed_activity}
+        end
       end
     else
-      {:ok, activity}
+      {:pass, activity}
     end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe do

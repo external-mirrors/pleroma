@@ -53,11 +53,13 @@ defmodule Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicy do
       when type in ["Create", "Update"] and is_list(attachments) and length(attachments) > 0 do
     preload(activity)
 
-    {:ok, activity}
+    {:filter, activity}
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

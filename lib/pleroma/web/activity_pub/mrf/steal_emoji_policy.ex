@@ -97,10 +97,12 @@ defmodule Pleroma.Web.ActivityPub.MRF.StealEmojiPolicy do
       end
     end
 
-    {:ok, activity}
+    {:pass, activity}
   end
 
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   @spec config_description :: %{

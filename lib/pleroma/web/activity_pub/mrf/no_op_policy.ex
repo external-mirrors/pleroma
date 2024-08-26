@@ -8,7 +8,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.NoOpPolicy do
 
   @impl true
   def filter(activity) do
-    {:ok, activity}
+    {:pass, activity}
   end
 
   @impl true

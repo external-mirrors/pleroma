@@ -64,7 +64,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.NsfwApiPolicy do
       Jason.decode(body)
     else
       error ->
-        Logger.warning("""
+        Logger.error("""
         [NsfwApiPolicy]: The API server failed. Skipping.
         #{inspect(error)}
         """)
@@ -134,17 +134,18 @@ defmodule Pleroma.Web.ActivityPub.MRF.NsfwApiPolicy do
   @impl true
   def filter(activity) do
     with {:sfw, activity} <- check_object_nsfw(activity) do
-      {:ok, activity}
+      {:pass, activity}
     else
-      {:nsfw, _data} -> handle_nsfw(activity)
+      {:nsfw, _data} ->
+        handle_nsfw(activity)
     end
   end
 
   defp handle_nsfw(activity) do
     if Config.get([@policy, :reject]) do
-      {:reject, activity}
+      {:reject, %{activity: activity, reason: :nsfw}}
     else
-      {:ok,
+      {:filter,
        activity
        |> maybe_unlist()
        |> maybe_mark_sensitive()}

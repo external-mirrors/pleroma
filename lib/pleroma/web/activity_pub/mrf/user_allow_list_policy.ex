@@ -14,7 +14,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.UserAllowListPolicy do
     if actor in allow_list do
       {:ok, activity}
     else
-      {:reject, "[UserAllowListPolicy] #{actor} not in the list"}
+      reason = "#{actor} not in the list"
+      {:reject, %{activity: activity, reason: reason}}
     end
   end
 
@@ -28,10 +29,18 @@ defmodule Pleroma.Web.ActivityPub.MRF.UserAllowListPolicy do
         []
       )
 
-    filter_by_list(activity, allow_list)
+    case filter_by_list(activity, allow_list) do
+      {:ok, activity} ->
+        {:pass, activity}
+
+      {:reject, _} = reject ->
+        reject
+    end
   end
 
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe do

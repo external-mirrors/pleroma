@@ -39,14 +39,17 @@ defmodule Pleroma.Web.ActivityPub.MRF.FODirectReply do
         |> put_in(["object", "cc"], [])
         |> put_in(["object", "to"], direct_to)
 
-      {:ok, updated_activity}
+      {:filter, updated_activity}
     else
-      _ -> {:ok, activity}
+      _ ->
+        {:pass, activity}
     end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

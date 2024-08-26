@@ -32,8 +32,6 @@ defmodule Pleroma.Web.ActivityPub.MRF.DNSRBLPolicy do
 
   alias Pleroma.Config
 
-  require Logger
-
   @query_retries 1
   @query_timeout 500
 
@@ -42,14 +40,17 @@ defmodule Pleroma.Web.ActivityPub.MRF.DNSRBLPolicy do
     actor_info = URI.parse(actor)
 
     with {:ok, activity} <- check_rbl(actor_info, activity) do
-      {:ok, activity}
+      {:pass, activity}
     else
-      _ -> {:reject, "[DNSRBLPolicy]"}
+      {:error, reason} ->
+        {:reject, %{activity: activity, reason: reason}}
     end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe do
@@ -102,19 +103,13 @@ defmodule Pleroma.Web.ActivityPub.MRF.DNSRBLPolicy do
       if Enum.empty?(rbl_response) do
         {:ok, activity}
       else
-        Task.start(fn ->
-          reason =
-            case rblquery(query, :txt) do
-              [[result]] -> result
-              _ -> "undefined"
-            end
+        reason =
+          case rblquery(query, :txt) do
+            [[result]] -> to_string(result)
+            _ -> "undefined"
+          end
 
-          Logger.warning(
-            "DNSRBL Rejected activity from #{actor_host} for reason: #{inspect(reason)}"
-          )
-        end)
-
-        :error
+        {:error, reason}
       end
     else
       _ -> {:ok, activity}

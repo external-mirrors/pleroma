@@ -60,27 +60,32 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiMentionSpamPolicy do
     with {:ok, %User{local: false} = u} <- User.get_or_fetch_by_ap_id(actor),
          {:has_mentions, true} <- {:has_mentions, object_has_recipients?(activity)},
          {:good_reputation, true} <- {:good_reputation, good_reputation?(u)} do
-      {:ok, activity}
+      {:pass, activity}
     else
       {:ok, %User{local: true}} ->
-        {:ok, activity}
+        {:pass, activity}
 
       {:has_mentions, false} ->
-        {:ok, activity}
+        {:pass, activity}
 
       {:good_reputation, false} ->
-        {:reject, "[AntiMentionSpamPolicy] User rejected"}
+        reason = "Bad reputation"
+        {:reject, %{activity: activity, reason: reason}}
 
       {:error, _} ->
-        {:reject, "[AntiMentionSpamPolicy] Failed to get or fetch user by ap_id"}
+        reason = "Failed to get or fetch user by ap_id"
+        {:reject, %{activity: activity, reason: reason}}
 
       e ->
-        {:reject, "[AntiMentionSpamPolicy] Unhandled error #{inspect(e)}"}
+        reason = "Unhandled error"
+        {:reject, %{activity: activity, reason: reason, error: e}}
     end
   end
 
   # in all other cases, pass through
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

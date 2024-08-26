@@ -11,24 +11,17 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
   @moduledoc "Filter activities depending on their age"
   @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
-  defp check_date(%{"object" => %{"published" => published}} = activity) do
-    with %DateTime{} = now <- DateTime.utc_now(),
-         {:ok, %DateTime{} = then, _} <- DateTime.from_iso8601(published),
-         max_ttl <- Config.get([:mrf_object_age, :threshold]),
-         {:ttl, false} <- {:ttl, DateTime.diff(now, then) > max_ttl} do
-      {:ok, activity}
-    else
-      {:ttl, true} ->
-        {:reject, nil}
+  defp invalid_age?(%{"object" => %{"published" => published}}) do
+    now = DateTime.utc_now()
+    {:ok, %DateTime{} = then, _} = DateTime.from_iso8601(published)
+    max_ttl = Config.get([:mrf_object_age, :threshold])
 
-      e ->
-        {:error, e}
-    end
+    DateTime.diff(now, then) > max_ttl
   end
 
   defp check_reject(activity, actions) do
     if :reject in actions do
-      {:reject, "[ObjectAgePolicy]"}
+      {:reject, %{activity: activity, reason: :object_age}}
     else
       {:ok, activity}
     end
@@ -54,8 +47,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
 
         {:ok, activity}
       else
-        _e ->
-          {:reject, "[ObjectAgePolicy] Unhandled error"}
+        e ->
+          {:reject, %{activity: activity, reason: "Unhandled error", error: e}}
       end
     else
       {:ok, activity}
@@ -77,8 +70,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
 
         {:ok, activity}
       else
-        _e ->
-          {:reject, "[ObjectAgePolicy] Unhandled error"}
+        e ->
+          {:reject, %{activity: activity, reason: "Unhandled error", error: e}}
       end
     else
       {:ok, activity}
@@ -88,14 +81,17 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
   @impl true
   def filter(%{"type" => "Create", "object" => %{"published" => _}} = activity) do
     with actions <- Config.get([:mrf_object_age, :actions]),
-         {:reject, _} <- check_date(activity),
+         true <- invalid_age?(activity),
          {:ok, activity} <- check_reject(activity, actions),
          {:ok, activity} <- check_delist(activity, actions),
          {:ok, activity} <- check_strip_followers(activity, actions) do
-      {:ok, activity}
+      {:filter, activity}
     else
-      # check_date() is allowed to short-circuit the pipeline
-      e -> e
+      false ->
+        {:pass, activity}
+
+      {:reject, _reason} = result ->
+        result
     end
   end
 

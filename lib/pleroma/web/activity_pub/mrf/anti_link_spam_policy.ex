@@ -7,8 +7,6 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiLinkSpamPolicy do
 
   @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
-  require Logger
-
   @impl true
   def history_awareness, do: :auto
 
@@ -33,27 +31,32 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiLinkSpamPolicy do
     with {:ok, %User{local: false} = u} <- User.get_or_fetch_by_ap_id(actor),
          {:contains_links, true} <- {:contains_links, contains_links?(object)},
          {:old_user, true} <- {:old_user, old_user?(u)} do
-      {:ok, activity}
+      {:pass, activity}
     else
       {:ok, %User{local: true}} ->
-        {:ok, activity}
+        {:pass, activity}
 
       {:contains_links, false} ->
-        {:ok, activity}
+        {:pass, activity}
 
       {:old_user, false} ->
-        {:reject, "[AntiLinkSpamPolicy] User has no posts nor followers"}
+        reason = "User has no posts nor followers"
+        {:reject, %{activity: activity, reason: reason}}
 
       {:error, _} ->
-        {:reject, "[AntiLinkSpamPolicy] Failed to get or fetch user by ap_id"}
+        reason = "Failed to get or fetch user by ap_id"
+        {:reject, %{activity: activity, reason: reason}}
 
       e ->
-        {:reject, "[AntiLinkSpamPolicy] Unhandled error #{inspect(e)}"}
+        reason = "Unhandled error"
+        {:reject, %{activity: activity, reason: reason, error: e}}
     end
   end
 
   # in all other cases, pass through
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

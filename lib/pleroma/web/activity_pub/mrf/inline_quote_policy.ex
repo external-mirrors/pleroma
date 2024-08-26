@@ -31,24 +31,33 @@ defmodule Pleroma.Web.ActivityPub.MRF.InlineQuotePolicy do
     else
       template = Pleroma.Config.get([:mrf_inline_quote, :template])
 
-      content =
+      updated_content =
         if String.ends_with?(content, "</p>"),
           do:
             String.trim_trailing(content, "</p>") <>
               build_inline_quote(template, quote_url) <> "</p>",
           else: content <> build_inline_quote(template, quote_url)
 
-      Map.put(object, "content", content)
+      Map.put(object, "content", updated_content)
     end
   end
 
   @impl true
   def filter(%{"object" => %{"quoteUrl" => _} = object} = activity) do
-    {:ok, Map.put(activity, "object", filter_object(object))}
+    updated_object = filter_object(object)
+
+    if match?(^updated_object, object) do
+      {:pass, activity}
+    else
+      updated_activity = Map.put(activity, "object", updated_object)
+      {:filter, updated_activity}
+    end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

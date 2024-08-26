@@ -19,15 +19,15 @@ defmodule Pleroma.Web.ActivityPub.MRF.FollowBotPolicy do
       try_follow(follower, activity)
     else
       nil ->
-        Logger.warning(
+        Logger.error(
           "#{__MODULE__} skipped because of missing `:mrf_follow_bot, :follower_nickname` configuration, the :follower_nickname
             account does not exist, or the account is not correctly configured as a bot."
         )
 
-        {:ok, activity}
+        {:pass, activity}
 
       _ ->
-        {:ok, activity}
+        {:pass, activity}
     end
   end
 
@@ -45,15 +45,11 @@ defmodule Pleroma.Web.ActivityPub.MRF.FollowBotPolicy do
            false <- User.following?(follower, user),
            false <- User.locked?(user),
            false <- (user.bio || "") |> String.downcase() |> String.contains?("nobot") do
-        Logger.debug(
-          "#{__MODULE__}: Follow request from #{follower.nickname} to #{user.nickname}"
-        )
-
         CommonAPI.follow(user, follower)
       end
     end)
 
-    {:ok, activity}
+    {:filter, activity}
   end
 
   @impl true

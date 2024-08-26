@@ -42,14 +42,16 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceBotUnlistedPolicy do
         |> Map.put("cc", cc)
         |> Map.put("object", object)
 
-      {:ok, activity}
+      {:filter, activity}
     else
-      {:ok, activity}
+      {:pass, activity}
     end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

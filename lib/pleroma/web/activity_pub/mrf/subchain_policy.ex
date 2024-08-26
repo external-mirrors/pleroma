@@ -6,8 +6,6 @@ defmodule Pleroma.Web.ActivityPub.MRF.SubchainPolicy do
   alias Pleroma.Config
   alias Pleroma.Web.ActivityPub.MRF
 
-  require Logger
-
   @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
   defp lookup_subchain(actor) do
@@ -21,19 +19,18 @@ defmodule Pleroma.Web.ActivityPub.MRF.SubchainPolicy do
 
   @impl true
   def filter(%{"actor" => actor} = activity) do
-    with {:ok, match, subchain} <- lookup_subchain(actor) do
-      Logger.debug(
-        "[SubchainPolicy] Matched #{actor} against #{inspect(match)} with subchain #{inspect(subchain)}"
-      )
-
+    with {:ok, _match, subchain} <- lookup_subchain(actor) do
       MRF.filter(subchain, activity)
     else
-      _e -> {:ok, activity}
+      _e ->
+        {:pass, activity}
     end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

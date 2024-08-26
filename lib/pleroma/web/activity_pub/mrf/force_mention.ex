@@ -36,7 +36,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMention do
 
   @impl true
   def filter(%{"type" => "Create", "object" => %{"tag" => tag} = object} = activity) do
-    tag =
+    updated_tag =
       tag
       |> prepend_author(
         object["inReplyTo"],
@@ -48,11 +48,18 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMention do
       )
       |> Enum.uniq()
 
-    {:ok, put_in(activity["object"]["tag"], tag)}
+    if match?(^tag, updated_tag) do
+      {:pass, activity}
+    else
+      updated_activity = put_in(activity["object"]["tag"], updated_tag)
+      {:filter, updated_activity}
+    end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

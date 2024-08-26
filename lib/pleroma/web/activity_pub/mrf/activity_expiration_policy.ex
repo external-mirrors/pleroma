@@ -8,14 +8,11 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicy do
 
   @impl true
   def filter(activity) do
-    activity =
-      if note?(activity) and local?(activity) do
-        maybe_add_expiration(activity)
-      else
-        activity
-      end
-
-    {:ok, activity}
+    if note?(activity) and local?(activity) do
+      maybe_add_expiration(activity)
+    else
+      {:pass, activity}
+    end
   end
 
   @impl true
@@ -35,9 +32,10 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicy do
 
     with %{"expires_at" => existing_expires_at} <- activity,
          :lt <- DateTime.compare(existing_expires_at, expires_at) do
-      activity
+      {:pass, activity}
     else
-      _ -> Map.put(activity, "expires_at", expires_at)
+      _ ->
+        {:filter, Map.put(activity, "expires_at", expires_at)}
     end
   end
 

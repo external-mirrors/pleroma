@@ -22,7 +22,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.SimplePolicy do
       accepts == [] -> {:ok, activity}
       actor_host == Config.get([Pleroma.Web.Endpoint, :url, :host]) -> {:ok, activity}
       MRF.subdomain_match?(accepts, actor_host) -> {:ok, activity}
-      true -> {:reject, "[SimplePolicy] host not in accept list"}
+      true -> {:reject, %{activity: activity, reason: "host not in accept list"}}
     end
   end
 
@@ -32,7 +32,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.SimplePolicy do
       |> MRF.subdomains_regex()
 
     if MRF.subdomain_match?(rejects, actor_host) do
-      {:reject, "[SimplePolicy] host in reject list"}
+      {:reject, %{activity: activity, reason: "host in reject list"}}
     else
       {:ok, activity}
     end
@@ -142,7 +142,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.SimplePolicy do
       |> MRF.subdomains_regex()
 
     if MRF.subdomain_match?(report_removal, actor_host) do
-      {:reject, "[SimplePolicy] host in report_removal list"}
+      {:reject, %{activity: activity, reason: "host in report_removal list"}}
     else
       {:ok, activity}
     end
@@ -200,7 +200,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.SimplePolicy do
       |> MRF.subdomains_regex()
 
     if MRF.subdomain_match?(reject_deletes, actor_host) do
-      {:reject, "[SimplePolicy] host in reject_deletes list"}
+      {:reject, %{activity: activity, reason: "host in reject_deletes list"}}
     else
       {:ok, activity}
     end
@@ -218,9 +218,10 @@ defmodule Pleroma.Web.ActivityPub.MRF.SimplePolicy do
          {:ok, activity} <- check_followers_only(actor_info, activity),
          {:ok, activity} <- check_report_removal(actor_info, activity),
          {:ok, activity} <- check_object(activity) do
-      {:ok, activity}
+      {:pass, activity}
     else
-      {:reject, _} = e -> e
+      {:reject, _} = result ->
+        result
     end
   end
 
@@ -232,24 +233,33 @@ defmodule Pleroma.Web.ActivityPub.MRF.SimplePolicy do
          {:ok, activity} <- check_reject(actor_info, activity),
          {:ok, activity} <- check_avatar_removal(actor_info, activity),
          {:ok, activity} <- check_banner_removal(actor_info, activity) do
-      {:ok, activity}
+      {:pass, activity}
     else
-      {:reject, _} = e -> e
+      {:reject, _} = result ->
+        result
     end
   end
 
-  def filter(activity) when is_binary(activity) do
-    uri = URI.parse(activity)
+  def filter(ap_id) when is_binary(ap_id) do
+    uri = URI.parse(ap_id)
 
-    with {:ok, activity} <- check_accept(uri, activity),
-         {:ok, activity} <- check_reject(uri, activity) do
-      {:ok, activity}
+    with {_, {:ok, ap_id}} <- {:check_accept, check_accept(uri, ap_id)},
+         {_, {:ok, ap_id}} <- {:check_reject, check_reject(uri, ap_id)} do
+      {:pass, ap_id}
     else
-      {:reject, _} = e -> e
+      {:check_accept, {:reject, _}} ->
+        fake_activity = %{data: %{id: ap_id}}
+        {:reject, %{activity: fake_activity, reason: "Host not in accept list"}}
+
+      {:check_reject, {:reject, _}} ->
+        fake_activity = %{data: %{id: ap_id}}
+        {:reject, %{activity: fake_activity, reason: "Host in reject list"}}
     end
   end
 
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe do

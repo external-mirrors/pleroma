@@ -16,16 +16,23 @@ defmodule Pleroma.Web.ActivityPub.MRF.NormalizeMarkup do
       when type in ["Create", "Update"] do
     scrub_policy = Pleroma.Config.get([:mrf_normalize_markup, :scrub_policy])
 
-    content =
-      object["content"]
+    content = object["content"]
+
+    updated_content =
+      content
       |> HTML.filter_tags(scrub_policy)
 
-    activity = put_in(activity, ["object", "content"], content)
-
-    {:ok, activity}
+    if match?(^content, updated_content) do
+      {:pass, activity}
+    else
+      updated_activity = put_in(activity, ["object", "content"], updated_content)
+      {:filter, updated_activity}
+    end
   end
 
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe, do: {:ok, %{}}

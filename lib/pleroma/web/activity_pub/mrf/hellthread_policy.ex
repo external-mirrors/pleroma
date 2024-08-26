@@ -43,7 +43,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.HellthreadPolicy do
   defp reject_activity(activity, threshold) when threshold > 0 do
     with {_, recipients} <- get_recipient_count(activity) do
       if recipients > threshold do
-        {:reject, "[HellthreadPolicy] #{recipients} recipients is over the limit of #{threshold}"}
+        reason = "#{recipients} recipients is over the limit of #{threshold}"
+        {:reject, %{activity: activity, reason: reason}}
       else
         {:ok, activity}
       end
@@ -84,15 +85,19 @@ defmodule Pleroma.Web.ActivityPub.MRF.HellthreadPolicy do
     delist_threshold = Pleroma.Config.get([:mrf_hellthread, :delist_threshold])
 
     with {:ok, activity} <- reject_activity(activity, reject_threshold),
-         {:ok, activity} <- delist_activity(activity, delist_threshold) do
-      {:ok, activity}
-    else
-      e -> e
+         {:ok, processed_activity} <- delist_activity(activity, delist_threshold) do
+      if match?(^activity, processed_activity) do
+        {:pass, processed_activity}
+      else
+        {:filter, processed_activity}
+      end
     end
   end
 
   @impl true
-  def filter(activity), do: {:ok, activity}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe,

@@ -13,15 +13,15 @@ defmodule Pleroma.Web.ActivityPub.MRF.RejectNonPublic do
   require Pleroma.Constants
 
   @impl true
-  def filter(%{"type" => "Create"} = object) do
-    user = User.get_cached_by_ap_id(object["actor"])
+  def filter(%{"type" => "Create"} = activity) do
+    user = User.get_cached_by_ap_id(activity["actor"])
 
     # Determine visibility
     visibility =
       cond do
-        Pleroma.Constants.as_public() in object["to"] -> "public"
-        Pleroma.Constants.as_public() in object["cc"] -> "unlisted"
-        user.follower_address in object["to"] -> "followers"
+        Pleroma.Constants.as_public() in activity["to"] -> "public"
+        Pleroma.Constants.as_public() in activity["cc"] -> "unlisted"
+        user.follower_address in activity["to"] -> "followers"
         true -> "direct"
       end
 
@@ -29,21 +29,24 @@ defmodule Pleroma.Web.ActivityPub.MRF.RejectNonPublic do
 
     cond do
       visibility in ["public", "unlisted"] ->
-        {:ok, object}
+        {:pass, activity}
 
       visibility == "followers" and Keyword.get(policy, :allow_followersonly) ->
-        {:ok, object}
+        {:pass, activity}
 
       visibility == "direct" and Keyword.get(policy, :allow_direct) ->
-        {:ok, object}
+        {:pass, activity}
 
       true ->
-        {:reject, "[RejectNonPublic] visibility: #{visibility}"}
+        reason = "visibility: #{visibility}"
+        {:reject, %{activity: activity, reason: reason}}
     end
   end
 
   @impl true
-  def filter(object), do: {:ok, object}
+  def filter(activity) do
+    {:pass, activity}
+  end
 
   @impl true
   def describe,
