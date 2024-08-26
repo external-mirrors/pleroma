@@ -10,7 +10,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicyTest do
   @local_actor Pleroma.Web.Endpoint.url() <> "/users/cofe"
 
   test "adds `expires_at` property" do
-    assert {:ok, %{"type" => "Create", "expires_at" => expires_at}} =
+    assert {:filter, %{"type" => "Create", "expires_at" => expires_at}} =
              ActivityExpirationPolicy.filter(%{
                "id" => @id,
                "actor" => @local_actor,
@@ -24,7 +24,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicyTest do
   test "keeps existing `expires_at` if it less than the config setting" do
     expires_at = DateTime.utc_now() |> Timex.shift(days: 1)
 
-    assert {:ok, %{"type" => "Create", "expires_at" => ^expires_at}} =
+    assert {:pass, %{"type" => "Create", "expires_at" => ^expires_at}} =
              ActivityExpirationPolicy.filter(%{
                "id" => @id,
                "actor" => @local_actor,
@@ -37,7 +37,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicyTest do
   test "overwrites existing `expires_at` if it greater than the config setting" do
     too_distant_future = DateTime.utc_now() |> Timex.shift(years: 2)
 
-    assert {:ok, %{"type" => "Create", "expires_at" => expires_at}} =
+    assert {:filter, %{"type" => "Create", "expires_at" => expires_at}} =
              ActivityExpirationPolicy.filter(%{
                "id" => @id,
                "actor" => @local_actor,
@@ -50,7 +50,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicyTest do
   end
 
   test "ignores remote activities" do
-    assert {:ok, activity} =
+    assert {:pass, activity} =
              ActivityExpirationPolicy.filter(%{
                "id" => "https://example.com/123",
                "actor" => "https://example.com/users/cofe",
@@ -62,7 +62,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicyTest do
   end
 
   test "ignores non-Create/Note activities" do
-    assert {:ok, activity} =
+    assert {:pass, activity} =
              ActivityExpirationPolicy.filter(%{
                "id" => "https://example.com/123",
                "actor" => "https://example.com/users/cofe",
@@ -71,7 +71,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicyTest do
 
     refute Map.has_key?(activity, "expires_at")
 
-    assert {:ok, activity} =
+    assert {:pass, activity} =
              ActivityExpirationPolicy.filter(%{
                "id" => "https://example.com/123",
                "actor" => "https://example.com/users/cofe",

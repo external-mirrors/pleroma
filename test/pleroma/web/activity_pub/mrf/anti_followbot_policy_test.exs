@@ -22,7 +22,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
         "id" => "https://example.com/activities/1234"
       }
 
-      assert {:reject, "[AntiFollowbotPolicy]" <> _} = AntiFollowbotPolicy.filter(message)
+      assert {:reject, %{reason: "Scored" <> _}} = AntiFollowbotPolicy.filter(message)
     end
 
     test "matches followbots by display name" do
@@ -37,7 +37,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
         "id" => "https://example.com/activities/1234"
       }
 
-      assert {:reject, "[AntiFollowbotPolicy]" <> _} = AntiFollowbotPolicy.filter(message)
+      assert {:reject, %{reason: "Scored" <> _}} = AntiFollowbotPolicy.filter(message)
     end
 
     test "matches followbots by actor_type" do
@@ -52,7 +52,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
         "id" => "https://example.com/activities/1234"
       }
 
-      assert {:reject, "[AntiFollowbotPolicy]" <> _} = AntiFollowbotPolicy.filter(message)
+      assert {:reject, %{reason: "Scored" <> _}} = AntiFollowbotPolicy.filter(message)
     end
   end
 
@@ -69,7 +69,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
         "id" => "https://example.com/activities/1234"
       }
 
-      {:ok, _} = AntiFollowbotPolicy.filter(message)
+      {:pass, _} = AntiFollowbotPolicy.filter(message)
     end
 
     test "bots if the target follows the bots" do
@@ -86,7 +86,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
         "id" => "https://example.com/activities/1234"
       }
 
-      {:ok, _} = AntiFollowbotPolicy.filter(message)
+      {:pass, _} = AntiFollowbotPolicy.filter(message)
     end
   end
 
@@ -102,6 +102,6 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
       "id" => "https://example.com/activities/1234"
     }
 
-    {:ok, _} = AntiFollowbotPolicy.filter(message)
+    {:pass, _} = AntiFollowbotPolicy.filter(message)
   end
 end
