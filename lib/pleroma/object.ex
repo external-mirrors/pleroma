@@ -285,7 +285,7 @@ defmodule Pleroma.Object do
     end
   end
 
-  def increase_replies_count(ap_id) do
+  def increase_replies_count(ap_id) when is_binary(ap_id) do
     Object
     |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
     |> update([o],
@@ -312,7 +312,7 @@ defmodule Pleroma.Object do
 
   defp poll_is_multiple?(_), do: false
 
-  def decrease_replies_count(ap_id) do
+  def decrease_replies_count(ap_id) when is_binary(ap_id) do
     Object
     |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
     |> update([o],
@@ -335,7 +335,7 @@ defmodule Pleroma.Object do
     end
   end
 
-  def increase_quotes_count(ap_id) do
+  def increase_quotes_count(ap_id) when is_binary(ap_id) do
     Object
     |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
     |> update([o],
@@ -358,7 +358,7 @@ defmodule Pleroma.Object do
     end
   end
 
-  def decrease_quotes_count(ap_id) do
+  def decrease_quotes_count(ap_id) when is_binary(ap_id) do
     Object
     |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
     |> update([o],
@@ -381,7 +381,8 @@ defmodule Pleroma.Object do
     end
   end
 
-  def increase_vote_count(ap_id, name, actor) do
+  def increase_vote_count(ap_id, name, actor)
+      when is_binary(ap_id) and is_binary(name) and is_binary(actor) do
     with %Object{} = object <- Object.normalize(ap_id, fetch: false),
          "Question" <- object.data["type"] do
       key = if poll_is_multiple?(object), do: "anyOf", else: "oneOf"
