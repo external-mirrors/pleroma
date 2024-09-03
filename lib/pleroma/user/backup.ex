@@ -198,11 +198,11 @@ defmodule Pleroma.User.Backup do
 
     with {_, :ok} <- {:mkdir, File.mkdir_p(backup.tempdir)},
          {_, :ok} <- {:actor, actor(backup.tempdir, backup.user)},
-         {_, :ok} <- {:statuses, statuses(backup.tempdir, backup.user)},
-         {_, :ok} <- {:likes, likes(backup.tempdir, backup.user)},
-         {_, :ok} <- {:bookmarks, bookmarks(backup.tempdir, backup.user)},
-         {_, :ok} <- {:followers, followers(backup.tempdir, backup.user)},
-         {_, :ok} <- {:following, following(backup.tempdir, backup.user)},
+         {_, :ok} <- {:outbox, write(:outbox, backup.tempdir, backup.user)},
+         {_, :ok} <- {:likes, write(:likes, backup.tempdir, backup.user)},
+         {_, :ok} <- {:bookmarks, write(:bookmarks, backup.tempdir, backup.user)},
+         {_, :ok} <- {:followers, write(:followers, backup.tempdir, backup.user)},
+         {_, :ok} <- {:following, write(:following, backup.tempdir, backup.user)},
          {_, {:ok, _zip_path}} <-
            {:zip, :zip.create(to_charlist(tempfile), @files, cwd: to_charlist(backup.tempdir))},
          {_, {:ok, %File.Stat{size: zip_size}}} <- {:filestat, File.stat(tempfile)},
@@ -264,68 +264,54 @@ defmodule Pleroma.User.Backup do
         "@context": "https://www.w3.org/ns/activitystreams",
         "id": "#{name}.json",
         "type": "OrderedCollection",
-        "orderedItems": [
+        "orderedItems": 
 
       """
     )
   end
 
-  defp write(query, dir, name, fun) do
-    path = Path.join(dir, "#{name}.json")
-
-    chunk_size = Config.get([__MODULE__, :process_chunk_size])
+  defp write(name, dir, user) do
+    type = Atom.to_string(name)
+    path = Path.join(dir, "#{type}.json")
+    mapping_fun = get_mapping_fun(type)
+    query = apply(__MODULE__, String.to_existing_atom("#{type}_query"), [user])
 
     with {:ok, file} <- File.open(path, [:write, :utf8]),
-         :ok <- write_header(file, name) do
-      total =
-        query
-        |> Pleroma.Repo.chunk_stream(chunk_size, _returns_as = :one, timeout: :infinity)
-        |> Enum.reduce(0, fn i, acc ->
-          with {:ok, data} <-
-                 (try do
-                    fun.(i)
-                  rescue
-                    e -> {:error, e}
-                  end),
-               {:ok, str} <- Jason.encode(data),
-               :ok <- IO.write(file, str <> ",\n") do
-            acc + 1
-          else
-            {:error, e} ->
-              Logger.warning(
-                "Error processing backup item: #{inspect(e)}\n The item is: #{inspect(i)}"
-              )
-
-              acc
-
-            _ ->
-              acc
-          end
-        end)
-
-      with :ok <- :file.pwrite(file, {:eof, -2}, "\n],\n  \"totalItems\": #{total}}") do
-        File.close(file)
-      end
+         :ok <- write_header(file, name),
+         {:ok, data} <- stream_and_map(query, mapping_fun),
+         {:ok, str} <- Jason.encode(data),
+         :ok <- IO.write(file, str <> ",\n"),
+         :ok <- :file.pwrite(file, {:eof, -2}, ",\n  \"totalItems\": #{length(data)}}") do
+      File.close(file)
     end
   end
 
-  defp bookmarks(dir, %{id: user_id} = _user) do
+  defp stream_and_map(query, mapping_fun) do
+    chunk_size = Config.get([__MODULE__, :process_chunk_size])
+
+    result =
+      query
+      |> Pleroma.Repo.chunk_stream(chunk_size, _returns_as = :one, timeout: :infinity)
+      |> Enum.map(fn i -> mapping_fun.(i) end)
+
+    {:ok, result}
+  end
+
+  def bookmarks_query(%User{id: user_id} = _user) do
     Bookmark
     |> where(user_id: ^user_id)
     |> join(:inner, [b], activity in assoc(b, :activity))
     |> select([b, a], %{id: b.id, object: fragment("(?)->>'object'", a.data)})
-    |> write(dir, "bookmarks", fn a -> {:ok, a.object} end)
   end
 
-  defp likes(dir, user) do
+  def likes_query(%User{} = user) do
     user.ap_id
     |> Activity.Queries.by_actor()
     |> Activity.Queries.by_type("Like")
     |> select([like], %{id: like.id, object: fragment("(?)->>'object'", like.data)})
-    |> write(dir, "likes", fn a -> {:ok, a.object} end)
   end
 
-  defp statuses(dir, user) do
+  def outbox_query(%User{} = user) do
     opts =
       %{}
       |> Map.put(:type, ["Create", "Announce"])
@@ -338,24 +324,30 @@ defmodule Pleroma.User.Backup do
     ]
     |> Enum.concat()
     |> ActivityPub.fetch_activities_query(opts)
-    |> write(
-      dir,
-      "outbox",
-      fn a ->
-        with {:ok, activity} <- Transmogrifier.prepare_outgoing(a.data) do
-          {:ok, Map.delete(activity, "@context")}
-        end
-      end
-    )
   end
 
-  defp followers(dir, user) do
+  def followers_query(%User{} = user) do
     User.get_followers_query(user)
-    |> write(dir, "followers", fn a -> {:ok, a.ap_id} end)
   end
 
-  defp following(dir, user) do
+  def following_query(%User{} = user) do
     User.get_friends_query(user)
-    |> write(dir, "following", fn a -> {:ok, a.ap_id} end)
+  end
+
+  defp get_mapping_fun(type) do
+    cond do
+      type in ["bookmarks", "likes"] ->
+        fn a -> a.object end
+
+      type in ["followers", "following"] ->
+        fn a -> a.ap_id end
+
+      type in ["outbox"] ->
+        fn a ->
+          with {:ok, activity} <- Transmogrifier.prepare_outgoing(a.data) do
+            Map.delete(activity, "@context")
+          end
+        end
+    end
   end
 end
