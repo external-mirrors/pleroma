@@ -23,6 +23,8 @@ defmodule Pleroma.User.Backup do
   alias Pleroma.Web.ActivityPub.UserView
   alias Pleroma.Workers.BackupWorker
 
+  @type export_formats :: :csv | :json
+  @type export_types :: :followers | :following | :likes | :bookmarks
   @type t :: %__MODULE__{}
 
   schema "backups" do
@@ -166,6 +168,21 @@ defmodule Pleroma.User.Backup do
   end
 
   def get_by_id(id), do: Repo.get(__MODULE__, id)
+
+  @spec export(User.t(), export_types(), export_formats()) :: binary()
+  def export(user, type, format \\ :csv)
+  def export(user, type, format) do
+    type = Atom.to_string(type)
+    mapping_fun = get_mapping_fun(type)
+    query = apply(__MODULE__, String.to_existing_atom("#{type}_query"), [user])
+
+    {:ok, data} = stream_and_map(query, mapping_fun)
+
+    case format do
+      :csv -> Enum.join(data, "\n")
+      :json -> Jason.encode!(data)
+    end
+  end
 
   @doc "Generates changeset for %Pleroma.User.Backup{}"
   @spec changeset(%__MODULE__{}, map()) :: %Ecto.Changeset{}
