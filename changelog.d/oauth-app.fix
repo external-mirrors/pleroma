@@ -1,1 +1,1 @@
-Prevent OAuth App flow from creating duplicate entries
+Prevent OAuth App flow from creating duplicate entries and add a unique index
