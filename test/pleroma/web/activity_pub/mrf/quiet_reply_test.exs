@@ -39,15 +39,17 @@ defmodule Pleroma.Web.ActivityPub.MRF.QuietReplyTest do
       }
     }
 
-    expected_to = [batman.ap_id, robin.follower_address]
-    expected_cc = [Pleroma.Constants.as_public()]
+    expected_activity_to = []
+    expected_activity_cc = [Pleroma.Constants.as_public()]
+    expected_object_to = [batman.ap_id, robin.follower_address]
+    expected_object_cc = [Pleroma.Constants.as_public()]
 
     assert {:ok, filtered} = QuietReply.filter(reply)
 
-    assert expected_to == filtered["to"]
-    assert expected_cc == filtered["cc"]
-    assert expected_to == filtered["object"]["to"]
-    assert expected_cc == filtered["object"]["cc"]
+    assert expected_activity_to == filtered["to"]
+    assert expected_activity_cc == filtered["cc"]
+    assert expected_object_to == filtered["object"]["to"]
+    assert expected_object_cc == filtered["object"]["cc"]
   end
 
   test "replying to unlisted post is unmodified" do

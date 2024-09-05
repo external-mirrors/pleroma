@@ -19,12 +19,14 @@ defmodule Pleroma.Web.ActivityPub.MRF.QuietReply do
   def filter(
         %{
           "type" => "Create",
-          "to" => to,
-          "cc" => cc,
+          "to" => _activity_to,
+          "cc" => _activity_cc,
           "object" => %{
             "actor" => actor,
             "type" => "Note",
-            "inReplyTo" => in_reply_to
+            "inReplyTo" => in_reply_to,
+            "to" => to,
+            "cc" => cc
           }
         } = activity
       ) do
@@ -32,18 +34,19 @@ defmodule Pleroma.Web.ActivityPub.MRF.QuietReply do
          false <- match?([], cc),
          %User{follower_address: followers_collection, local: true} <-
            User.get_by_ap_id(actor) do
-      updated_to =
+      updated_object_to =
         to
         |> Kernel.++([followers_collection])
         |> Kernel.--([Pleroma.Constants.as_public()])
+        |> Enum.uniq()
 
       updated_cc = [Pleroma.Constants.as_public()]
 
       updated_activity =
         activity
-        |> Map.put("to", updated_to)
+        |> Map.put("to", [])
         |> Map.put("cc", updated_cc)
-        |> put_in(["object", "to"], updated_to)
+        |> put_in(["object", "to"], updated_object_to)
         |> put_in(["object", "cc"], updated_cc)
 
       {:ok, updated_activity}
