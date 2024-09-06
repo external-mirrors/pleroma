@@ -94,9 +94,6 @@ defmodule Pleroma.User.Backup do
     else
       true ->
         {:error, "Backup is missing id. Please insert it into the Repo first."}
-
-      e ->
-        {:error, e}
     end
   end
 
@@ -123,14 +120,13 @@ defmodule Pleroma.User.Backup do
   end
 
   defp permitted?(user) do
-    with {_, %__MODULE__{inserted_at: inserted_at}} <- {:last, get_last(user)},
-         days = Config.get([__MODULE__, :limit_days]),
-         diff = Timex.diff(NaiveDateTime.utc_now(), inserted_at, :days),
-         {_, true} <- {:diff, diff > days} do
-      true
+    with {_, %__MODULE__{inserted_at: inserted_at}} <- {:last, get_last(user)} do
+      days = Config.get([__MODULE__, :limit_days])
+      diff = Timex.diff(NaiveDateTime.utc_now(), inserted_at, :days)
+
+      diff > days
     else
       {:last, nil} -> true
-      {:diff, false} -> false
     end
   end
 
@@ -171,6 +167,7 @@ defmodule Pleroma.User.Backup do
 
   @spec export(User.t(), export_types(), export_formats()) :: binary()
   def export(user, type, format \\ :csv)
+
   def export(user, type, format) do
     type = Atom.to_string(type)
     mapping_fun = get_mapping_fun(type)
