@@ -59,6 +59,13 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator do
     end
   end
 
+  defp fix_likes(data) do
+    cond do
+      is_list(data["likes"]) -> data
+      true -> Map.drop(data, ["likes"])
+    end
+  end
+
   defp fix(data) do
     data
     |> CommonFixes.fix_actor()
@@ -66,6 +73,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator do
     |> CommonFixes.fix_quote_url()
     |> Transmogrifier.fix_emoji()
     |> fix_closed()
+    |> fix_likes()
   end
 
   def changeset(struct, data) do

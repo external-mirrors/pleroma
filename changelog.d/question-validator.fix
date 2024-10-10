@@ -1,0 +1,1 @@
+Polls could fail to refresh due to an incorrect data validation constraint.
