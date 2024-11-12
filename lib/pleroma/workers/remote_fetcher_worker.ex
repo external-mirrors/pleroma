@@ -5,7 +5,7 @@
 defmodule Pleroma.Workers.RemoteFetcherWorker do
   alias Pleroma.Object.Fetcher
 
-  use Oban.Worker, queue: :background
+  use Oban.Worker, queue: :background, unique: [period: :infinity]
 
   @impl true
   def perform(%Job{args: %{"op" => "fetch_remote", "id" => id} = args}) do
@@ -13,17 +13,26 @@ defmodule Pleroma.Workers.RemoteFetcherWorker do
       {:ok, _object} ->
         :ok
 
-      {:reject, reason} ->
+      {:allowed_depth, false} ->
+        {:cancel, :allowed_depth}
+
+      {:containment, reason} ->
         {:cancel, reason}
 
-      {:error, :forbidden} ->
-        {:cancel, :forbidden}
+      {:transmogrifier, reason} ->
+        {:cancel, reason}
 
-      {:error, :not_found} ->
-        {:cancel, :not_found}
+      {:fetch, {:error, :forbidden = reason}} ->
+        {:cancel, reason}
 
-      {:error, :allowed_depth} ->
-        {:cancel, :allowed_depth}
+      {:fetch, {:error, :not_found = reason}} ->
+        {:cancel, reason}
+
+      {:fetch, {:error, {:content_type, _}} = reason} ->
+        {:cancel, reason}
+
+      {:fetch, {:error, reason}} ->
+        {:error, reason}
 
       {:error, _} = e ->
         e
