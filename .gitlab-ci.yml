@@ -272,9 +272,8 @@ stop_review_app:
 
 amd64:
   stage: release
-  # image: elixir:$ELIXIR_VER
   image: 
-    name: hexpm/elixir:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
+    name: hexpm/elixir-amd64:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
     docker:
       platform: amd64
   only: &release-only
@@ -318,7 +317,10 @@ amd64-musl:
   stage: release
   artifacts: *release-artifacts
   only: *release-only
-  image: elixir:$ELIXIR_VER-alpine
+  image: 
+    name: hexpm/elixir-amd64:1.17.3-erlang-26.2.5.6-alpine-3.17.9
+    docker:
+      platform: amd64
   tags:
     - amd64
   cache: *release-cache
@@ -362,7 +364,7 @@ arm64:
   tags:
     - arm
   image: 
-    name: hexpm/elixir:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
+    name: hexpm/elixir-arm64:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
     docker:
       platform: arm64/v8
   cache: *release-cache
@@ -376,7 +378,10 @@ arm64-musl:
   only: *release-only
   tags:
     - arm
-  image: arm64v8/elixir:$ELIXIR_VER-alpine
+  image: 
+    name: hexpm/elixir-arm64:1.17.3-erlang-26.2.5.6-alpine-3.17.9
+    docker:
+      platform: arm64/v8
   cache: *release-cache
   variables: *release-variables
   before_script: *before-release-musl
