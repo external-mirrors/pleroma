@@ -274,8 +274,6 @@ amd64:
   stage: release
   image: 
     name: hexpm/elixir-amd64:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
-    docker:
-      platform: amd64
   only: &release-only
   - stable@pleroma/pleroma
   - develop@pleroma/pleroma
@@ -319,8 +317,6 @@ amd64-musl:
   only: *release-only
   image: 
     name: hexpm/elixir-amd64:1.17.3-erlang-26.2.5.6-alpine-3.17.9
-    docker:
-      platform: amd64
   tags:
     - amd64
   cache: *release-cache
@@ -365,8 +361,6 @@ arm64:
     - arm
   image: 
     name: hexpm/elixir-arm64:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
-    docker:
-      platform: arm64/v8
   cache: *release-cache
   variables: *release-variables
   before_script: *before-release
@@ -380,8 +374,6 @@ arm64-musl:
     - arm
   image: 
     name: hexpm/elixir-arm64:1.17.3-erlang-26.2.5.6-alpine-3.17.9
-    docker:
-      platform: arm64/v8
   cache: *release-cache
   variables: *release-variables
   before_script: *before-release-musl
