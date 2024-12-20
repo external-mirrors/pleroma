@@ -272,7 +272,11 @@ stop_review_app:
 
 amd64:
   stage: release
-  image: elixir:$ELIXIR_VER
+  # image: elixir:$ELIXIR_VER
+  image: 
+    name: hexpm/elixir:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
+    docker:
+      platform: amd64
   only: &release-only
   - stable@pleroma/pleroma
   - develop@pleroma/pleroma
@@ -297,8 +301,9 @@ amd64:
   variables: &release-variables
     MIX_ENV: prod
     VIX_COMPILATION_MODE: PLATFORM_PROVIDED_LIBVIPS
+    DEBIAN_FRONTEND: noninteractive
   before_script: &before-release
-  - apt-get update && apt-get install -y cmake libmagic-dev libvips-dev erlang-dev
+  - apt-get update && apt-get install -y cmake libmagic-dev libvips-dev erlang-dev git
   - echo "import Config" > config/prod.secret.exs
   - mix local.hex --force
   - mix local.rebar --force
@@ -356,7 +361,10 @@ arm64:
   only: *release-only
   tags:
     - arm
-  image: arm64v8/elixir:$ELIXIR_VER
+  image: 
+    name: hexpm/elixir:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
+    docker:
+      platform: arm64/v8
   cache: *release-cache
   variables: *release-variables
   before_script: *before-release
