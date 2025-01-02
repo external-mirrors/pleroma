@@ -1,0 +1,1 @@
+- Bump fast_html version, includes linking order bugfix (relevant for at least glibc systems)
