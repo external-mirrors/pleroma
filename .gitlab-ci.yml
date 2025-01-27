@@ -328,6 +328,19 @@ amd64-musl:
   - mix local.rebar --force
   script: *release
 
+amd64-buster:
+  stage: release
+  artifacts: *release-artifacts
+  only: *release-only
+  tags:
+    - amd64
+  image: 
+    name: hexpm/elixir-amd64:1.17.3-erlang-26.2.5.6-debian-buster-20240612
+  cache: *release-cache
+  variables: *release-variables
+  before_script: *before-release
+  script: *release
+
 arm:
   stage: release
   allow_failure: true
