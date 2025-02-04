@@ -1317,7 +1317,7 @@ config :pleroma, :config_description, [
             key: :embeddedToS,
             label: "Embedded ToS panel",
             type: :boolean,
-            description: "Hide Terms of Service panel decorations on About and Registration pages",
+            description: "Hide Terms of Service panel decorations on About and Registration pages"
           },
           %{
             key: :hideFilteredStatuses,
