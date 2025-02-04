@@ -1058,11 +1058,6 @@ config :pleroma, :config_description, [
         suggestions: ["/favicon.png"]
       },
       %{
-        key: :embedded_terms,
-        type: :boolean,
-        description: "Embed Terms of Service panel on About and Registration pages",
-      },
-      %{
         key: :show_reactions,
         type: :boolean,
         description: "Let favourites and emoji reactions be viewed through the API."
@@ -1266,6 +1261,7 @@ config :pleroma, :config_description, [
             background: "/static/aurora_borealis.jpg",
             collapseMessageWithSubject: false,
             greentext: false,
+            embeddedToS: true,
             hideFilteredStatuses: false,
             hideMutedPosts: false,
             hidePostStats: false,
@@ -1316,6 +1312,12 @@ config :pleroma, :config_description, [
             label: "Greentext",
             type: :boolean,
             description: "Enables green text on lines prefixed with the > character"
+          },
+          %{
+            key: :embeddedToS,
+            label: "Embedded ToS panel",
+            type: :boolean,
+            description: "Hide Terms of Service panel decorations on About and Registration pages",
           },
           %{
             key: :hideFilteredStatuses,
