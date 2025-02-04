@@ -1058,6 +1058,11 @@ config :pleroma, :config_description, [
         suggestions: ["/favicon.png"]
       },
       %{
+        key: :embedded_terms,
+        type: :boolean,
+        description: "Embed Terms of Service panel on About and Registration pages",
+      },
+      %{
         key: :show_reactions,
         type: :boolean,
         description: "Let favourites and emoji reactions be viewed through the API."
