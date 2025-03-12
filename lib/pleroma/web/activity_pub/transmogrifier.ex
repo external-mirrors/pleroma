@@ -715,7 +715,13 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
     replies_collection = %{
       "id" => object_id <> "/replies",
       "type" => "OrderedCollection",
-      "first" => object_id <> "/replies?page=true"
+      "first" => %{
+        "type" => "OrderedCollectionPage",
+        "partOf" => object_id <> "/replies",
+        "next" => object_id <> "/replies?only_other_accounts=true&page=true",
+        "orderedItems" => []
+      }
+      # object_id <> "/replies?page=true"
     }
 
     Map.merge(object, %{"replies" => replies_collection})
