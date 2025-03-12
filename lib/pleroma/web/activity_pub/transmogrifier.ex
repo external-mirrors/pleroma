@@ -711,15 +711,17 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   Serialized Mastodon-compatible `replies` collection containing _self-replies_.
   Based on Mastodon's ActivityPub::NoteSerializer#replies.
   """
-  def set_replies(obj_data) do
+  def set_replies(%{"id" => object_id} = object) do
     replies_collection = %{
-      "id" => obj_data["id"] <> "/replies",
+      "id" => object_id <> "/replies",
       "type" => "OrderedCollection",
-      "first" => obj_data["id"] <> "/replies?page=true"
+      "first" => object_id <> "/replies?page=true"
     }
 
-    Map.merge(obj_data, %{"replies" => replies_collection})
+    Map.merge(object, %{"replies" => replies_collection})
   end
+
+  def set_replies(object), do: object
 
   def replies(%{"replies" => %{"first" => %{"items" => items}}}) when not is_nil(items) do
     items
