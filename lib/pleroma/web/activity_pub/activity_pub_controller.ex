@@ -121,8 +121,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
   def replies(%{assigns: assigns} = conn, _) do
     with ap_id <-
            (Endpoint.url() <> conn.request_path)
-           |> String.trim_trailing("/replies")
-           |> IO.inspect(),
+           |> String.trim_trailing("/replies"),
          %Object{} = object <- Object.get_cached_by_ap_id(ap_id),
          user <- Map.get(assigns, :user, nil),
          {_, true} <- {:visible?, Visibility.visible_for_user?(object, user)} do
