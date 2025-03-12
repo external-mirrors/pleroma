@@ -22,7 +22,6 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.Federator
 
-  import Ecto.Query
   import Pleroma.Web.Utils.Guards, only: [not_empty_string: 1]
 
   require Pleroma.Constants
@@ -713,33 +712,13 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   Based on Mastodon's ActivityPub::NoteSerializer#replies.
   """
   def set_replies(obj_data) do
-    replies_uris =
-      with limit when limit > 0 <-
-             Pleroma.Config.get([:activitypub, :note_replies_output_limit], 0),
-           %Object{} = object <- Object.get_cached_by_ap_id(obj_data["id"]) do
-        object
-        |> Object.self_replies()
-        |> select([o], fragment("?->>'id'", o.data))
-        |> limit(^limit)
-        |> Repo.all()
-      else
-        _ -> []
-      end
-
-    set_replies(obj_data, replies_uris)
-  end
-
-  defp set_replies(obj, []) do
-    obj
-  end
-
-  defp set_replies(obj, replies_uris) do
     replies_collection = %{
-      "type" => "Collection",
-      "items" => replies_uris
+      "id" => obj_data["id"] <> "/replies",
+      "type" => "OrderedCollection",
+      "first" => obj_data["id"] <> "/replies?page=true"
     }
 
-    Map.merge(obj, %{"replies" => replies_collection})
+    Map.merge(obj_data, %{"replies" => replies_collection})
   end
 
   def replies(%{"replies" => %{"first" => %{"items" => items}}}) when not is_nil(items) do

@@ -941,6 +941,8 @@ defmodule Pleroma.Web.Router do
     get("/users/:nickname/followers", ActivityPubController, :followers)
     get("/users/:nickname/following", ActivityPubController, :following)
     get("/users/:nickname/collections/featured", ActivityPubController, :pinned)
+
+    get("/objects/:id/replies", ActivityPubController, :replies)
   end
 
   scope "/", Pleroma.Web.ActivityPub do

@@ -501,6 +501,32 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     |> Repo.all()
   end
 
+  def fetch_replies(%{data: %{"actor" => actor, "id" => ap_id}}, opts) do
+    public = [Constants.as_public()]
+
+    recipients =
+      if opts[:user],
+        do: [opts[:user].ap_id | User.following(opts[:user])] ++ public,
+        else: public
+
+    from(activity in Activity)
+    |> maybe_preload_objects(opts)
+    |> maybe_preload_bookmarks(opts)
+    |> maybe_set_thread_muted_field(opts)
+    |> Activity.Queries.by_object_in_reply_to_id(ap_id)
+    |> restrict_type(%{type: "Create"})
+    |> restrict_author(actor, opts)
+    |> restrict_unauthenticated(opts[:user])
+    |> restrict_blocked(opts)
+    |> restrict_blockers_visibility(opts)
+    |> restrict_recipients(recipients, opts[:user])
+    |> restrict_filtered(opts)
+    |> exclude_poll_votes(opts)
+    |> exclude_id(opts)
+    |> order_by([activity], desc: activity.id)
+    |> Repo.all()
+  end
+
   @spec fetch_latest_direct_activity_id_for_context(String.t(), keyword() | map()) ::
           Ecto.UUID.t() | nil
   def fetch_latest_direct_activity_id_for_context(context, opts \\ %{}) do
@@ -1298,6 +1324,16 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   end
 
   defp restrict_rule(query, _), do: query
+
+  defp restrict_author(query, actor, %{only_self: true}) do
+    where(query, [o], fragment("(?)->>'actor' = ?", o.data, ^actor))
+  end
+
+  defp restrict_author(query, actor, %{only_other_accounts: true}) do
+    where(query, [o], fragment("(?)->>'actor' != ?", o.data, ^actor))
+  end
+
+  defp restrict_author(query, _, _), do: query
 
   defp exclude_poll_votes(query, %{include_poll_votes: true}), do: query
 

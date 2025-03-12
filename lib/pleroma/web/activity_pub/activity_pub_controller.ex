@@ -96,6 +96,50 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
     end
   end
 
+  def replies(%{assigns: assigns} = conn, %{"page" => page?} = params)
+      when page? in [true, "true"] do
+    with only_other_accounts? <- Map.get(params, "only_other_accounts", false),
+         ap_id <- (Endpoint.url() <> conn.request_path) |> String.trim_trailing("/replies"),
+         %Object{} = object <- Object.get_cached_by_ap_id(ap_id),
+         user <- Map.get(assigns, :user, nil),
+         {_, true} <- {:visible?, Visibility.visible_for_user?(object, user)} do
+      conn
+      |> put_resp_content_type("application/activity+json")
+      |> put_view(ObjectView)
+      |> render("replies_collection_page.json", %{
+        user: user,
+        object: object,
+        only_other_accounts: only_other_accounts?,
+        iri: "#{object.data["id"]}/replies"
+      })
+    else
+      {:visible?, false} -> {:error, :not_found}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  def replies(%{assigns: assigns} = conn, _) do
+    with ap_id <-
+           (Endpoint.url() <> conn.request_path)
+           |> String.trim_trailing("/replies")
+           |> IO.inspect(),
+         %Object{} = object <- Object.get_cached_by_ap_id(ap_id),
+         user <- Map.get(assigns, :user, nil),
+         {_, true} <- {:visible?, Visibility.visible_for_user?(object, user)} do
+      conn
+      |> put_resp_content_type("application/activity+json")
+      |> put_view(ObjectView)
+      |> render("replies_collection.json", %{
+        user: user,
+        object: object,
+        iri: "#{object.data["id"]}/replies"
+      })
+    else
+      {:visible?, false} -> {:error, :not_found}
+      nil -> {:error, :not_found}
+    end
+  end
+
   def track_object_fetch(conn, nil), do: conn
 
   def track_object_fetch(conn, object_id) do

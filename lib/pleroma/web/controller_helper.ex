@@ -74,7 +74,7 @@ defmodule Pleroma.Web.ControllerHelper do
   end
 
   def get_pagination_fields(conn, entries, extra_params \\ %{}) do
-    case List.last(entries) do
+    case List.last(entries |> IO.inspect) do
       %{pagination_id: max_id} when not is_nil(max_id) ->
         %{pagination_id: min_id} = List.first(entries)
 
