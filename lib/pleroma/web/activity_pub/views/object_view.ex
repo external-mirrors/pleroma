@@ -71,8 +71,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectView do
     collection =
       Enum.map(replies, fn
         %{local: true} = activity ->
-          {:ok, data} = Transmogrifier.prepare_outgoing(activity.data)
-          data
+          Transmogrifier.prepare_object(activity.object.data)
 
         activity ->
           activity.object.data["id"]
