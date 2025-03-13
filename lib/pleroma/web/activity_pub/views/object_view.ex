@@ -39,23 +39,6 @@ defmodule Pleroma.Web.ActivityPub.ObjectView do
     Map.merge(base, additional)
   end
 
-  def render("replies.json", %{object: %Object{} = object, replies: replies}) do
-    base = Utils.make_json_ld_header(object.data)
-
-    object_id = Object.normalize(object, id_only: true)
-
-    Map.merge(base, %{
-      "id" => object_id <> "/replies",
-      "type" => "Collection",
-      "first" => %{
-        "type" => "CollectionPage",
-        "next" => object_id <> "/replies?only_other_accounts=true&page=true",
-        "partOf" => object_id <> "/replies",
-        "items" => replies |> Enum.map(fn object -> object.data["id"] end)
-      }
-    })
-  end
-
   def render("replies_collection.json", %{user: user, object: object, iri: iri}) do
     %{
       "id" => iri,
@@ -96,6 +79,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectView do
       end)
 
     %{
+      "id" => iri <> "?only_other_accounts=#{only_other_accounts}&page=true",
       "type" => "OrderedCollectionPage",
       "partOf" => iri,
       "orderedItems" => collection
