@@ -42,7 +42,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectView do
   def render("replies_collection.json", %{user: user, object: object, iri: iri}) do
     %{
       "id" => iri,
-      "type" => "OrderedCollection",
+      "type" => "Collection",
       "first" =>
         render("replies_collection_page.json", %{
           user: user,
@@ -51,6 +51,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectView do
           iri: iri
         })
         |> Map.merge(%{"next" => iri <> "?only_other_accounts=true&page=true"})
+        |> Map.drop(["@context"])
     }
     |> Map.merge(Utils.make_json_ld_header())
   end
@@ -79,9 +80,9 @@ defmodule Pleroma.Web.ActivityPub.ObjectView do
 
     %{
       "id" => iri <> "?only_other_accounts=#{only_other_accounts}&page=true",
-      "type" => "OrderedCollectionPage",
+      "type" => "CollectionPage",
       "partOf" => iri,
-      "orderedItems" => collection
+      "items" => collection
     }
     |> Map.merge(Utils.make_json_ld_header())
   end

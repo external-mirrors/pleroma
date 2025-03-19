@@ -714,12 +714,12 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   def set_replies(%{"id" => object_id} = object) do
     replies_collection = %{
       "id" => object_id <> "/replies",
-      "type" => "OrderedCollection",
+      "type" => "Collection",
       "first" => %{
-        "type" => "OrderedCollectionPage",
+        "type" => "CollectionPage",
         "partOf" => object_id <> "/replies",
         "next" => object_id <> "/replies?only_other_accounts=true&page=true",
-        "orderedItems" => []
+        "items" => []
       }
       # object_id <> "/replies?page=true"
     }
