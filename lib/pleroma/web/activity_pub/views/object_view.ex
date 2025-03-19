@@ -50,7 +50,6 @@ defmodule Pleroma.Web.ActivityPub.ObjectView do
           only_other_accounts: false,
           iri: iri
         })
-        |> Map.merge(%{"next" => iri <> "?only_other_accounts=true&page=true"})
         |> Map.drop(["@context"])
     }
     |> Map.merge(Utils.make_json_ld_header())
@@ -78,12 +77,22 @@ defmodule Pleroma.Web.ActivityPub.ObjectView do
           activity.object.data["id"]
       end)
 
+    next =
+      if !only_other_accounts do
+        %{
+          "next" => iri <> "?only_other_accounts=true&page=true"
+        }
+      else
+        %{}
+      end
+
     %{
       "id" => iri <> "?only_other_accounts=#{only_other_accounts}&page=true",
       "type" => "CollectionPage",
       "partOf" => iri,
       "items" => collection
     }
+    |> Map.merge(next)
     |> Map.merge(Utils.make_json_ld_header())
   end
 end
