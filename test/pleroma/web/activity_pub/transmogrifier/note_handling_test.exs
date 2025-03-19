@@ -696,41 +696,17 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
   describe "set_replies/1" do
     setup do: clear_config([:activitypub, :note_replies_output_limit], 2)
 
-    test "returns unmodified object if activity doesn't have self-replies" do
-      data = Jason.decode!(File.read!("test/fixtures/mastodon-post-activity.json"))
-      assert Transmogrifier.set_replies(data) == data
-    end
+    test "sets `replies` to a link to a collection page" do
+      object = insert(:note) |> IO.inspect()
 
-    test "sets `replies` collection with a limited number of self-replies" do
-      [user, another_user] = insert_list(2, :user)
+      replies_url = object.data["id"] <> "/replies"
+      replies_page = replies_url <> "?only_other_accounts=false&page=true"
 
-      {:ok, %{id: id1} = activity} = CommonAPI.post(user, %{status: "1"})
-
-      {:ok, %{id: id2} = self_reply1} =
-        CommonAPI.post(user, %{status: "self-reply 1", in_reply_to_status_id: id1})
-
-      {:ok, self_reply2} =
-        CommonAPI.post(user, %{status: "self-reply 2", in_reply_to_status_id: id1})
-
-      # Assuming to _not_ be present in `replies` due to :note_replies_output_limit is set to 2
-      {:ok, _} = CommonAPI.post(user, %{status: "self-reply 3", in_reply_to_status_id: id1})
-
-      {:ok, _} =
-        CommonAPI.post(user, %{
-          status: "self-reply to self-reply",
-          in_reply_to_status_id: id2
-        })
-
-      {:ok, _} =
-        CommonAPI.post(another_user, %{
-          status: "another user's reply",
-          in_reply_to_status_id: id1
-        })
-
-      object = Object.normalize(activity, fetch: false)
-      replies_uris = Enum.map([self_reply1, self_reply2], fn a -> a.object.data["id"] end)
-
-      assert %{"type" => "Collection", "items" => ^replies_uris} =
+      assert %{
+               "type" => "Collection",
+               "id" => ^replies_url,
+               "first" => ^replies_page
+             } =
                Transmogrifier.set_replies(object.data)["replies"]
     end
   end
