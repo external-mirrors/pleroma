@@ -1635,6 +1635,9 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
     show_birthday = !!birthday
 
+    is_cat = Map.get(data, "isCat", false)
+    speak_as_cat = Map.get(data, "speakAsCat", is_cat)
+
     # if WebFinger request was already done, we probably have acct, otherwise
     # we request WebFinger here
     nickname = additional[:nickname_from_acct] || generate_nickname(data)
@@ -1663,7 +1666,9 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       birthday: birthday,
       show_birthday: show_birthday,
       pinned_objects: pinned_objects,
-      nickname: nickname
+      nickname: nickname,
+      is_cat: is_cat,
+      speak_as_cat: speak_as_cat
     }
   end
 

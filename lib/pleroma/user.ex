@@ -162,6 +162,8 @@ defmodule Pleroma.User do
     field(:birthday, :date)
     field(:show_birthday, :boolean, default: false)
     field(:language, :string)
+    field(:is_cat, :boolean, default: false)
+    field(:speak_as_cat, :boolean, default: false)
 
     embeds_one(
       :notification_settings,
@@ -527,7 +529,9 @@ defmodule Pleroma.User do
         :accepts_chat_messages,
         :pinned_objects,
         :birthday,
-        :show_birthday
+        :show_birthday,
+        :is_cat,
+        :speak_as_cat
       ]
     )
     |> cast(params, [:name], empty_values: [])
@@ -590,7 +594,9 @@ defmodule Pleroma.User do
         :accepts_chat_messages,
         :disclose_client,
         :birthday,
-        :show_birthday
+        :show_birthday,
+        :is_cat,
+        :speak_as_cat
       ]
     )
     |> validate_min_age()

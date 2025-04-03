@@ -98,7 +98,9 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         skip_thread_containment: false,
         accepts_chat_messages: nil,
         avatar_description: "",
-        header_description: ""
+        header_description: "",
+        is_cat: false,
+        speak_as_cat: false
       }
     }
 
@@ -344,7 +346,9 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         skip_thread_containment: false,
         accepts_chat_messages: nil,
         avatar_description: "",
-        header_description: ""
+        header_description: "",
+        is_cat: false,
+        speak_as_cat: false
       }
     }
 
@@ -844,5 +848,18 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
              mute_expires_at,
              DateTime.utc_now() |> DateTime.add(24 * 60 * 60)
            ) in -3..3
+  end
+
+  test "renders isCat and speakAsCat" do
+    cat = insert(:user, is_cat: true, speak_as_cat: true)
+    dog = insert(:user, is_cat: false, speak_as_cat: false)
+
+    %{
+      pleroma: %{is_cat: true, speak_as_cat: true}
+    } = AccountView.render("show.json", %{user: cat, skip_visibility_check: true})
+
+    %{
+      pleroma: %{is_cat: false, speak_as_cat: false}
+    } = AccountView.render("show.json", %{user: dog, skip_visibility_check: true})
   end
 end

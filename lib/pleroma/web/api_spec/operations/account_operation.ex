@@ -838,6 +838,16 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
           type: :string,
           nullable: true,
           description: "Header image description."
+        },
+        is_cat: %Schema{
+          type: :boolean,
+          nullable: true,
+          description: "Whether the user is a cat"
+        },
+        speak_as_cat: %Schema{
+          type: :boolean,
+          nullable: true,
+          description: "Whether the user speaks as a cat"
         }
       },
       example: %{

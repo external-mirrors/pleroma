@@ -43,7 +43,11 @@
             "vcard": "http://www.w3.org/2006/vcard/ns#",
             "formerRepresentations": "litepub:formerRepresentations",
             "sm": "http://smithereen.software/ns#",
-            "nonAnonymous": "sm:nonAnonymous"
+            "nonAnonymous": "sm:nonAnonymous",
+            "misskey": "https://misskey-hub.net/ns#",
+            "isCat": "misskey:isCat",
+            "firefish": "https://joinfirefish.org/ns#",
+            "speakAsCat": "firefish:speakAsCat"
         }
     ]
 }

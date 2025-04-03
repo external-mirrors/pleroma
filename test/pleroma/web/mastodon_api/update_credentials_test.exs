@@ -823,4 +823,19 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
       assert account["source"]["pleroma"]["actor_type"] == "Group"
     end
   end
+
+  describe "cat ears" do
+    setup do: oauth_access(["write:accounts"])
+    setup :request_content_type
+
+    test "sets cat ears preferences", %{conn: conn} do
+      account =
+        conn
+        |> patch("/api/v1/accounts/update_credentials", %{is_cat: true, speak_as_cat: false})
+        |> json_response_and_validate_schema(200)
+
+      assert account["pleroma"]["is_cat"]
+      assert not account["pleroma"]["speak_as_cat"]
+    end
+  end
 end

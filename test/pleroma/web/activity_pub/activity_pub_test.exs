@@ -2754,4 +2754,112 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
                "first" => "https://social.example/users/alice/collections/featured?page=true"
              })
   end
+
+  describe "cat ears" do
+    test "it respects isCat and speakAsCat" do
+      cat_id = "https://example.com/users/cat"
+
+      cat_data =
+        "test/fixtures/users_mock/user.json"
+        |> File.read!()
+        |> String.replace("{{nickname}}", "cat")
+        |> Jason.decode!()
+        |> Map.delete("featured")
+        |> Map.put("isCat", true)
+        |> Map.put("speakAsCat", true)
+        |> Jason.encode!()
+
+      dog_id = "https://example.com/users/dog"
+
+      dog_data =
+        "test/fixtures/users_mock/user.json"
+        |> File.read!()
+        |> String.replace("{{nickname}}", "dog")
+        |> Jason.decode!()
+        |> Map.delete("featured")
+        |> Map.put("isCat", false)
+        |> Map.put("speakAsCat", false)
+        |> Jason.encode!()
+
+      Tesla.Mock.mock(fn
+        %{
+          method: :get,
+          url: ^cat_id
+        } ->
+          %Tesla.Env{
+            status: 200,
+            body: cat_data,
+            headers: [{"content-type", "application/activity+json"}]
+          }
+
+        %{
+          method: :get,
+          url: ^dog_id
+        } ->
+          %Tesla.Env{
+            status: 200,
+            body: dog_data,
+            headers: [{"content-type", "application/activity+json"}]
+          }
+      end)
+
+      {:ok, cat} = ActivityPub.make_user_from_ap_id(cat_id)
+      {:ok, dog} = ActivityPub.make_user_from_ap_id(dog_id)
+
+      assert %{is_cat: true, speak_as_cat: true} = cat
+      assert %{is_cat: false, speak_as_cat: false} = dog
+    end
+
+    test "it infers speakAsCat from isCat, when missing" do
+      cat_id = "https://example.com/users/cat"
+
+      cat_data =
+        "test/fixtures/users_mock/user.json"
+        |> File.read!()
+        |> String.replace("{{nickname}}", "cat")
+        |> Jason.decode!()
+        |> Map.delete("featured")
+        |> Map.put("isCat", true)
+        |> Jason.encode!()
+
+      dog_id = "https://example.com/users/dog"
+
+      dog_data =
+        "test/fixtures/users_mock/user.json"
+        |> File.read!()
+        |> String.replace("{{nickname}}", "dog")
+        |> Jason.decode!()
+        |> Map.delete("featured")
+        |> Map.put("isCat", false)
+        |> Jason.encode!()
+
+      Tesla.Mock.mock(fn
+        %{
+          method: :get,
+          url: ^cat_id
+        } ->
+          %Tesla.Env{
+            status: 200,
+            body: cat_data,
+            headers: [{"content-type", "application/activity+json"}]
+          }
+
+        %{
+          method: :get,
+          url: ^dog_id
+        } ->
+          %Tesla.Env{
+            status: 200,
+            body: dog_data,
+            headers: [{"content-type", "application/activity+json"}]
+          }
+      end)
+
+      {:ok, cat} = ActivityPub.make_user_from_ap_id(cat_id)
+      {:ok, dog} = ActivityPub.make_user_from_ap_id(dog_id)
+
+      assert %{is_cat: true, speak_as_cat: true} = cat
+      assert %{is_cat: false, speak_as_cat: false} = dog
+    end
+  end
 end
