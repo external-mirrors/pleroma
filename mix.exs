@@ -207,6 +207,9 @@ defmodule Pleroma.Mixfile do
       {:oban_live_dashboard, "~> 0.1.1"},
       {:multipart, "~> 0.4.0", optional: true},
       {:argon2_elixir, "~> 4.0"},
+      {:nebulex, "~> 2.6"},
+      {:shards, "~> 1.0"},
+      {:decorator, "~> 1.4"},
 
       ## dev & test
       {:phoenix_live_reload, "~> 1.3.3", only: :dev},
