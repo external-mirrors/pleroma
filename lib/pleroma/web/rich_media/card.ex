@@ -2,16 +2,18 @@ defmodule Pleroma.Web.RichMedia.Card do
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
+  use Nebulex.Caching
 
   alias Pleroma.Activity
+  alias Pleroma.Cache
   alias Pleroma.HTML
   alias Pleroma.Object
   alias Pleroma.Repo
   alias Pleroma.Web.RichMedia.Parser
   alias Pleroma.Workers.RichMediaWorker
 
-  @cachex Pleroma.Config.get([:cachex, :provider], Cachex)
   @config_impl Application.compile_env(:pleroma, [__MODULE__, :config_impl], Pleroma.Config)
+  @nebulex Pleroma.Config.get([:nebulex, :provider], Cache)
 
   @type t :: %__MODULE__{}
 
@@ -42,10 +44,8 @@ defmodule Pleroma.Web.RichMedia.Card do
   end
 
   @spec delete(String.t()) :: {:ok, Ecto.Schema.t()} | {:error, Ecto.Changeset.t()} | :ok
+  @decorate cache_evict(cache: @nebulex, key: {Card, url_to_hash(url)})
   def delete(url) do
-    url_hash = url_to_hash(url)
-    @cachex.del(:rich_media_cache, url_hash)
-
     case get_by_url(url) do
       %__MODULE__{} = card -> Repo.delete(card)
       nil -> :ok
@@ -53,6 +53,11 @@ defmodule Pleroma.Web.RichMedia.Card do
   end
 
   @spec get_by_url(String.t() | nil) :: t() | nil | :error
+  @decorate cacheable(
+              cache: @nebulex,
+              key: {Card, url_to_hash(url)},
+              opts: [ttl: :timer.hours(12)]
+            )
   def get_by_url(url) when is_binary(url) do
     host = URI.parse(url).host
 
@@ -60,23 +65,13 @@ defmodule Pleroma.Web.RichMedia.Card do
          true <- host not in @config_impl.get([:rich_media, :ignore_hosts], []) do
       url_hash = url_to_hash(url)
 
-      @cachex.fetch!(:rich_media_cache, url_hash, fn _ ->
-        result =
-          __MODULE__
-          |> where(url_hash: ^url_hash)
-          |> Repo.one()
-
-        case result do
-          %__MODULE__{} = card -> {:commit, card}
-          _ -> {:ignore, nil}
-        end
-      end)
+      __MODULE__
+      |> where(url_hash: ^url_hash)
+      |> Repo.one()
     else
       false -> :error
     end
   end
-
-  def get_by_url(nil), do: nil
 
   @spec get_or_backfill_by_url(String.t(), keyword()) :: t() | nil
   def get_or_backfill_by_url(url, opts \\ []) do
@@ -140,12 +135,9 @@ defmodule Pleroma.Web.RichMedia.Card do
 
   def get_by_activity(activity) do
     with %Object{} = object <- Object.normalize(activity, fetch: false),
-         {_, nil} <- {:cached, get_cached_url(object, activity.id)} do
-      nil
+         url when is_binary(url) <- HTML.extract_first_external_url_from_object(object) do
+      get_or_backfill_by_url(url, activity_id: activity.id)
     else
-      {:cached, url} ->
-        get_or_backfill_by_url(url, activity_id: activity.id)
-
       _ ->
         :error
     end
@@ -154,16 +146,5 @@ defmodule Pleroma.Web.RichMedia.Card do
   @spec url_to_hash(String.t()) :: String.t()
   def url_to_hash(url) do
     :crypto.hash(:sha256, url) |> Base.encode16(case: :lower)
-  end
-
-  defp get_cached_url(object, activity_id) do
-    key = "URL|#{activity_id}"
-
-    @cachex.fetch!(:scrubber_cache, key, fn _ ->
-      url = HTML.extract_first_external_url_from_object(object)
-      Activity.HTML.add_cache_key_for(activity_id, key)
-
-      {:commit, url}
-    end)
   end
 end

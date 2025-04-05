@@ -131,6 +131,7 @@ config :pleroma, :pipeline,
   config: Pleroma.ConfigMock
 
 config :pleroma, :cachex, provider: Pleroma.CachexMock
+config :pleroma, :nebulex, provider: Pleroma.NebulexMock
 
 config :pleroma, Pleroma.Web.WebFinger, update_nickname_on_user_fetch: false
 

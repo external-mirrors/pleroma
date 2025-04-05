@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.RichMedia.Backfill do
+  use Nebulex.Caching
+
+  alias Pleroma.Cache
   alias Pleroma.Web.RichMedia.Card
   alias Pleroma.Web.RichMedia.Helpers
   alias Pleroma.Web.RichMedia.Parser
@@ -11,7 +14,7 @@ defmodule Pleroma.Web.RichMedia.Backfill do
 
   require Logger
 
-  @cachex Pleroma.Config.get([:cachex, :provider], Cachex)
+  @nebulex Pleroma.Config.get([:nebulex, :provider], Cache)
   @stream_out_impl Pleroma.Config.get(
                      [__MODULE__, :stream_out],
                      Pleroma.Web.ActivityPub.ActivityPub
@@ -61,8 +64,9 @@ defmodule Pleroma.Web.RichMedia.Backfill do
     |> @stream_out_impl.stream_out()
   end
 
-  defp warm_cache(key, val), do: @cachex.put(:rich_media_cache, key, val)
+  defp warm_cache(key, val), do: @nebulex.put(key, val)
 
-  defp negative_cache(key, ttl \\ :timer.minutes(15)),
-    do: @cachex.put(:rich_media_cache, key, :error, ttl: ttl)
+  defp negative_cache(key, ttl \\ :timer.minutes(15)) do
+    @nebulex.put(key, :error, opts: [ttl: ttl])
+  end
 end

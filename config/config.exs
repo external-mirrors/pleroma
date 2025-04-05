@@ -957,6 +957,25 @@ config :pleroma, Pleroma.Search.QdrantSearch,
     vectors: %{size: 384, distance: "Cosine"}
   }
 
+# https://hexdocs.pm/nebulex/Nebulex.Adapters.Local.html#module-caveats-when-using-ttl-option
+# When using the :ttl option, ensure it is less than :gc_interval, otherwise,
+# there may be a situation where the key is evicted and the :ttl hasn't happened
+# yet (maybe because the garbage collector ran before the key had been fetched).
+
+config :pleroma, Pleroma.Cache,
+  # When using :shards as backend
+  # backend: :shards,
+  # GC interval for pushing new generation: 12 hrs
+  gc_interval: :timer.hours(12),
+  # Max 1 million entries in cache
+  max_size: 1_000_000,
+  # Max 2 GB of memory
+  allocated_memory: 2_000_000_000,
+  # GC min timeout: 10 sec
+  gc_cleanup_min_timeout: :timer.seconds(10),
+  # GC max timeout: 10 min
+  gc_cleanup_max_timeout: :timer.minutes(10)
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{Mix.env()}.exs"

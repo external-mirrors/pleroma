@@ -107,6 +107,7 @@ defmodule Pleroma.Application do
         cachex_children() ++
         http_children(adapter) ++
         [
+          Pleroma.Cache,
           Pleroma.Stats,
           Pleroma.JobQueueMonitor,
           {Majic.Pool, [name: Pleroma.MajicPool, pool_size: Config.get([:majic_pool, :size], 2)]},
@@ -158,7 +159,6 @@ defmodule Pleroma.Application do
       build_cachex("used_captcha", ttl_interval: seconds_valid_interval()),
       build_cachex("user", default_ttl: 25_000, ttl_interval: 1000, limit: 2500),
       build_cachex("object", default_ttl: 25_000, ttl_interval: 1000, limit: 2500),
-      build_cachex("rich_media", default_ttl: :timer.minutes(120), limit: 5000),
       build_cachex("scrubber", limit: 2500),
       build_cachex("scrubber_management", limit: 2500),
       build_cachex("idempotency", expiration: idempotency_expiration(), limit: 2500),

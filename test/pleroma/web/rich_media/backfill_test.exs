@@ -18,8 +18,8 @@ defmodule Pleroma.Web.RichMedia.BackfillTest do
 
     Tesla.Mock.mock(fn %{url: ^url} -> :error end)
 
-    Pleroma.CachexMock
-    |> expect(:put, fn :rich_media_cache, ^url_hash, :error, ttl: _ -> {:ok, true} end)
+    Pleroma.NebulexMock
+    |> expect(:put, fn ^url_hash, :error, opts: [ttl: _] -> {:ok, true} end)
 
     Backfill.run(%{"url" => url})
   end
