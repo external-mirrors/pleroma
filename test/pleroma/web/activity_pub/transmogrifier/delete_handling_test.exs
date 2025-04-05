@@ -47,12 +47,9 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
   test "it works for incoming when the object has been pruned" do
     activity = insert(:note_activity)
 
-    {:ok, object} =
+    {:ok, _object} =
       Object.normalize(activity.data["object"], fetch: false)
       |> Repo.delete()
-
-    # TODO: mock cachex
-    Cachex.del(:object_cache, "object:#{object.data["id"]}")
 
     deleting_user = insert(:user)
 

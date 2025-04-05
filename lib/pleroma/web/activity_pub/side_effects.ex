@@ -470,7 +470,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
     if orig_object_data["type"] in Pleroma.Constants.updatable_object_types() do
       {:ok, _, updated} =
-        Object.Updater.do_update_and_invalidate_cache(orig_object, updated_object)
+        Object.Updater.do_update(orig_object, updated_object)
 
       if updated do
         object

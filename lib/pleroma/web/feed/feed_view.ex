@@ -119,7 +119,7 @@ defmodule Pleroma.Web.Feed.FeedView do
   end
 
   def get_href(id) do
-    with %Object{data: %{"external_url" => external_url}} <- Object.get_cached_by_ap_id(id) do
+    with %Object{data: %{"external_url" => external_url}} <- Object.get_by_ap_id(id) do
       external_url
     else
       _e -> id

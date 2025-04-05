@@ -81,7 +81,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AnnounceValidator do
     with actor when is_binary(actor) <- get_field(cng, :actor),
          object when is_binary(object) <- get_field(cng, :object),
          %User{} = actor <- User.get_cached_by_ap_id(actor),
-         %Object{} = object <- Object.get_cached_by_ap_id(object),
+         %Object{} = object <- Object.get_by_ap_id(object),
          false <- Visibility.public?(object) do
       same_actor = object.data["actor"] == actor.ap_id
       recipients = get_field(cng, :to) ++ get_field(cng, :cc)

@@ -55,26 +55,6 @@ defmodule Pleroma.ObjectTest do
 
       assert found_object.data["type"] == "Tombstone"
     end
-
-    test "ensures cache is cleared for the object" do
-      object = insert(:note)
-      cached_object = Object.get_cached_by_ap_id(object.data["id"])
-
-      assert object == cached_object
-
-      Cachex.put(:web_resp_cache, URI.parse(object.data["id"]).path, "cofe")
-
-      Object.delete(cached_object)
-
-      {:ok, nil} = Cachex.get(:object_cache, "object:#{object.data["id"]}")
-      {:ok, nil} = Cachex.get(:web_resp_cache, URI.parse(object.data["id"]).path)
-
-      cached_object = Object.get_cached_by_ap_id(object.data["id"])
-
-      refute object == cached_object
-
-      assert cached_object.data["type"] == "Tombstone"
-    end
   end
 
   describe "delete attachments" do

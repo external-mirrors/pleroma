@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 Mox.defmock(Pleroma.CachexMock, for: Pleroma.Caching)
+Mox.defmock(Pleroma.NebulexMock, for: Pleroma.CachingNebulex)
 
 Mox.defmock(Pleroma.Web.ActivityPub.ObjectValidatorMock,
   for: Pleroma.Web.ActivityPub.ObjectValidator.Validating

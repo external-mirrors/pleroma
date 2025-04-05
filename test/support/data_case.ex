@@ -67,6 +67,8 @@ defmodule Pleroma.DataCase do
   def setup_multi_process_mode(tags) do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Pleroma.Repo)
 
+    Mox.stub_with(Pleroma.NebulexMock, Pleroma.VoidCache)
+
     if tags[:async] do
       Mox.stub_with(Pleroma.CachexMock, Pleroma.NullCache)
       Mox.set_mox_private()

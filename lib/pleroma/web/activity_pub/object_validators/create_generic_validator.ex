@@ -112,7 +112,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
   def validate_object_nonexistence(cng) do
     cng
     |> validate_change(:object, fn :object, object_id ->
-      if Object.get_cached_by_ap_id(object_id) do
+      if Object.get_by_ap_id(object_id) do
         [{:object, "The object to create already exists"}]
       else
         []

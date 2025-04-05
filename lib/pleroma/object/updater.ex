@@ -256,7 +256,7 @@ defmodule Pleroma.Object.Updater do
 
   defp maybe_touch_changeset(changeset, _), do: changeset
 
-  def do_update_and_invalidate_cache(orig_object, updated_object, touch_changeset? \\ false) do
+  def do_update(orig_object, updated_object, touch_changeset? \\ false) do
     orig_object_ap_id = updated_object["id"]
     orig_object_data = orig_object.data
 
@@ -272,9 +272,7 @@ defmodule Pleroma.Object.Updater do
       |> Object.change(%{data: updated_object_data})
       |> maybe_touch_changeset(touch_changeset?)
 
-    with {:ok, new_object} <- Repo.update(changeset),
-         {:ok, _} <- Object.invalid_object_cache(new_object),
-         {:ok, _} <- Object.set_cache(new_object),
+    with {:ok, new_object} <- Object.update_and_evict_cache(changeset),
          # The metadata/utils.ex uses the object id for the cache.
          {:ok, _} <- Pleroma.Activity.HTML.invalidate_cache_for(new_object.id) do
       if used_history_in_new_object? do

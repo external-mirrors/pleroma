@@ -4,11 +4,13 @@
 
 defmodule Pleroma.Object do
   use Ecto.Schema
+  use Nebulex.Caching
 
   import Ecto.Query
   import Ecto.Changeset
 
   alias Pleroma.Activity
+  alias Pleroma.Cache
   alias Pleroma.Config
   alias Pleroma.Hashtag
   alias Pleroma.Object
@@ -25,6 +27,7 @@ defmodule Pleroma.Object do
   @derive {Jason.Encoder, only: [:data]}
 
   @cachex Pleroma.Config.get([:cachex, :provider], Cachex)
+  @nebulex Pleroma.Config.get([:nebulex, :provider], Cache)
 
   schema "objects" do
     field(:data, :map)
@@ -97,11 +100,16 @@ defmodule Pleroma.Object do
   defp hashtags_changed?(_, _), do: false
 
   def get_by_id(nil), do: nil
-  def get_by_id(id), do: Repo.get(Object, id)
+  def get_by_id(id), do: do_get_by_id(id)
+
+  @decorate cacheable(cache: @nebulex, key: {Object, id}, opts: [ttl: 25_000])
+  defp do_get_by_id(id), do: Repo.get(Object, id)
 
   def get_by_ap_id(nil), do: nil
+  def get_by_ap_id(ap_id), do: do_get_by_ap_id(ap_id)
 
-  def get_by_ap_id(ap_id) do
+  @decorate cacheable(cache: @nebulex, key: {Object, ap_id}, opts: [ttl: 25_000])
+  defp do_get_by_ap_id(ap_id) do
     Repo.one(from(object in Object, where: fragment("(?)->>'id' = ?", object.data, ^ap_id)))
   end
 
@@ -165,7 +173,7 @@ defmodule Pleroma.Object do
         end
 
       true ->
-        get_cached_by_ap_id(ap_id)
+        get_by_ap_id(ap_id)
     end
   end
 
@@ -182,20 +190,6 @@ defmodule Pleroma.Object do
 
   # Legacy objects can be accessed by anybody
   def authorize_access(%Object{}, %User{}), do: :ok
-
-  @spec get_cached_by_ap_id(String.t()) :: Object.t() | nil
-  def get_cached_by_ap_id(ap_id) do
-    key = "object:#{ap_id}"
-
-    with {:ok, nil} <- @cachex.get(:object_cache, key),
-         object when not is_nil(object) <- get_by_ap_id(ap_id),
-         {:ok, true} <- @cachex.put(:object_cache, key, object) do
-      object
-    else
-      {:ok, object} -> object
-      nil -> nil
-    end
-  end
 
   def make_tombstone(%Object{data: %{"id" => id, "type" => type}}, deleted \\ DateTime.utc_now()) do
     %ObjectTombstone{
@@ -221,7 +215,7 @@ defmodule Pleroma.Object do
   def delete(%Object{data: %{"id" => id}} = object) do
     with {:ok, _obj} = swap_object_with_tombstone(object),
          deleted_activity = Activity.delete_all_by_object_ap_id(id),
-         {:ok, _} <- invalid_object_cache(object) do
+         {:ok, _} <- evict_cache(object) do
       cleanup_attachments(
         Config.get([:instance, :cleanup_attachments]),
         object
@@ -242,25 +236,20 @@ defmodule Pleroma.Object do
 
   def prune(%Object{data: %{"id" => _id}} = object) do
     with {:ok, object} <- Repo.delete(object),
-         {:ok, _} <- invalid_object_cache(object) do
+         {:ok, _} <- evict_cache(object) do
       {:ok, object}
     end
   end
 
-  def invalid_object_cache(%Object{data: %{"id" => id}}) do
-    with {:ok, true} <- @cachex.del(:object_cache, "object:#{id}") do
-      @cachex.del(:web_resp_cache, URI.parse(id).path)
-    end
-  end
-
-  def set_cache(%Object{data: %{"id" => ap_id}} = object) do
-    @cachex.put(:object_cache, "object:#{ap_id}", object)
+  def evict_cache(%Object{data: %{"id" => id}} = object) do
+    @cachex.del(:web_resp_cache, URI.parse(id).path)
+    @nebulex.delete({Object, id})
     {:ok, object}
   end
 
-  def update_and_set_cache(changeset) do
+  def update_and_evict_cache(changeset) do
     with {:ok, object} <- Repo.update(changeset) do
-      set_cache(object)
+      evict_cache(object)
     end
   end
 
@@ -282,7 +271,7 @@ defmodule Pleroma.Object do
     )
     |> Repo.update_all([])
     |> case do
-      {1, [object]} -> set_cache(object)
+      {1, [object]} -> evict_cache(object)
       _ -> {:error, "Not found"}
     end
   end
@@ -309,7 +298,7 @@ defmodule Pleroma.Object do
     )
     |> Repo.update_all([])
     |> case do
-      {1, [object]} -> set_cache(object)
+      {1, [object]} -> evict_cache(object)
       _ -> {:error, "Not found"}
     end
   end
@@ -332,7 +321,7 @@ defmodule Pleroma.Object do
     )
     |> Repo.update_all([])
     |> case do
-      {1, [object]} -> set_cache(object)
+      {1, [object]} -> evict_cache(object)
       _ -> {:error, "Not found"}
     end
   end
@@ -355,7 +344,7 @@ defmodule Pleroma.Object do
     )
     |> Repo.update_all([])
     |> case do
-      {1, [object]} -> set_cache(object)
+      {1, [object]} -> evict_cache(object)
       _ -> {:error, "Not found"}
     end
   end
@@ -384,7 +373,7 @@ defmodule Pleroma.Object do
 
       object
       |> Object.change(%{data: data})
-      |> update_and_set_cache()
+      |> update_and_evict_cache()
     else
       _ -> :noop
     end

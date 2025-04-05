@@ -18,7 +18,6 @@ Ecto.Adapters.SQL.Sandbox.mode(Pleroma.Repo, :manual)
 
 Mox.defmock(Pleroma.ReverseProxy.ClientMock, for: Pleroma.ReverseProxy.Client)
 Mox.defmock(Pleroma.GunMock, for: Pleroma.Gun)
-Mox.defmock(Pleroma.NebulexMock, for: Nebulex.Cache)
 
 {:ok, _} = Application.ensure_all_started(:ex_machina)
 

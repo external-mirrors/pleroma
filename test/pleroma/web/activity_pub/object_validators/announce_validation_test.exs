@@ -35,7 +35,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AnnounceValidationTest do
 
     test "keeps announced object context", %{valid_announce: valid_announce} do
       assert %Object{data: %{"context" => object_context}} =
-               Object.get_cached_by_ap_id(valid_announce["object"])
+               Object.get_by_ap_id(valid_announce["object"])
 
       {:ok, %{"context" => context}, _} =
         valid_announce

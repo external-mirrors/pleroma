@@ -158,7 +158,6 @@ defmodule Pleroma.Application do
     [
       build_cachex("used_captcha", ttl_interval: seconds_valid_interval()),
       build_cachex("user", default_ttl: 25_000, ttl_interval: 1000, limit: 2500),
-      build_cachex("object", default_ttl: 25_000, ttl_interval: 1000, limit: 2500),
       build_cachex("scrubber", limit: 2500),
       build_cachex("scrubber_management", limit: 2500),
       build_cachex("idempotency", expiration: idempotency_expiration(), limit: 2500),

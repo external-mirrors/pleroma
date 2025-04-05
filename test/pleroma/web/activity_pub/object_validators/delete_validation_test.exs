@@ -41,7 +41,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidationTest do
       {:ok, _object} =
         object
         |> Ecto.Changeset.change(%{data: data})
-        |> Object.update_and_set_cache()
+        |> Object.update_and_evict_cache()
 
       {:error, cng} = ObjectValidator.validate(valid_post_delete, [])
       assert {:object, {"object not in allowed types", []}} in cng.errors

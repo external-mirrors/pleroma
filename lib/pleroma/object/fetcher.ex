@@ -28,7 +28,7 @@ defmodule Pleroma.Object.Fetcher do
     with {:ok, new_data, _} <- ObjectValidator.validate(new_data, %{}),
          {:ok, new_data} <- MRF.filter(new_data),
          {:ok, new_object, _} <-
-           Object.Updater.do_update_and_invalidate_cache(
+           Object.Updater.do_update(
              object,
              new_data,
              _touch_changeset? = true
@@ -67,7 +67,7 @@ defmodule Pleroma.Object.Fetcher do
   @spec fetch_object_from_id(String.t(), list()) ::
           {:ok, Object.t()} | {fetcher_errors(), any()} | Pipeline.errors()
   def fetch_object_from_id(id, options \\ []) do
-    with {_, nil} <- {:fetch_object, Object.get_cached_by_ap_id(id)},
+    with {_, nil} <- {:fetch_object, Object.get_by_ap_id(id)},
          {_, true} <- {:allowed_depth, Federator.allowed_thread_distance?(options[:depth])},
          {_, {:ok, data}} <- {:fetch, fetch_and_contain_remote_object_from_id(id)},
          {_, nil} <- {:normalize, Object.normalize(data, fetch: false)},

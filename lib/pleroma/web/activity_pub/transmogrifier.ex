@@ -728,7 +728,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
     replies_uris =
       with limit when limit > 0 <-
              Pleroma.Config.get([:activitypub, :note_replies_output_limit], 0),
-           %Object{} = object <- Object.get_cached_by_ap_id(obj_data["id"]) do
+           %Object{} = object <- Object.get_by_ap_id(obj_data["id"]) do
         object
         |> Object.self_replies()
         |> select([o], fragment("?->>'id'", o.data))
