@@ -271,7 +271,7 @@ defmodule Pleroma.User.BackupTest do
              "type" => "OrderedCollection"
            } = Jason.decode!(json)
 
-    assert {:ok, {'chats.json', json}} = :zip.zip_get('chats.json', zipfile)
+    assert {:ok, {~c"chats.json", json}} = :zip.zip_get(~c"chats.json", zipfile)
 
     chat_id = "http://localhost:4001/chats/#{chat.id}"
 
@@ -290,13 +290,16 @@ defmodule Pleroma.User.BackupTest do
              "type" => "OrderedCollection"
            } = Jason.decode!(json)
 
-    assert {:ok, {'chat_messages.json', json}} = :zip.zip_get('chat_messages.json', zipfile)
+    chat_json_name = ~c'chat_messages_#{chat.id}.json'
+    chat_json_name_string = to_string(chat_json_name)
+
+    assert {:ok, {^chat_json_name, json}} = :zip.zip_get(chat_json_name, zipfile)
 
     chat_id = "http://localhost:4001/chats/#{chat.id}"
 
     assert %{
              "@context" => "https://www.w3.org/ns/activitystreams",
-             "id" => "chat_messages.json",
+             "id" => ^chat_json_name_string,
              "orderedItems" => [
                %{
                  "type" => "ChatMessage",

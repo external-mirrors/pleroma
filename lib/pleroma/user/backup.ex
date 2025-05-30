@@ -14,8 +14,8 @@ defmodule Pleroma.User.Backup do
 
   alias Pleroma.Activity
   alias Pleroma.Bookmark
-  alias Pleroma.Config
   alias Pleroma.Chat
+  alias Pleroma.Config
   alias Pleroma.Repo
   alias Pleroma.SafeZip
   alias Pleroma.Uploaders.Uploader
@@ -180,16 +180,20 @@ defmodule Pleroma.User.Backup do
     |> Repo.update()
   end
 
-  @files [
-    "actor.json",
-    "outbox.json",
-    "likes.json",
-    "bookmarks.json",
-    "followers.json",
-    "following.json",
-    'chats.json',
-    'chat_messages.json'
-  ]
+  defp files(%{id: user_id}) do
+    [
+      "actor.json",
+      "outbox.json",
+      "likes.json",
+      "bookmarks.json",
+      "followers.json",
+      "following.json",
+      "chats.json"
+    ] ++
+      (Chat.for_user_query(user_id)
+       |> Repo.all()
+       |> Enum.map(fn ch -> "#{chat_file(ch)}.json" end))
+  end
 
   @spec run(t()) :: {:ok, t()} | {:error, :failed}
   def run(%__MODULE__{} = backup) do
@@ -203,10 +207,10 @@ defmodule Pleroma.User.Backup do
          {_, :ok} <- {:bookmarks, bookmarks(backup.tempdir, backup.user)},
          {_, :ok} <- {:followers, followers(backup.tempdir, backup.user)},
          {_, :ok} <- {:following, following(backup.tempdir, backup.user)},
-         {_, :ok} <- chats(dir, backup.user, caller_pid),
-         {_, :ok} <- chat_messages(dir, backup.user, caller_pid),
+         {_, :ok} <- {:chats, chats(backup.tempdir, backup.user)},
+         {_, :ok} <- {:chat_messages, chat_messages(backup.tempdir, backup.user)},
          {_, {:ok, _zip_path}} <-
-           {:zip, SafeZip.zip(tempfile, @files, backup.tempdir)},
+           {:zip, SafeZip.zip(tempfile, files(backup.user), backup.tempdir)},
          {_, {:ok, %File.Stat{size: zip_size}}} <- {:filestat, File.stat(tempfile)},
          {:ok, updated_backup} <- update_record(backup, %{file_size: zip_size}) do
       {:ok, updated_backup}
@@ -354,7 +358,9 @@ defmodule Pleroma.User.Backup do
     )
   end
 
-  defp chats(dir, user, caller_pid) do
+  defp chat_file(%{:id => chat_id}), do: "chat_messages_#{chat_id}"
+
+  defp chats(dir, user) do
     Chat.for_user_query(user.id)
     |> write(
       dir,
@@ -367,43 +373,43 @@ defmodule Pleroma.User.Backup do
            "actor" => user.ap_id,
            "to" => [chat.recipient],
            "published" =>
-             chat.inserted_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+             chat.inserted_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601(),
+           "messages" => "#{chat_file(chat)}.json"
          }}
-      end,
-      caller_pid
+      end
     )
   end
 
-  defp chat_messages(dir, %{id: user_id}, caller_pid) do
-    chats_subquery =
-      from(c in Chat,
-        where: c.user_id == ^user_id,
-        select: c.id
-      )
+  defp chat_messages(dir, %{id: user_id}) do
+    results =
+      Chat.for_user_query(user_id)
+      |> Repo.all()
+      |> Enum.map(fn ch ->
+        from(
+          cr in Chat.MessageReference,
+          where: cr.chat_id == ^ch.id,
+          preload: [:object]
+        )
+        |> write(
+          dir,
+          chat_file(ch),
+          fn reference ->
+            with {:ok, activity} <- Transmogrifier.prepare_outgoing(reference.object.data),
+                 {:ok, activity} <-
+                   {:ok,
+                    Map.put(
+                      activity,
+                      "context",
+                      "#{Pleroma.Web.Endpoint.url()}/chats/#{reference.chat_id}"
+                    )} do
+              {:ok, Map.delete(activity, "@context")}
+            end
+          end
+        )
+      end)
 
-    from(cr in Chat.MessageReference,
-      where: cr.chat_id in subquery(chats_subquery),
-      preload: [:object]
-    )
-    |> write(
-      dir,
-      "chat_messages",
-      fn reference ->
-        with {:ok, activity} <- Transmogrifier.prepare_outgoing(reference.object.data),
-             {:ok, activity} <-
-               {:ok,
-                Map.put(
-                  activity,
-                  "context",
-                  "#{Pleroma.Web.Endpoint.url()}/chats/#{reference.chat_id}"
-                )} do
-          {:ok, Map.delete(activity, "@context")}
-        end
-      end,
-      caller_pid
-    )
+    if Enum.all?(results, fn r -> r == :ok end), do: :ok, else: results
   end
-end
 
   defp followers(dir, user) do
     User.get_followers_query(user)
