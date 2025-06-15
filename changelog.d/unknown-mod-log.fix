@@ -1,0 +1,1 @@
+Produce "unknown message" instead of an error when the moderation log message is not recognized
