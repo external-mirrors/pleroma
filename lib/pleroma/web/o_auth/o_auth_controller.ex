@@ -245,6 +245,36 @@ defmodule Pleroma.Web.OAuth.OAuthController do
     |> authorize(params)
   end
 
+  defp handle_create_authorization_error(
+         %Plug.Conn{} = conn,
+         {:unknown_app, _},
+         %{"authorization" => %{"client_id" => client_id}} = params
+       ) do
+    conn
+    |> put_flash(
+      :error,
+      dgettext("errors", "Unknown OAuth app client_id: \"%{client_id}\"", %{client_id: client_id})
+    )
+    |> put_status(:unauthorized)
+    |> authorize(params)
+  end
+
+  defp handle_create_authorization_error(
+         %Plug.Conn{} = conn,
+         {:wrong_redirect_uri, _},
+         %{"authorization" => %{"redirect_uri" => redirect_uri}} = params
+       ) do
+    conn
+    |> put_flash(
+      :error,
+      dgettext("errors", "Redirect URI not requested by the app: \"%{redirect_uri}\"", %{
+        redirect_uri: redirect_uri
+      })
+    )
+    |> put_status(:unauthorized)
+    |> authorize(params)
+  end
+
   defp handle_create_authorization_error(%Plug.Conn{} = conn, error, %{"authorization" => _}) do
     Authenticator.handle_error(conn, error)
   end
@@ -572,8 +602,9 @@ defmodule Pleroma.Web.OAuth.OAuthController do
        ) do
     with {_, {:ok, %User{} = user}} <-
            {:get_user, (user && {:ok, user}) || Authenticator.get_user(conn)},
-         %App{} = app <- Repo.get_by(App, client_id: client_id),
-         true <- redirect_uri in String.split(app.redirect_uris),
+         {:unknown_app, %App{} = app} <- {:unknown_app, Repo.get_by(App, client_id: client_id)},
+         {:wrong_redirect_uri, true} <-
+           {:wrong_redirect_uri, redirect_uri in String.split(app.redirect_uris)},
          requested_scopes <- Scopes.fetch_scopes(auth_attrs, app.scopes),
          {:ok, auth} <- do_create_authorization(user, app, requested_scopes) do
       {:ok, auth, user}

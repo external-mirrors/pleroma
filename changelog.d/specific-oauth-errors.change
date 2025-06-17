@@ -1,0 +1,1 @@
+Instead of saying "Invalid login/password", be more specific with oauth errors when the client_id is not found or the redirect uri is wrong

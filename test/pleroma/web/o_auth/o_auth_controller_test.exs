@@ -271,7 +271,9 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
           }
         )
 
-      assert html_response(conn, 401)
+      result = html_response(conn, 401)
+      # Error message
+      assert result =~ "Redirect URI not requested by the app"
     end
 
     test "with invalid params, POST /oauth/register?op=register renders registration_details page",
@@ -707,6 +709,29 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
 
       # Error message
       assert result =~ "Invalid Username/Password"
+    end
+
+    test "returns 401 for a non-existent app", %{conn: conn} do
+      user = insert(:user)
+      app = insert(:oauth_app)
+      redirect_uri = OAuthController.default_redirect_uri(app)
+
+      result =
+        conn
+        |> post("/oauth/authorize", %{
+          "authorization" => %{
+            "name" => user.nickname,
+            "password" => "test",
+            "client_id" => "wrong",
+            "redirect_uri" => redirect_uri,
+            "state" => "statepassed",
+            "scope" => Enum.join(app.scopes, " ")
+          }
+        })
+        |> html_response(:unauthorized)
+
+      # Error message
+      assert result =~ "Unknown OAuth app client_id"
     end
 
     test "returns 401 for missing scopes" do
