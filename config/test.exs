@@ -188,7 +188,7 @@ config :pleroma, Pleroma.Application,
   streamer_registry: false,
   test_http_pools: true
 
-config :pleroma, Pleroma.Web.Streaming, sync_streaming: true
+config :pleroma, Pleroma.Web.Streamer, sync_streaming: true
 
 config :pleroma, Pleroma.Uploaders.Uploader, timeout: 1_000
 
