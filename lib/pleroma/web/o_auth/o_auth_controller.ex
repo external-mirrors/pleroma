@@ -418,15 +418,11 @@ defmodule Pleroma.Web.OAuth.OAuthController do
       auth_attrs
       |> Map.delete("scopes")
       |> Map.put("scope", scope)
-      |> Jason.encode!()
 
-    params =
-      auth_attrs
-      |> Map.drop(~w(scope scopes client_id redirect_uri))
-      |> Map.put("state", state)
+    conn = put_session(conn, :o_auth_state, state)
 
     # Handing the request to Ueberauth
-    redirect(conn, to: Routes.o_auth_path(conn, :request, provider, params))
+    redirect(conn, to: Routes.o_auth_path(conn, :request, provider))
   end
 
   def request(%Plug.Conn{} = conn, params) do
@@ -445,7 +441,7 @@ defmodule Pleroma.Web.OAuth.OAuthController do
   end
 
   def callback(%Plug.Conn{assigns: %{ueberauth_failure: failure}} = conn, params) do
-    params = callback_params(params)
+    params = callback_params(conn, params)
     messages = for e <- Map.get(failure, :errors, []), do: e.message
     message = Enum.join(messages, "; ")
 
@@ -458,7 +454,7 @@ defmodule Pleroma.Web.OAuth.OAuthController do
   end
 
   def callback(%Plug.Conn{} = conn, params) do
-    params = callback_params(params)
+    params = callback_params(conn, params)
 
     with {:ok, registration} <- Authenticator.get_registration(conn) do
       auth_attrs = Map.take(params, ~w(client_id redirect_uri scope scopes state))
@@ -488,8 +484,10 @@ defmodule Pleroma.Web.OAuth.OAuthController do
     end
   end
 
-  defp callback_params(%{"state" => state} = params) do
-    Map.merge(params, Jason.decode!(state))
+  defp callback_params(conn, params) do
+    state = get_session(conn, :o_auth_state)
+
+    Map.merge(params, state)
   end
 
   def registration_details(%Plug.Conn{} = conn, %{"authorization" => auth_attrs}) do

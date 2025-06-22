@@ -61,7 +61,7 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
       assert response =~ o_auth_path(conn, :prepare_request)
     end
 
-    test "GET /oauth/prepare_request encodes parameters as `state` and redirects", %{
+    test "GET /oauth/prepare_request puts `state` into session and redirects", %{
       app: app,
       conn: conn
     } do
@@ -82,9 +82,7 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
 
       assert html_response(conn, 302)
 
-      redirect_query = URI.parse(redirected_to(conn)).query
-      assert %{"state" => state_param} = URI.decode_query(redirect_query)
-      assert {:ok, state_components} = Jason.decode(state_param)
+      state_components = get_session(conn, :o_auth_state)
 
       expected_client_id = app.client_id
       expected_redirect_uri = app.redirect_uris
@@ -112,6 +110,7 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
       conn =
         conn
         |> assign(:ueberauth_auth, %{provider: registration.provider, uid: registration.uid})
+        |> put_session(:o_auth_state, state_params)
         |> get(
           "/oauth/twitter/callback",
           %{
@@ -144,6 +143,7 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
           uid: "171799000",
           info: %{nickname: user.nickname, email: user.email, name: user.name, description: nil}
         })
+        |> put_session(:o_auth_state, state_params)
         |> get(
           "/oauth/twitter/callback",
           %{
@@ -175,13 +175,13 @@ defmodule Pleroma.Web.OAuth.OAuthControllerTest do
       conn =
         conn
         |> assign(:ueberauth_failure, %{errors: [%{message: "(error description)"}]})
+        |> put_session(:o_auth_state, state_params)
         |> get(
           "/oauth/twitter/callback",
           %{
             "oauth_token" => "G-5a3AAAAAAAwMH9AAABaektfSM",
             "oauth_verifier" => "QZl8vUqNvXMTKpdmUnGejJxuHG75WWWs",
-            "provider" => "twitter",
-            "state" => Jason.encode!(state_params)
+            "provider" => "twitter"
           }
         )
 

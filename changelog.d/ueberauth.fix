@@ -1,0 +1,1 @@
+ Save OAuth state into session instead of a URL parameter, since ueberauth uses "state" for CSRF protection now
