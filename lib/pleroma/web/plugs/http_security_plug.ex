@@ -78,7 +78,7 @@ defmodule Pleroma.Web.Plugs.HTTPSecurityPlug do
     "default-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self'",
     "font-src 'self'",
     "manifest-src 'self'"
   ]

@@ -268,7 +268,7 @@ defmodule Pleroma.Web.OStatus.OStatusControllerTest do
                conn,
                "content-security-policy"
              ) == [
-               "default-src 'none';style-src 'self' 'unsafe-inline';img-src 'self' data: https:; media-src 'self' https:;"
+               "default-src 'none';style-src 'self';img-src 'self' data: https:; media-src 'self' https:;"
              ]
 
       assert response(conn, 200) =~

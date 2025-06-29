@@ -38,7 +38,7 @@ content-security-policy:
   frame-ancestors 'none';
   img-src 'self' data: blob: https:;
   media-src 'self' https:;
-  style-src 'self' 'unsafe-inline';
+  style-src 'self';
   font-src 'self';
   script-src 'self';
   connect-src 'self' wss://example.tld;

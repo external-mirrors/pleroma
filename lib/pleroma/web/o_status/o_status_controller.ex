@@ -115,7 +115,7 @@ defmodule Pleroma.Web.OStatus.OStatusController do
       |> put_resp_header("x-frame-options", "ALLOW")
       |> put_resp_header(
         "content-security-policy",
-        "default-src 'none';style-src 'self' 'unsafe-inline';img-src 'self' data: https:; media-src 'self' https:;"
+        "default-src 'none';style-src 'self';img-src 'self' data: https:; media-src 'self' https:;"
       )
       |> put_view(PlayerView)
       |> render("player.html", url)
