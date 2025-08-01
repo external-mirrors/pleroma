@@ -9,7 +9,7 @@ defmodule Pleroma.EctoType.ActivityPub.ObjectValidators.MIMETest do
 
   describe "mime_regex/0" do
     test "validates standard MIME types" do
-      mime_regex = Pleroma.Constants.mime_regex()
+      {:ok, mime_regex} = Regex.compile(Pleroma.Constants.mime_regex())
 
       valid_mime_types = [
         "text/plain",
@@ -41,7 +41,7 @@ defmodule Pleroma.EctoType.ActivityPub.ObjectValidators.MIMETest do
     end
 
     test "validates MIME types with parameters" do
-      mime_regex = Pleroma.Constants.mime_regex()
+      {:ok, mime_regex} = Regex.compile(Pleroma.Constants.mime_regex())
 
       valid_mime_types_with_params = [
         "text/plain; charset=utf-8",
@@ -59,7 +59,7 @@ defmodule Pleroma.EctoType.ActivityPub.ObjectValidators.MIMETest do
     end
 
     test "validates custom/vendor MIME types" do
-      mime_regex = Pleroma.Constants.mime_regex()
+      {:ok, mime_regex} = Regex.compile(Pleroma.Constants.mime_regex())
 
       valid_custom_mime_types = [
         "application/vnd.ms-excel",
@@ -76,7 +76,7 @@ defmodule Pleroma.EctoType.ActivityPub.ObjectValidators.MIMETest do
     end
 
     test "rejects invalid MIME types" do
-      mime_regex = Pleroma.Constants.mime_regex()
+      {:ok, mime_regex} = Regex.compile(Pleroma.Constants.mime_regex())
 
       invalid_mime_types = [
         # Missing slash
@@ -114,7 +114,7 @@ defmodule Pleroma.EctoType.ActivityPub.ObjectValidators.MIMETest do
     end
 
     test "handles edge cases" do
-      mime_regex = Pleroma.Constants.mime_regex()
+      {:ok, mime_regex} = Regex.compile(Pleroma.Constants.mime_regex())
 
       edge_cases = [
         # Single character types

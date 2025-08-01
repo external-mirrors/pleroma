@@ -129,7 +129,7 @@ defmodule Pleroma.Constants do
   # basic regex, just there to weed out potential mistakes
   # https://datatracker.ietf.org/doc/html/rfc2045#section-5.1
   const(mime_regex,
-    do: ~r/^[^[:cntrl:] ()<>@,;:\\"\/\[\]?=]+\/[^[:cntrl:] ()<>@,;:\\"\/\[\]?=]+(; .*)?$/
+    do: "^[^[:cntrl:] ()<>@,;:\\\\\"\\/\\[\\]?=]+\\/[^[:cntrl:] ()<>@,;:\\\\\"\\/\\[\\]?=]+(; .*)?$"
   )
 
   const(upload_object_types, do: ["Document", "Image"])

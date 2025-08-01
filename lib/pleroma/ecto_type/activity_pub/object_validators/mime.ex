@@ -10,7 +10,8 @@ defmodule Pleroma.EctoType.ActivityPub.ObjectValidators.MIME do
   def type, do: :string
 
   def cast(mime) when is_binary(mime) do
-    if mime =~ Pleroma.Constants.mime_regex() do
+    {:ok, regex} = Regex.compile(Pleroma.Constants.mime_regex())
+    if mime =~ regex do
       {:ok, mime}
     else
       {:ok, "application/octet-stream"}
