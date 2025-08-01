@@ -273,24 +273,38 @@ defmodule Pleroma.ConfigDBTest do
     end
 
     test "sigil" do
-      assert ConfigDB.to_elixir_types("~r[comp[lL][aA][iI][nN]er]") == ~r/comp[lL][aA][iI][nN]er/
+      result = ConfigDB.to_elixir_types("~r[comp[lL][aA][iI][nN]er]")
+      expected = ~r/comp[lL][aA][iI][nN]er/
+      assert result.source == expected.source
+      assert result.opts == expected.opts
     end
 
     test "link sigil" do
-      assert ConfigDB.to_elixir_types("~r/https:\/\/example.com/") == ~r/https:\/\/example.com/
+      result = ConfigDB.to_elixir_types("~r/https:\/\/example.com/")
+      expected = ~r/https:\/\/example.com/
+      assert result.source == expected.source
+      assert result.opts == expected.opts
     end
 
     test "link sigil with um modifiers" do
-      assert ConfigDB.to_elixir_types("~r/https:\/\/example.com/um") ==
-               ~r/https:\/\/example.com/um
+      result = ConfigDB.to_elixir_types("~r/https:\/\/example.com/um")
+      expected = ~r/https:\/\/example.com/um
+      assert result.source == expected.source
+      assert result.opts == expected.opts
     end
 
     test "link sigil with i modifier" do
-      assert ConfigDB.to_elixir_types("~r/https:\/\/example.com/i") == ~r/https:\/\/example.com/i
+      result = ConfigDB.to_elixir_types("~r/https:\/\/example.com/i")
+      expected = ~r/https:\/\/example.com/i
+      assert result.source == expected.source
+      assert result.opts == expected.opts
     end
 
     test "link sigil with s modifier" do
-      assert ConfigDB.to_elixir_types("~r/https:\/\/example.com/s") == ~r/https:\/\/example.com/s
+      result = ConfigDB.to_elixir_types("~r/https:\/\/example.com/s")
+      expected = ~r/https:\/\/example.com/s
+      assert result.source == expected.source
+      assert result.opts == expected.opts
     end
 
     test "raise if valid delimiter not found" do
@@ -458,15 +472,26 @@ defmodule Pleroma.ConfigDBTest do
     end
 
     test "complex keyword with sigil" do
-      assert ConfigDB.to_elixir_types([
+      result = ConfigDB.to_elixir_types([
                %{"tuple" => [":federated_timeline_removal", []]},
                %{"tuple" => [":reject", ["~r/comp[lL][aA][iI][nN]er/"]]},
                %{"tuple" => [":replace", []]}
-             ]) == [
+             ])
+      expected = [
                federated_timeline_removal: [],
                reject: [~r/comp[lL][aA][iI][nN]er/],
                replace: []
              ]
+
+      # Compare non-regex parts
+      assert result[:federated_timeline_removal] == expected[:federated_timeline_removal]
+      assert result[:replace] == expected[:replace]
+
+      # Compare regex parts by properties
+      result_regex = result[:reject] |> List.first()
+      expected_regex = expected[:reject] |> List.first()
+      assert result_regex.source == expected_regex.source
+      assert result_regex.opts == expected_regex.opts
     end
 
     test "complex keyword with tuples with more than 2 values" do
