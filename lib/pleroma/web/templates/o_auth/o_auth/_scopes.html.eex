@@ -8,7 +8,7 @@
           <%= checkbox @form, :"scope_#{scope}", value: scope in @scopes && scope, checked_value: scope, unchecked_value: "", name: "authorization[scope][]" %>
           <%= label @form, :"scope_#{scope}", String.capitalize(scope) %>
           <%= if scope in @scopes && scope do %>
-            <code><%= scope %></code> <%= :"Elixir.Gettext".dgettext(Gettext, "oauth_scopes", scope) %>
+            <span class="scope-description"><%= :"Elixir.Gettext".dgettext(Gettext, "oauth_scopes", scope) %></span>
           <% end %>
         </div>
       <% else %>
@@ -17,3 +17,162 @@
     <% end %>
   </div>
 </div>
+
+<style>
+/* Make scope label bold and white */
+.scopes-input label:first-child {
+  color: var(--primary-text-color) !important;
+  font-weight: bold !important;
+}
+
+.scope-description {
+  color: var(--primary-text-color);
+  font-size: 0.9em;
+  margin-left: 8px;
+  font-weight: bold;
+}
+
+/* Override existing CSS that applies old checkmark content */
+.scope:first-child:before {
+  content: "" !important;
+  margin-left: 0 !important;
+}
+
+/* Make checkmarks consistently orange and remove all margin-left */
+.scope:before {
+  color: var(--brand-color) !important;
+  margin-left: 0 !important;
+}
+
+/* Ensure proper horizontal layout for all screen sizes */
+.scopes {
+  margin-top: 15px;
+}
+
+.scope {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  padding: 4px 0;
+}
+
+.scope:before {
+  content: "";
+  margin-right: 8px;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='%23d8a070'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z' /%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.scope label {
+  font-weight: bold;
+  margin-right: 8px;
+  flex-shrink: 0;
+  color: var(--primary-text-color);
+}
+
+.scope-description {
+  color: var(--primary-text-color);
+  font-size: 0.9em;
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  flex: 1;
+  font-weight: bold;
+}
+
+/* Mobile responsive fixes with grid layout */
+@media all and (max-width: 420px) {
+  .scopes {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .scope {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "checkmark label"
+      "checkmark description";
+    align-items: start;
+    padding: 4px 0;
+    gap: 0 8px;
+  }
+
+  .scope:before {
+    content: "";
+    grid-area: checkmark;
+    align-self: start;
+    margin: 0;
+    width: 20px;
+    height: 20px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='%23d8a070'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z' /%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+
+  .scope label {
+    font-weight: bold;
+    grid-area: label;
+    margin: 0;
+    line-height: 1.2;
+    color: var(--primary-text-color);
+  }
+
+  .scope-description {
+    grid-area: description;
+    margin: 0;
+    line-height: 1.4;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    font-size: 0.85em;
+    color: var(--primary-text-color);
+    font-weight: bold;
+  }
+
+  .scope:after {
+    content: "";
+  }
+}
+
+/* For very small screens */
+@media all and (max-width: 320px) {
+  .scope {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "checkmark"
+      "label"
+      "description";
+    text-align: center;
+  }
+
+  .scope:before {
+    justify-self: center;
+    margin: 0 0 4px 0;
+    width: 20px;
+    height: 20px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='%23d8a070'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z' /%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+
+  .scope label {
+    text-align: center;
+    margin: 0 0 4px 0;
+    color: var(--primary-text-color);
+    font-weight: bold;
+  }
+
+  .scope-description {
+    text-align: center;
+    color: var(--primary-text-color);
+    font-weight: bold;
+  }
+}
+</style>

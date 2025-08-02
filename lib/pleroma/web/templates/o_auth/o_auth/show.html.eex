@@ -20,16 +20,16 @@
 
 <div class="container__content">
   <%= if @app do %>
-    <p><%= raw Gettext.dpgettext("static_pages", "oauth authorize message", "Application <strong>%{client_name}</strong> is requesting access to your account.", client_name: safe_to_string(html_escape(@app.client_name))) %></p>
+    <h2><%= raw Gettext.dpgettext("static_pages", "oauth authorize message", "Application <strong>%{client_name}</strong> is requesting access to your account.", client_name: safe_to_string(html_escape(@app.client_name))) %></h2>
     <%= render Phoenix.Controller.view_module(@conn), "_scopes.html", Map.merge(assigns, %{form: f}) %>
   <% end %>
 
   <%= if @user do %>
     <div class="actions">
-      <a class="button button--cancel" href="/">
+      <a class="button" href="/">
         <%= Gettext.dpgettext("static_pages", "oauth authorize cancel button", "Cancel") %>
       </a>
-      <%= submit Gettext.dpgettext("static_pages", "oauth authorize approve button", "Approve"), class: "button--approve" %>
+      <%= submit Gettext.dpgettext("static_pages", "oauth authorize approve button", "Approve"), class: "button" %>
     </div>
   <% else %>
     <%= if @params["registration"] in ["true", true] do %>
@@ -41,17 +41,18 @@
       </div>
       <%= hidden_input f, :name, value: @params["name"] %>
       <%= hidden_input f, :password, value: @params["password"] %>
-      <br>
+      <%= submit Gettext.dpgettext("static_pages", "oauth register button", "Register"), class: "button" %>
     <% else %>
+      <h3><%= Gettext.dpgettext("static_pages", "oauth login page title", "Sign in to your account") %></h3>
       <div class="input">
         <%= label f, :name, Gettext.dpgettext("static_pages", "oauth login username prompt", "Username") %>
-        <%= text_input f, :name %>
+        <%= text_input f, :name, autocomplete: "username" %>
       </div>
       <div class="input">
         <%= label f, :password, Gettext.dpgettext("static_pages", "oauth login password prompt", "Password") %>
-        <%= password_input f, :password %>
+        <%= password_input f, :password, autocomplete: "current-password" %>
       </div>
-      <%= submit Gettext.dpgettext("static_pages", "oauth login button", "Log In") %>
+      <%= submit Gettext.dpgettext("static_pages", "oauth login button", "Log In"), class: "button" %>
     <% end %>
   <% end %>
 </div>
@@ -65,3 +66,103 @@
 <%= if Pleroma.Config.oauth_consumer_enabled?() do %>
   <%= render Phoenix.Controller.view_module(@conn), Pleroma.Web.Auth.WrapperAuthenticator.oauth_consumer_template(), assigns %>
 <% end %>
+
+<style>
+/* Make app name orange */
+h2 strong {
+  color: var(--brand-color);
+}
+
+/* Make approve button text orange on hover */
+.button:hover {
+  color: var(--brand-color) !important;
+  border-color: var(--brand-color) !important;
+}
+
+/* Ensure equal button widths and proper centering */
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.actions .button {
+  flex: 1;
+  width: auto;
+  margin-left: 0;
+  margin-top: 10px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile responsive improvements */
+@media all and (max-width: 420px) {
+  .container__content {
+    padding: 0 15px;
+  }
+
+  h2 {
+    font-size: 16px;
+    line-height: 1.4;
+    margin-bottom: 15px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+
+  .actions {
+    flex-direction: row;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .actions .button {
+    flex: 1;
+    width: auto;
+    margin-left: 0;
+    margin-top: 10px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .account-header__banner {
+    height: 80px;
+  }
+
+  .account-header__avatar {
+    width: 70px;
+    height: 70px;
+    margin: -35px 10px 0;
+  }
+
+  .account-header__display-name {
+    font-size: 18px;
+  }
+
+  .account-header__nickname {
+    font-size: 13px;
+  }
+
+  .input {
+    margin-bottom: 15px;
+  }
+
+  input {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* Ensure proper text wrapping on all screen sizes */
+h2, h3, p {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+</style>
