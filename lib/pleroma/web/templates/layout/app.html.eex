@@ -13,8 +13,10 @@
         <h1 class="instance-header__title"><%= Pleroma.Config.get([:instance, :name]) %></h1>
       </a>
     </div>
-    <div class="container">
-      <%= @inner_content %>
+    <div class="contents">
+      <div class="panel">
+        <%= @inner_content %>
+      </div>
     </div>
   </body>
 </html>

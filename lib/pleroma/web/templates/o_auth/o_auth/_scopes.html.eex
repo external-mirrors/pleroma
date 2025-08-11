@@ -5,10 +5,19 @@
       <% # Note: using hidden input with `unchecked_value` in order to distinguish user's empty selection from `scope` param being omitted %>
       <%= if scope in @scopes do %>
         <div class="scope">
-          <%= checkbox @form, :"scope_#{scope}", value: scope in @scopes && scope, checked_value: scope, unchecked_value: "", name: "authorization[scope][]" %>
-          <%= label @form, :"scope_#{scope}", String.capitalize(scope) %>
+          <span class="checkbox">
+            <%= checkbox @form, :"scope_#{scope}", value: scope in @scopes && scope, checked_value: scope, unchecked_value: "", name: "authorization[scope][]" %>
+            <%= label @form, :"scope_#{scope}", "" %>
+          </span>
           <%= if scope in @scopes && scope do %>
-            <code><%= scope %></code> <%= :"Elixir.Gettext".dgettext(Gettext, "oauth_scopes", scope) %>
+            <dl>
+              <dt>
+                <%= :"Elixir.Gettext".dgettext(Gettext, "oauth_scopes", scope) %>
+              </dt>
+              <dd>
+                <code><%= scope %></code>
+              </dd>
+            </dl>
           <% end %>
         </div>
       <% else %>
