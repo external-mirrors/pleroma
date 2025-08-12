@@ -311,15 +311,15 @@ label:hover::before {
 .scope {
   display: flex;
   align-items: center;
+}
 
-  dl {
-    margin: 0.75em;
+.scope dl {
+  margin: 0.75em;
+  display: flex;
+  flex-direction: column;
+}
 
-    display: flex;
-    flex-direction: column;
-
-    dt, dd {
-      margin: 0;
-    }
-  }
+.scope dt,
+.scope dd {
+  margin: 0;
 }
