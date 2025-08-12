@@ -40,7 +40,7 @@ a {
   width: 100%;
   background-color: #1c2a3a;
   color: var(--primary-text-color);
-  border-radius: 4px;
+  border-radius: 0.5em;
   border: none;
   padding: 0 1em;
   line-height: 2;
@@ -81,25 +81,23 @@ a {
   flex-direction: column;
 }
 
-.alert-danger {
+.alert {
+  border-radius: 0.5em;
+  padding: 0 0.5em;
+  line-height: 2;
+  margin-top: 1em;
+  font-weight: 500;
   width: 100%;
+}
+
+.alert-danger {
   background-color: #931014;
   border: 1px solid #a06060;
-  border-radius: 4px;
-  padding: 10px;
-  margin-top: 20px;
-  font-weight: 500;
-  font-size: 16px;
 }
 
 .alert-info {
-  width: 100%;
-  border-radius: 4px;
-  border: 1px solid #7d796a;
-  padding: 10px;
-  margin-top: 20px;
-  font-weight: 500;
-  font-size: 16px;
+  background-color: #939393;
+  border: 1px solid #a0a0a0;
 }
 
 .instance-header {
