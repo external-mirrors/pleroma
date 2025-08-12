@@ -3,8 +3,6 @@
 }
 
 :root {
-  font-size: 16px;
-
   --bg: rgba(18, 26, 36, 1);
   --fg: rgba(24, 34, 48, 1);
   --text: rgba(185, 185, 186, 1);
@@ -296,7 +294,6 @@ label {
 
 input[type="checkbox"] + label::before {
   content: "";
-
   box-shadow:
   min-width: 1em;
   min-height: 1em;
