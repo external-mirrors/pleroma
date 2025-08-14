@@ -231,6 +231,11 @@ a {
   white-space: nowrap;
   overflow-x: hidden;
   text-overflow: ellipsis;
+  text-shadow:
+    0 0 5em var(--profileTint),
+    0 0 1em var(--profileTint),
+    0 0 0.5em var(--profileTint),
+    0 0 0.2em var(--profileTint);
 }
 
 .acocunt-header__display-name {
