@@ -7,7 +7,7 @@ defmodule Pleroma.Web.ApiSpec.RenderError do
 
   import Plug.Conn, only: [put_status: 2]
   import Phoenix.Controller, only: [json: 2]
-  import Pleroma.Web.Gettext
+  use Gettext, backend: Pleroma.Web.Gettext
 
   @impl Plug
   def init(opts), do: opts

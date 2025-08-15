@@ -9,7 +9,7 @@ defmodule Pleroma.Web.Gettext do
   By using [Gettext](https://hexdocs.pm/gettext),
   your module gains a set of macros for translations, for example:
 
-      import Pleroma.Web.Gettext
+      use Gettext, backend: Pleroma.Web.Gettext
 
       # Simple translation
       gettext "Here is the string to translate"
@@ -24,7 +24,7 @@ defmodule Pleroma.Web.Gettext do
 
   See the [Gettext Docs](https://hexdocs.pm/gettext) for detailed usage.
   """
-  use Gettext, otp_app: :pleroma
+  use Gettext.Backend, otp_app: :pleroma
 
   def language_tag do
     # Naive implementation: HTML lang attribute uses BCP 47, which

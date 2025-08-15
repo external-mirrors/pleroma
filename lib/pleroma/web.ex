@@ -34,7 +34,7 @@ defmodule Pleroma.Web do
 
       import Plug.Conn
 
-      import Pleroma.Web.Gettext
+      use Gettext, backend: Pleroma.Web.Gettext
       import Pleroma.Web.TranslationHelpers
 
       alias Pleroma.Web.Router.Helpers, as: Routes
@@ -139,7 +139,7 @@ defmodule Pleroma.Web do
       import Phoenix.Controller, only: [get_csrf_token: 0, view_module: 1]
 
       import Pleroma.Web.ErrorHelpers
-      import Pleroma.Web.Gettext
+      use Gettext, backend: Pleroma.Web.Gettext
 
       alias Pleroma.Web.Router.Helpers, as: Routes
 
@@ -185,7 +185,7 @@ defmodule Pleroma.Web do
     quote do
       # credo:disable-for-next-line Credo.Check.Consistency.MultiAliasImportRequireUse
       import Phoenix.Channel
-      import Pleroma.Web.Gettext
+      use Gettext, backend: Pleroma.Web.Gettext
     end
   end
 

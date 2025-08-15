@@ -20,7 +20,7 @@ defmodule Pleroma.Web.CommonAPI do
   alias Pleroma.Web.CommonAPI.ActivityDraft
 
   import Ecto.Query, only: [where: 3]
-  import Pleroma.Web.Gettext
+  use Gettext, backend: Pleroma.Web.Gettext
   import Pleroma.Web.CommonAPI.Utils
 
   require Pleroma.Constants

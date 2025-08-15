@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.TwitterAPI.TwitterAPI do
-  import Pleroma.Web.Gettext
+  use Gettext, backend: Pleroma.Web.Gettext
 
   alias Pleroma.Emails.Mailer
   alias Pleroma.Emails.UserEmail
