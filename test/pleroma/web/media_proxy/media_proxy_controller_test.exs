@@ -182,7 +182,7 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
       media_proxy_url: media_proxy_url
     } do
       Tesla.Mock.mock(fn
-        %{method: "HEAD", url: ^media_proxy_url} ->
+        %{method: :head, url: ^media_proxy_url} ->
           %Tesla.Env{status: 500, body: ""}
       end)
 
@@ -197,7 +197,7 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
       media_proxy_url: media_proxy_url
     } do
       Tesla.Mock.mock(fn
-        %{method: "HEAD", url: ^media_proxy_url} ->
+        %{method: :head, url: ^media_proxy_url} ->
           %Tesla.Env{status: 200, body: "", headers: [{"content-type", "application/pdf"}]}
       end)
 
@@ -217,7 +217,7 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
       clear_config([:media_preview_proxy, :min_content_length], 1_000_000_000)
 
       Tesla.Mock.mock(fn
-        %{method: "HEAD", url: ^media_proxy_url} ->
+        %{method: :head, url: ^media_proxy_url} ->
           %Tesla.Env{
             status: 200,
             body: "",
@@ -242,14 +242,14 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
            media_proxy_url: media_proxy_url
          } do
       Tesla.Mock.mock(fn
-        %{method: "HEAD", url: ^media_proxy_url} ->
+        %{method: :head, url: ^media_proxy_url} ->
           %Tesla.Env{status: 200, body: "", headers: [{"content-type", "image/gif"}]}
       end)
 
       response = get(conn, url)
 
-      assert response.status == 302
-      assert redirected_to(response) == media_proxy_url
+      assert response.status == 301
+      assert redirected_to(response, 301) == media_proxy_url
     end
 
     test "with `static` param and non-GIF image preview requested, " <>
@@ -260,7 +260,7 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
            media_proxy_url: media_proxy_url
          } do
       Tesla.Mock.mock(fn
-        %{method: "HEAD", url: ^media_proxy_url} ->
+        %{method: :head, url: ^media_proxy_url} ->
           %Tesla.Env{status: 200, body: "", headers: [{"content-type", "image/jpeg"}]}
       end)
 
@@ -280,7 +280,7 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
       clear_config([:media_preview_proxy, :min_content_length], 100_000)
 
       Tesla.Mock.mock(fn
-        %{method: "HEAD", url: ^media_proxy_url} ->
+        %{method: :head, url: ^media_proxy_url} ->
           %Tesla.Env{
             status: 200,
             body: "",
@@ -290,8 +290,8 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
 
       response = get(conn, url)
 
-      assert response.status == 302
-      assert redirected_to(response) == media_proxy_url
+      assert response.status == 301
+      assert redirected_to(response, 301) == media_proxy_url
     end
 
     test "thumbnails PNG images into PNG", %{
@@ -302,7 +302,7 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
       assert_dependencies_installed()
 
       Tesla.Mock.mock(fn
-        %{method: "HEAD", url: ^media_proxy_url} ->
+        %{method: :head, url: ^media_proxy_url} ->
           %Tesla.Env{status: 200, body: "", headers: [{"content-type", "image/png"}]}
 
         %{method: :get, url: ^media_proxy_url} ->
@@ -324,7 +324,7 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
       assert_dependencies_installed()
 
       Tesla.Mock.mock(fn
-        %{method: "HEAD", url: ^media_proxy_url} ->
+        %{method: :head, url: ^media_proxy_url} ->
           %Tesla.Env{status: 200, body: "", headers: [{"content-type", "image/jpeg"}]}
 
         %{method: :get, url: ^media_proxy_url} ->
@@ -344,7 +344,7 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
       media_proxy_url: media_proxy_url
     } do
       Tesla.Mock.mock(fn
-        %{method: "HEAD", url: ^media_proxy_url} ->
+        %{method: :head, url: ^media_proxy_url} ->
           %Tesla.Env{status: 200, body: "", headers: [{"content-type", "image/jpeg"}]}
 
         %{method: :get, url: ^media_proxy_url} ->
@@ -355,6 +355,33 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyControllerTest do
 
       assert response.status == 302
       assert redirected_to(response) == media_proxy_url
+    end
+
+    test "redirects to media proxy URI with 301 when image is too small for preview", %{
+      conn: conn,
+      url: url,
+      media_proxy_url: media_proxy_url
+    } do
+      clear_config([:media_preview_proxy],
+        enabled: true,
+        min_content_length: 1000,
+        image_quality: 85,
+        thumbnail_max_width: 100,
+        thumbnail_max_height: 100
+      )
+
+      Tesla.Mock.mock(fn
+        %{method: :head, url: ^media_proxy_url} ->
+          %Tesla.Env{
+            status: 200,
+            body: "",
+            headers: [{"content-type", "image/png"}, {"content-length", "500"}]
+          }
+      end)
+
+      response = get(conn, url)
+      assert response.status == 301
+      assert redirected_to(response, 301) == media_proxy_url
     end
   end
 end

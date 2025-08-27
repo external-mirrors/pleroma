@@ -7,7 +7,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
 
   alias Pleroma.Emoji.Pack
 
-  plug(Pleroma.Web.ApiSpec.CastAndValidate)
+  plug(Pleroma.Web.ApiSpec.CastAndValidate, replace_params: false)
 
   plug(
     Pleroma.Web.Plugs.OAuthScopesPlug,
@@ -16,6 +16,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
            :import_from_filesystem,
            :remote,
            :download,
+           :download_zip,
            :create,
            :update,
            :delete
@@ -26,7 +27,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
 
   defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.PleromaEmojiPackOperation
 
-  def remote(conn, params) do
+  def remote(%{private: %{open_api_spex: %{params: params}}} = conn, _) do
     with {:ok, packs} <-
            Pack.list_remote(url: params.url, page_size: params.page_size, page: params.page) do
       json(conn, packs)
@@ -38,7 +39,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
     end
   end
 
-  def index(conn, params) do
+  def index(%{private: %{open_api_spex: %{params: params}}} = conn, _) do
     emoji_path =
       [:instance, :static_dir]
       |> Pleroma.Config.get!()
@@ -61,7 +62,11 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
     end
   end
 
-  def show(conn, %{name: name, page: page, page_size: page_size}) do
+  def show(
+        %{private: %{open_api_spex: %{params: %{name: name, page: page, page_size: page_size}}}} =
+          conn,
+        _
+      ) do
     name = String.trim(name)
 
     with {:ok, pack} <- Pack.show(name: name, page: page, page_size: page_size) do
@@ -90,7 +95,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
     end
   end
 
-  def archive(conn, %{name: name}) do
+  def archive(%{private: %{open_api_spex: %{params: %{name: name}}}} = conn, _) do
     with {:ok, archive} <- Pack.get_archive(name) do
       send_download(conn, {:binary, archive}, filename: "#{name}.zip")
     else
@@ -109,7 +114,31 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
     end
   end
 
-  def download(%{body_params: %{url: url, name: name} = params} = conn, _) do
+  def download_zip(
+        %{private: %{open_api_spex: %{body_params: params}}} = conn,
+        _
+      ) do
+    name = Map.get(params, :name)
+
+    with :ok <- Pack.download_zip(name, params) do
+      json(conn, "ok")
+    else
+      {:error, error} when is_binary(error) ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: error})
+
+      {:error, _} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Could not process pack"})
+    end
+  end
+
+  def download(
+        %{private: %{open_api_spex: %{body_params: %{url: url, name: name} = params}}} = conn,
+        _
+      ) do
     with {:ok, _pack} <- Pack.download(name, url, params[:as]) do
       json(conn, "ok")
     else
@@ -130,7 +159,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
     end
   end
 
-  def create(conn, %{name: name}) do
+  def create(%{private: %{open_api_spex: %{params: %{name: name}}}} = conn, _) do
     name = String.trim(name)
 
     with {:ok, _pack} <- Pack.create(name) do
@@ -159,7 +188,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
     end
   end
 
-  def delete(conn, %{name: name}) do
+  def delete(%{private: %{open_api_spex: %{params: %{name: name}}}} = conn, _) do
     name = String.trim(name)
 
     with {:ok, deleted} when deleted != [] <- Pack.delete(name) do
@@ -184,7 +213,11 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackController do
     end
   end
 
-  def update(%{body_params: %{metadata: metadata}} = conn, %{name: name}) do
+  def update(
+        %{private: %{open_api_spex: %{body_params: %{metadata: metadata}, params: %{name: name}}}} =
+          conn,
+        _
+      ) do
     with {:ok, pack} <- Pack.update_metadata(name, metadata) do
       json(conn, pack.pack)
     else

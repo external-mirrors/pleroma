@@ -1,6 +1,6 @@
 # Differences in Mastodon API responses from vanilla Mastodon
 
-A Pleroma instance can be identified by "<Mastodon version> (compatible; Pleroma <version>)" present in `version` field in response from `/api/v1/instance`
+A Pleroma instance can be identified by "<Mastodon version> (compatible; Pleroma <version>)" present in `version` field in response from `/api/v1/instance` and `/api/v2/instance`
 
 ## Flake IDs
 
@@ -39,6 +39,10 @@ Has these additional fields under the `pleroma` object:
 - `emoji_reactions`: A list with emoji / reaction maps. The format is `{name: "☕", count: 1, me: true}`. Contains no information about the reacting users, for that use the `/statuses/:id/reactions` endpoint.
 - `parent_visible`: If the parent of this post is visible to the user or not.
 - `pinned_at`: a datetime (iso8601) when status was pinned, `null` otherwise.
+- `quotes_count`: the count of status quotes.
+- `non_anonymous`: true if the source post specifies the poll results are not anonymous. Currently only implemented by Smithereen.
+- `bookmark_folder`: the ID of the folder bookmark is stored within (if any).
+- `list_id`: the ID of the list the post is addressed to (if any, only returned to author).
 
 The `GET /api/v1/statuses/:id/source` endpoint additionally has the following attributes:
 
@@ -63,6 +67,12 @@ Some apps operate under the assumption that no more than 4 attachments can be re
 ### Limitations
 
 Pleroma does not process remote images and therefore cannot include fields such as `meta` and `blurhash`. It does not support focal points or aspect ratios. The frontend is expected to handle it.
+
+## Bookmarks
+
+The `GET /api/v1/bookmarks` endpoint accepts optional parameter `folder_id` for bookmark folder ID.
+
+The `POST /api/v1/statuses/:id/bookmark` endpoint accepts optional parameter `folder_id` for bookmark folder ID.
 
 ## Accounts
 
@@ -94,7 +104,7 @@ Has these additional fields under the `pleroma` object:
 - `background_image`: nullable URL string, background image of the user
 - `tags`: Lists an array of tags for the user
 - `relationship` (object): Includes fields as documented for Mastodon API https://docs.joinmastodon.org/entities/relationship/
-- `is_moderator`: boolean, nullable,  true if user is a moderator
+- `is_moderator`: boolean, nullable, true if user is a moderator
 - `is_admin`: boolean, nullable, true if user is an admin
 - `confirmation_pending`: boolean, true if a new user account is waiting on email confirmation to be activated
 - `hide_favorites`: boolean, true when the user has hiding favorites enabled
@@ -111,6 +121,8 @@ Has these additional fields under the `pleroma` object:
 - `notification_settings`: object, can be absent. See `/api/v1/pleroma/notification_settings` for the parameters/keys returned.
 - `accepts_chat_messages`: boolean, but can be null if we don't have that information about a user
 - `favicon`: nullable URL string, Favicon image of the user's instance
+- `avatar_description`: string, image description for user avatar, defaults to empty string
+- `header_description`: string, image description for user banner, defaults to empty string
 
 ### Source
 
@@ -246,6 +258,8 @@ Additional parameters can be added to the JSON body/Form data:
 - `actor_type` - the type of this account.
 - `accepts_chat_messages` - if false, this account will reject all chat messages.
 - `language` - user's preferred language for receiving emails (digest, confirmation, etc.)
+- `avatar_description` - image description for user avatar
+- `header_description` - image description for user banner
 
 All images (avatar, banner and background) can be reset to the default by sending an empty string ("") instead of a file.
 
@@ -304,19 +318,27 @@ Has these additional parameters (which are the same as in Pleroma-API):
 `GET /api/v1/instance` has additional fields
 
 - `max_toot_chars`: The maximum characters per post
+- `max_media_attachments`: Maximum number of post media attachments
 - `chat_limit`: The maximum characters per chat message
 - `description_limit`: The maximum characters per image description
 - `poll_limits`: The limits of polls
+- `shout_limit`: The maximum characters per Shoutbox message
 - `upload_limit`: The maximum upload file size
 - `avatar_upload_limit`: The same for avatars
 - `background_upload_limit`: The same for backgrounds
 - `banner_upload_limit`: The same for banners
 - `background_image`: A background image that frontends can use
+- `pleroma.metadata.account_activation_required`: Whether users are required to confirm their emails before signing in
+- `pleroma.metadata.birthday_required`: Whether users are required to provide their birth day when signing in
+- `pleroma.metadata.birthday_min_age`: The minimum user age (in days)
 - `pleroma.metadata.features`: A list of supported features
 - `pleroma.metadata.federation`: The federation restrictions of this instance
 - `pleroma.metadata.fields_limits`: A list of values detailing the length and count limitation for various instance-configurable fields.
 - `pleroma.metadata.post_formats`: A list of the allowed post format types
-- `vapid_public_key`: The public key needed for push messages
+- `pleroma.stats.mau`: Monthly active user count
+- `pleroma.vapid_public_key`: The public key needed for push messages
+
+In, `GET /api/v2/instance` Pleroma-specific fields are all moved into `pleroma` object. `max_toot_chars`, `poll_limits` and `upload_limit` are replaced with their MastoAPI counterparts.
 
 ## Push Subscription
 
@@ -492,12 +514,6 @@ Pleroma is generally compatible with the Mastodon 2.7.2 API, but some newer feat
 *Added in Mastodon 3.0.0*
 
 - `GET /api/v1/trends`: Returns an empty array, `[]`
-
-### Identity proofs
-
-*Added in Mastodon 2.8.0*
-
-- `GET /api/v1/identity_proofs`: Returns an empty array, `[]`
 
 ### Featured tags
 

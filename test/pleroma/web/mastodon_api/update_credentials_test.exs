@@ -430,6 +430,75 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
       assert :ok == File.rm(Path.absname("test/tmp/large_binary.data"))
     end
 
+    test "adds avatar description with a new avatar", %{user: user, conn: conn} do
+      new_avatar = %Plug.Upload{
+        content_type: "image/jpeg",
+        path: Path.absname("test/fixtures/image.jpg"),
+        filename: "an_image.jpg"
+      }
+
+      res =
+        patch(conn, "/api/v1/accounts/update_credentials", %{
+          "avatar" => new_avatar,
+          "avatar_description" => "me and pleroma tan"
+        })
+
+      assert json_response_and_validate_schema(res, 200)
+
+      user = User.get_by_id(user.id)
+      assert user.avatar["name"] == "me and pleroma tan"
+    end
+
+    test "adds avatar description to existing avatar", %{user: user, conn: conn} do
+      new_avatar = %Plug.Upload{
+        content_type: "image/jpeg",
+        path: Path.absname("test/fixtures/image.jpg"),
+        filename: "an_image.jpg"
+      }
+
+      assert user.avatar == %{}
+
+      conn
+      |> patch("/api/v1/accounts/update_credentials", %{"avatar" => new_avatar})
+
+      assert conn
+             |> assign(:user, User.get_by_id(user.id))
+             |> patch("/api/v1/accounts/update_credentials", %{
+               "avatar_description" => "me and pleroma tan"
+             })
+             |> json_response_and_validate_schema(200)
+
+      user = User.get_by_id(user.id)
+      assert user.avatar["name"] == "me and pleroma tan"
+    end
+
+    test "limit", %{user: user, conn: conn} do
+      new_header = %Plug.Upload{
+        content_type: "image/jpeg",
+        path: Path.absname("test/fixtures/image.jpg"),
+        filename: "an_image.jpg"
+      }
+
+      assert user.banner == %{}
+
+      conn
+      |> patch("/api/v1/accounts/update_credentials", %{"header" => new_header})
+
+      description_limit = Config.get([:instance, :description_limit], 100)
+
+      description = String.duplicate(".", description_limit + 1)
+
+      conn =
+        conn
+        |> assign(:user, User.get_by_id(user.id))
+        |> patch("/api/v1/accounts/update_credentials", %{
+          "header_description" => description
+        })
+
+      assert %{"error" => "Banner description is too long"} =
+               json_response_and_validate_schema(conn, 413)
+    end
+
     test "Strip / from upload files", %{user: user, conn: conn} do
       new_image = %Plug.Upload{
         content_type: "image/jpeg",
@@ -511,10 +580,15 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
         |> json_response_and_validate_schema(200)
 
       assert account_data["fields"] == [
-               %{"name" => "<a href=\"http://google.com\">foo</a>", "value" => "bar"},
+               %{
+                 "name" => "<a href=\"http://google.com\">foo</a>",
+                 "value" => "bar",
+                 "verified_at" => nil
+               },
                %{
                  "name" => "link.io",
-                 "value" => ~S(<a href="http://cofe.io" rel="ugc">cofe.io</a>)
+                 "value" => ~S(<a href="http://cofe.io" rel="ugc">cofe.io</a>),
+                 "verified_at" => nil
                }
              ]
 
@@ -573,8 +647,8 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
         |> json_response_and_validate_schema(200)
 
       assert account_data["fields"] == [
-               %{"name" => ":firefox:", "value" => "is best 2hu"},
-               %{"name" => "they wins", "value" => ":blank:"}
+               %{"name" => ":firefox:", "value" => "is best 2hu", "verified_at" => nil},
+               %{"name" => "they wins", "value" => ":blank:", "verified_at" => nil}
              ]
 
       assert account_data["source"]["fields"] == [
@@ -602,10 +676,11 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
         |> json_response_and_validate_schema(200)
 
       assert account["fields"] == [
-               %{"name" => "foo", "value" => "bar"},
+               %{"name" => "foo", "value" => "bar", "verified_at" => nil},
                %{
                  "name" => "link",
-                 "value" => ~S(<a href="http://cofe.io" rel="ugc">http://cofe.io</a>)
+                 "value" => ~S(<a href="http://cofe.io" rel="ugc">http://cofe.io</a>),
+                 "verified_at" => nil
                }
              ]
 
@@ -627,7 +702,7 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
         |> json_response_and_validate_schema(200)
 
       assert account["fields"] == [
-               %{"name" => "foo", "value" => ""}
+               %{"name" => "foo", "value" => "", "verified_at" => nil}
              ]
     end
 
@@ -730,6 +805,22 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
 
       refute account["bot"]
       assert account["source"]["pleroma"]["actor_type"] == "Person"
+    end
+  end
+
+  describe "Mark account as group" do
+    setup do: oauth_access(["write:accounts"])
+    setup :request_content_type
+
+    test "changing actor_type to Group makes account a Group and enables bot indicator for backward compatibility",
+         %{conn: conn} do
+      account =
+        conn
+        |> patch("/api/v1/accounts/update_credentials", %{actor_type: "Group"})
+        |> json_response_and_validate_schema(200)
+
+      assert account["bot"]
+      assert account["source"]["pleroma"]["actor_type"] == "Group"
     end
   end
 end

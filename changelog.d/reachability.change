@@ -1,1 +1,1 @@
-Reduce the reachability timestamp update to a single upsert query
+Improved the logic of how we determine if a server is unreachable.

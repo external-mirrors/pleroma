@@ -29,6 +29,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator do
 
     field(:closed, ObjectValidators.DateTime)
     field(:voters, {:array, ObjectValidators.ObjectID}, default: [])
+    field(:nonAnonymous, :boolean)
     embeds_many(:anyOf, QuestionOptionsValidator)
     embeds_many(:oneOf, QuestionOptionsValidator)
   end
@@ -63,6 +64,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator do
     |> CommonFixes.fix_actor()
     |> CommonFixes.fix_object_defaults()
     |> CommonFixes.fix_quote_url()
+    |> CommonFixes.fix_likes()
     |> Transmogrifier.fix_emoji()
     |> fix_closed()
   end

@@ -40,6 +40,44 @@ defmodule Pleroma.Web.FederatorTest do
       %{activity: activity, relay_mock: relay_mock}
     end
 
+    test "to shared inbox when multiple actors from same instance are recipients" do
+      user = insert(:user)
+
+      shared_inbox = "https://domain.com/inbox"
+
+      follower_one =
+        insert(:user, %{
+          local: false,
+          nickname: "nick1@domain.com",
+          ap_id: "https://domain.com/users/nick1",
+          inbox: "https://domain.com/users/nick1/inbox",
+          shared_inbox: shared_inbox
+        })
+
+      follower_two =
+        insert(:user, %{
+          local: false,
+          nickname: "nick2@domain.com",
+          ap_id: "https://domain.com/users/nick2",
+          inbox: "https://domain.com/users/nick2/inbox",
+          shared_inbox: shared_inbox
+        })
+
+      {:ok, _, _} = Pleroma.User.follow(follower_one, user)
+      {:ok, _, _} = Pleroma.User.follow(follower_two, user)
+
+      {:ok, _activity} = CommonAPI.post(user, %{status: "Happy Friday everyone!"})
+
+      ObanHelpers.perform(all_enqueued(worker: PublisherWorker))
+
+      inboxes =
+        all_enqueued(worker: PublisherWorker)
+        |> Enum.filter(&(get_in(&1, [Access.key(:args), Access.key("op")]) == "publish_one"))
+        |> Enum.map(&get_in(&1, [Access.key(:args), Access.key("params"), Access.key("inbox")]))
+
+      assert [shared_inbox] == inboxes
+    end
+
     test "with relays active, it publishes to the relay", %{
       activity: activity,
       relay_mock: relay_mock
@@ -88,22 +126,17 @@ defmodule Pleroma.Web.FederatorTest do
         inbox: inbox2
       })
 
-      dt = NaiveDateTime.utc_now()
-      Instances.set_unreachable(inbox1, dt)
-
-      Instances.set_consistently_unreachable(URI.parse(inbox2).host)
+      Instances.set_unreachable(URI.parse(inbox2).host)
 
       {:ok, _activity} =
         CommonAPI.post(user, %{status: "HI @nick1@domain.com, @nick2@domain2.com!"})
-
-      expected_dt = NaiveDateTime.to_iso8601(dt)
 
       ObanHelpers.perform(all_enqueued(worker: PublisherWorker))
 
       assert ObanHelpers.member?(
                %{
                  "op" => "publish_one",
-                 "params" => %{"inbox" => inbox1, "unreachable_since" => expected_dt}
+                 "params" => %{"inbox" => inbox1}
                },
                all_enqueued(worker: PublisherWorker)
              )

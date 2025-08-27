@@ -1,34 +1,35 @@
-image: git.pleroma.social:5050/pleroma/pleroma/ci-base
+image: git.pleroma.social:5050/pleroma/pleroma/ci-base:elixir-1.14.5-otp-25
 
 variables: &global_variables
   # Only used for the release
-  ELIXIR_VER: 1.12.3
+  ELIXIR_VER: 1.17.3
   POSTGRES_DB: pleroma_test
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres
   DB_HOST: postgres
   DB_PORT: "5432"
   MIX_ENV: test
+  GIT_STRATEGY: fetch
 
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "stable"
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
-    - if: $CI_COMMIT_BRANCH
 
 cache: &global_cache_policy
-  key:
-    files:
-      - mix.lock
+  key: $CI_JOB_IMAGE-$CI_COMMIT_SHORT_SHA
   paths:
     - deps
     - _build
 
 stages:
-  - check-changelog
   - build
+  - lint
   - test
+  - check-changelog
   - benchmark
   - deploy
   - release
@@ -71,7 +72,7 @@ check-changelog:
   tags:
     - amd64
 
-build:
+build-1.14.5-otp-25:
   extends:
   - .build_changes_policy
   - .using-ci-base
@@ -79,10 +80,19 @@ build:
   script:
   - mix compile --force
 
+build-1.18.3-otp-27:
+  extends:
+  - .build_changes_policy
+  - .using-ci-base
+  stage: build
+  image: git.pleroma.social:5050/pleroma/pleroma/ci-base:elixir-1.18.3-otp-27
+  script:
+  - mix compile --force
+
 spec-build:
   extends:
   - .using-ci-base
-  stage: test
+  stage: build
   rules:
     - changes:
         - ".gitlab-ci.yml"
@@ -102,7 +112,7 @@ benchmark:
   variables:
     MIX_ENV: benchmark
   services:
-  - name: postgres:9.6-alpine
+  - name: postgres:11.22-alpine
     alias: postgres
     command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
   script:
@@ -110,7 +120,7 @@ benchmark:
     - mix ecto.migrate
     - mix pleroma.load_testing
 
-unit-testing:
+unit-testing-1.14.5-otp-25:
   extends:
   - .build_changes_policy
   - .using-ci-base
@@ -118,15 +128,29 @@ unit-testing:
   cache: &testing_cache_policy
     <<: *global_cache_policy
     policy: pull
-
-  services:
+  services: &testing_services
   - name: postgres:13-alpine
     alias: postgres
     command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
-  script:
-    - mix ecto.create
-    - mix ecto.migrate
-    - mix test --cover --preload-modules
+  before_script: &testing_before_script
+    - echo $MIX_ENV
+    - rm -rf _build/*/lib/pleroma
+    # Create a non-root user for running tests
+    - useradd -m -s /bin/bash testuser
+    # Install dependencies as root first
+    - mix deps.get
+    # Set proper ownership for everything
+    - chown -R testuser:testuser .
+    - chown -R testuser:testuser /root/.mix || true
+    - chown -R testuser:testuser /root/.hex || true
+    # Create user-specific directories
+    - su testuser -c "HOME=/home/testuser mix local.hex --force"
+    - su testuser -c "HOME=/home/testuser mix local.rebar --force"
+  script: &testing_script
+    # Run tests as non-root user
+    - su testuser -c "HOME=/home/testuser mix ecto.create"
+    - su testuser -c "HOME=/home/testuser mix ecto.migrate"
+    - su testuser -c "HOME=/home/testuser mix pleroma.test_runner --cover --preload-modules"
   coverage: '/^Line total: ([^ ]*%)$/'
   artifacts:
     reports:
@@ -134,49 +158,21 @@ unit-testing:
         coverage_format: cobertura
         path: coverage.xml
 
-unit-testing-erratic:
+unit-testing-1.18.3-otp-27:
   extends:
   - .build_changes_policy
   - .using-ci-base
   stage: test
-  retry: 2
-  allow_failure: true
-  cache: &testing_cache_policy
-    <<: *global_cache_policy
-    policy: pull
-
-  services:
-  - name: postgres:13-alpine
-    alias: postgres
-    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
-  script:
-    - mix ecto.create
-    - mix ecto.migrate
-    - mix test --only=erratic
-
-unit-testing-rum:
-  extends:
-  - .build_changes_policy
-  - .using-ci-base
-  stage: test
+  image: git.pleroma.social:5050/pleroma/pleroma/ci-base:elixir-1.18.3-otp-27
   cache: *testing_cache_policy
-  services:
-  - name: git.pleroma.social:5050/pleroma/pleroma/postgres-with-rum-13
-    alias: postgres
-    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
-  variables:
-    <<: *global_variables
-    RUM_ENABLED: "true"
-  script:
-    - mix ecto.create
-    - mix ecto.migrate
-    - "mix ecto.migrate --migrations-path priv/repo/optional_migrations/rum_indexing/"
-    - mix test --preload-modules
+  services: *testing_services
+  before_script: *testing_before_script
+  script: *testing_script
 
-lint:
+formatting-1.15:
   extends: .build_changes_policy
-  image: &current_elixir elixir:1.13-alpine
-  stage: test
+  image: &formatting_elixir elixir:1.15-alpine
+  stage: lint
   cache: *testing_cache_policy
   before_script: &current_bfr_script
     - apk update
@@ -187,24 +183,37 @@ lint:
   script:
     - mix format --check-formatted
 
-analysis:
-  extends:
-  - .build_changes_policy
-  - .using-ci-base
-  stage: test
-  cache: *testing_cache_policy
-  script:
-    - mix credo --strict --only=warnings,todo,fixme,consistency,readability
-
-cycles:
+cycles-1.15:
   extends: .build_changes_policy
-  image: *current_elixir
-  stage: test
+  image: *formatting_elixir
+  stage: lint
   cache: {}
   before_script: *current_bfr_script
   script:
     - mix compile
     - mix xref graph --format cycles --label compile | awk '{print $0} END{exit ($0 != "No cycles found")}'
+
+analysis:
+  extends:
+  - .build_changes_policy
+  - .using-ci-base
+  stage: lint
+  cache: *testing_cache_policy
+  script:
+    - mix credo --strict --only=warnings,todo,fixme,consistency,readability
+
+dialyzer:
+  extends:
+  - .build_changes_policy
+  - .using-ci-base
+  stage: lint
+  allow_failure: true
+  when: manual 
+  cache: *testing_cache_policy
+  tags:
+    - feld
+  script:
+    - mix dialyzer
 
 docs-deploy:
   stage: deploy
@@ -216,7 +225,7 @@ docs-deploy:
   before_script:
   - apk add curl
   script:
-  - curl --fail-with-body -X POST -F"token=$CI_JOB_TOKEN" -F'ref=master' -F"variables[BRANCH]=$CI_COMMIT_REF_NAME" https://git.pleroma.social/api/v4/projects/673/trigger/pipeline
+  - curl --fail-with-body -X POST -F"token=$DOCS_PIPELINE_TRIGGER" -F'ref=master' -F"variables[BRANCH]=$CI_COMMIT_REF_NAME" https://git.pleroma.social/api/v4/projects/673/trigger/pipeline
 review_app:
   image: alpine:3.9
   stage: deploy
@@ -257,7 +266,7 @@ spec-deploy:
   before_script:
     - apk add curl
   script:
-    - curl --fail-with-body -X POST -F"token=$CI_JOB_TOKEN" -F'ref=master' -F"variables[BRANCH]=$CI_COMMIT_REF_NAME" -F"variables[JOB_REF]=$CI_JOB_ID" https://git.pleroma.social/api/v4/projects/1130/trigger/pipeline
+    - curl --fail-with-body -X POST -F"token=$API_DOCS_PIPELINE_TRIGGER" -F'ref=master' -F"variables[BRANCH]=$CI_COMMIT_REF_NAME" -F"variables[JOB_REF]=$CI_JOB_ID" https://git.pleroma.social/api/v4/projects/1130/trigger/pipeline
 
 
 stop_review_app:
@@ -280,7 +289,8 @@ stop_review_app:
 
 amd64:
   stage: release
-  image: elixir:$ELIXIR_VER
+  image: 
+    name: hexpm/elixir-amd64:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
   only: &release-only
   - stable@pleroma/pleroma
   - develop@pleroma/pleroma
@@ -305,8 +315,9 @@ amd64:
   variables: &release-variables
     MIX_ENV: prod
     VIX_COMPILATION_MODE: PLATFORM_PROVIDED_LIBVIPS
+    DEBIAN_FRONTEND: noninteractive
   before_script: &before-release
-  - apt-get update && apt-get install -y cmake libmagic-dev libvips-dev erlang-dev
+  - apt-get update && apt-get install -y cmake libmagic-dev libvips-dev erlang-dev git
   - echo "import Config" > config/prod.secret.exs
   - mix local.hex --force
   - mix local.rebar --force
@@ -321,7 +332,8 @@ amd64-musl:
   stage: release
   artifacts: *release-artifacts
   only: *release-only
-  image: elixir:$ELIXIR_VER-alpine
+  image: 
+    name: hexpm/elixir-amd64:1.17.3-erlang-26.2.5.6-alpine-3.17.9
   tags:
     - amd64
   cache: *release-cache
@@ -335,6 +347,7 @@ amd64-musl:
 
 arm:
   stage: release
+  allow_failure: true
   artifacts: *release-artifacts
   only: *release-only
   tags:
@@ -363,7 +376,8 @@ arm64:
   only: *release-only
   tags:
     - arm
-  image: arm64v8/elixir:$ELIXIR_VER
+  image: 
+    name: hexpm/elixir-arm64:1.17.3-erlang-26.2.5.6-ubuntu-focal-20241011
   cache: *release-cache
   variables: *release-variables
   before_script: *before-release
@@ -375,7 +389,8 @@ arm64-musl:
   only: *release-only
   tags:
     - arm
-  image: arm64v8/elixir:$ELIXIR_VER-alpine
+  image: 
+    name: hexpm/elixir-arm64:1.17.3-erlang-26.2.5.6-alpine-3.17.9
   cache: *release-cache
   variables: *release-variables
   before_script: *before-release-musl

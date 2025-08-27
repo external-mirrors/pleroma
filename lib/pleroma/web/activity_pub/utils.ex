@@ -20,6 +20,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   alias Pleroma.Web.Router.Helpers
 
   import Ecto.Query
+  import Pleroma.Web.Utils.Guards, only: [not_empty_string: 1]
 
   require Logger
   require Pleroma.Constants
@@ -109,17 +110,23 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     end
   end
 
-  def make_json_ld_header do
+  def make_json_ld_header(data \\ %{}) do
     %{
       "@context" => [
         "https://www.w3.org/ns/activitystreams",
         "#{Endpoint.url()}/schemas/litepub-0.1.jsonld",
         %{
-          "@language" => "und"
+          "@language" => get_language(data)
         }
       ]
     }
   end
+
+  defp get_language(%{"language" => language}) when not_empty_string(language) do
+    language
+  end
+
+  defp get_language(_), do: "und"
 
   def make_date do
     DateTime.utc_now() |> DateTime.to_iso8601()
@@ -167,7 +174,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
     with true <- Config.get!([:instance, :federating]),
          true <- type != "Block" || outgoing_blocks,
-         false <- Visibility.is_local_public?(activity) do
+         false <- Visibility.local_public?(activity) do
       Pleroma.Web.Federator.publish(activity)
     end
 
@@ -277,7 +284,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     object_actor = User.get_cached_by_ap_id(object_actor_id)
 
     to =
-      if Visibility.is_public?(object) do
+      if Visibility.public?(object) do
         [actor.follower_address, object.data["actor"]]
       else
         [object.data["actor"]]
@@ -721,14 +728,18 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
   #### Flag-related helpers
   @spec make_flag_data(map(), map()) :: map()
-  def make_flag_data(%{actor: actor, context: context, content: content} = params, additional) do
+  def make_flag_data(
+        %{actor: actor, context: context, content: content} = params,
+        additional
+      ) do
     %{
       "type" => "Flag",
       "actor" => actor.ap_id,
       "content" => content,
       "object" => build_flag_object(params),
       "context" => context,
-      "state" => "open"
+      "state" => "open",
+      "rules" => Map.get(params, :rules, nil)
     }
     |> Map.merge(additional)
   end
@@ -776,10 +787,9 @@ defmodule Pleroma.Web.ActivityPub.Utils do
         build_flag_object(object)
 
       nil ->
-        if %Object{} = object = Object.get_by_ap_id(id) do
-          build_flag_object(object)
-        else
-          %{"id" => id, "deleted" => true}
+        case Object.get_by_ap_id(id) do
+          %Object{} = object -> build_flag_object(object)
+          _ -> %{"id" => id, "deleted" => true}
         end
     end
   end
@@ -934,5 +944,16 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     |> where([a, object: o], fragment("(?)->>'inReplyTo' = ?", o.data, ^to_string(id)))
     |> where([a, object: o], fragment("(?)->>'type' = 'Answer'", o.data))
     |> Repo.all()
+  end
+
+  @spec maybe_handle_group_posts(Activity.t()) :: :ok
+  @doc "Automatically repeats posts for local group actor recipients"
+  def maybe_handle_group_posts(activity) do
+    poster = User.get_cached_by_ap_id(activity.actor)
+
+    User.get_recipients_from_activity(activity)
+    |> Enum.filter(&match?("Group", &1.actor_type))
+    |> Enum.reject(&User.blocks?(&1, poster))
+    |> Enum.each(&Pleroma.Web.CommonAPI.repeat(activity.id, &1))
   end
 end

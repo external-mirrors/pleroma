@@ -29,6 +29,7 @@ defmodule Pleroma.Web.Router do
   pipeline :browser do
     plug(:accepts, ["html"])
     plug(:fetch_session)
+    plug(Pleroma.Web.Plugs.LoggerMetadataUser)
   end
 
   pipeline :oauth do
@@ -67,12 +68,14 @@ defmodule Pleroma.Web.Router do
     plug(:fetch_session)
     plug(:authenticate)
     plug(OpenApiSpex.Plug.PutApiSpec, module: Pleroma.Web.ApiSpec)
+    plug(Pleroma.Web.Plugs.LoggerMetadataUser)
   end
 
   pipeline :no_auth_or_privacy_expectations_api do
     plug(:base_api)
     plug(:after_auth)
     plug(Pleroma.Web.Plugs.IdempotencyPlug)
+    plug(Pleroma.Web.Plugs.LoggerMetadataUser)
   end
 
   # Pipeline for app-related endpoints (no user auth checks — app-bound tokens must be supported)
@@ -83,12 +86,14 @@ defmodule Pleroma.Web.Router do
   pipeline :api do
     plug(:expect_public_instance_or_user_authentication)
     plug(:no_auth_or_privacy_expectations_api)
+    plug(Pleroma.Web.Plugs.LoggerMetadataUser)
   end
 
   pipeline :authenticated_api do
     plug(:expect_user_authentication)
     plug(:no_auth_or_privacy_expectations_api)
     plug(Pleroma.Web.Plugs.EnsureAuthenticatedPlug)
+    plug(Pleroma.Web.Plugs.LoggerMetadataUser)
   end
 
   pipeline :admin_api do
@@ -99,6 +104,7 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.EnsureAuthenticatedPlug)
     plug(Pleroma.Web.Plugs.UserIsStaffPlug)
     plug(Pleroma.Web.Plugs.IdempotencyPlug)
+    plug(Pleroma.Web.Plugs.LoggerMetadataUser)
   end
 
   pipeline :require_admin do
@@ -179,10 +185,11 @@ defmodule Pleroma.Web.Router do
     plug(:browser)
     plug(:authenticate)
     plug(Pleroma.Web.Plugs.EnsureUserTokenAssignsPlug)
+    plug(Pleroma.Web.Plugs.LoggerMetadataUser)
   end
 
   pipeline :well_known do
-    plug(:accepts, ["json", "jrd+json", "xml", "xrd+xml"])
+    plug(:accepts, ["activity+json", "json", "jrd", "jrd+json", "xml", "xrd+xml", "html"])
   end
 
   pipeline :config do
@@ -193,6 +200,7 @@ defmodule Pleroma.Web.Router do
   pipeline :pleroma_api do
     plug(:accepts, ["html", "json"])
     plug(OpenApiSpex.Plug.PutApiSpec, module: Pleroma.Web.ApiSpec)
+    plug(Pleroma.Web.Plugs.LoggerMetadataUser)
   end
 
   pipeline :mailbox_preview do
@@ -207,6 +215,10 @@ defmodule Pleroma.Web.Router do
   pipeline :http_signature do
     plug(Pleroma.Web.Plugs.HTTPSignaturePlug)
     plug(Pleroma.Web.Plugs.MappedSignatureToIdentityPlug)
+  end
+
+  pipeline :inbox_guard do
+    plug(Pleroma.Web.Plugs.InboxGuardPlug)
   end
 
   pipeline :static_fe do
@@ -292,6 +304,11 @@ defmodule Pleroma.Web.Router do
     post("/frontends/install", FrontendController, :install)
 
     post("/backups", AdminAPIController, :create_backup)
+
+    get("/rules", RuleController, :index)
+    post("/rules", RuleController, :create)
+    patch("/rules/:id", RuleController, :update)
+    delete("/rules/:id", RuleController, :delete)
   end
 
   # AdminAPI: admins and mods (staff) can perform these actions (if privileged by role)
@@ -449,6 +466,7 @@ defmodule Pleroma.Web.Router do
       get("/import", EmojiPackController, :import_from_filesystem)
       get("/remote", EmojiPackController, :remote)
       post("/download", EmojiPackController, :download)
+      post("/download_zip", EmojiPackController, :download_zip)
 
       post("/files", EmojiFileController, :create)
       patch("/files", EmojiFileController, :update)
@@ -481,7 +499,7 @@ defmodule Pleroma.Web.Router do
     post("/change_email", UtilController, :change_email)
     post("/change_password", UtilController, :change_password)
     post("/delete_account", UtilController, :delete_account)
-    put("/notification_settings", UtilController, :update_notificaton_settings)
+    put("/notification_settings", UtilController, :update_notification_settings)
     post("/disable_account", UtilController, :disable_account)
     post("/move_account", UtilController, :move_account)
 
@@ -580,6 +598,11 @@ defmodule Pleroma.Web.Router do
 
       get("/backups", BackupController, :index)
       post("/backups", BackupController, :create)
+
+      get("/bookmark_folders", BookmarkFolderController, :index)
+      post("/bookmark_folders", BookmarkFolderController, :create)
+      patch("/bookmark_folders/:id", BookmarkFolderController, :update)
+      delete("/bookmark_folders/:id", BookmarkFolderController, :delete)
     end
 
     scope [] do
@@ -628,8 +651,8 @@ defmodule Pleroma.Web.Router do
     patch("/accounts/update_credentials", AccountController, :update_credentials)
 
     get("/accounts/relationships", AccountController, :relationships)
+    get("/accounts/familiar_followers", AccountController, :familiar_followers)
     get("/accounts/:id/lists", AccountController, :lists)
-    get("/accounts/:id/identity_proofs", AccountController, :identity_proofs)
     get("/endorsements", AccountController, :endorsements)
     get("/blocks", AccountController, :blocks)
     get("/mutes", AccountController, :mutes)
@@ -718,6 +741,7 @@ defmodule Pleroma.Web.Router do
     post("/statuses/:id/unbookmark", StatusController, :unbookmark)
     post("/statuses/:id/mute", StatusController, :mute_conversation)
     post("/statuses/:id/unmute", StatusController, :unmute_conversation)
+    post("/statuses/:id/translate", StatusController, :translate)
 
     post("/push/subscription", SubscriptionController, :create)
     get("/push/subscription", SubscriptionController, :show)
@@ -733,6 +757,11 @@ defmodule Pleroma.Web.Router do
 
     get("/announcements", AnnouncementController, :index)
     post("/announcements/:id/dismiss", AnnouncementController, :mark_read)
+
+    get("/tags/:id", TagController, :show)
+    post("/tags/:id/follow", TagController, :follow)
+    post("/tags/:id/unfollow", TagController, :unfollow)
+    get("/followed_tags", TagController, :show_followed)
   end
 
   scope "/api/v1", Pleroma.Web.MastodonAPI do
@@ -759,11 +788,12 @@ defmodule Pleroma.Web.Router do
 
     get("/instance", InstanceController, :show)
     get("/instance/peers", InstanceController, :peers)
+    get("/instance/rules", InstanceController, :rules)
+    get("/instance/translation_languages", InstanceController, :translation_languages)
 
     get("/statuses", StatusController, :index)
     get("/statuses/:id", StatusController, :show)
     get("/statuses/:id/context", StatusController, :context)
-    get("/statuses/:id/card", StatusController, :card)
     get("/statuses/:id/favourited_by", StatusController, :favourited_by)
     get("/statuses/:id/reblogged_by", StatusController, :reblogged_by)
     get("/statuses/:id/history", StatusController, :show_history)
@@ -783,11 +813,14 @@ defmodule Pleroma.Web.Router do
 
   scope "/api/v2", Pleroma.Web.MastodonAPI do
     pipe_through(:api)
+
     get("/search", SearchController, :search2)
 
     post("/media", MediaController, :create2)
 
     get("/suggestions", SuggestionController, :index2)
+
+    get("/instance", InstanceController, :show2)
   end
 
   scope "/api", Pleroma.Web do
@@ -877,9 +910,20 @@ defmodule Pleroma.Web.Router do
   # Client to Server (C2S) AP interactions
   pipeline :activitypub_client do
     plug(:ap_service_actor)
+    plug(Pleroma.Web.Plugs.APClientApiEnabledPlug)
     plug(:fetch_session)
     plug(:authenticate)
     plug(:after_auth)
+  end
+
+  # AP interactions used by both S2S and C2S
+  pipeline :activitypub_server_or_client do
+    plug(:ap_service_actor)
+    plug(:fetch_session)
+    plug(:authenticate)
+    plug(Pleroma.Web.Plugs.APClientApiEnabledPlug, allow_server: true)
+    plug(:after_auth)
+    plug(:http_signature)
   end
 
   scope "/", Pleroma.Web.ActivityPub do
@@ -888,18 +932,22 @@ defmodule Pleroma.Web.Router do
     get("/api/ap/whoami", ActivityPubController, :whoami)
     get("/users/:nickname/inbox", ActivityPubController, :read_inbox)
 
-    get("/users/:nickname/outbox", ActivityPubController, :outbox)
     post("/users/:nickname/outbox", ActivityPubController, :update_outbox)
     post("/api/ap/upload_media", ActivityPubController, :upload_media)
+  end
 
-    # The following two are S2S as well, see `ActivityPub.fetch_follow_information_for_user/1`:
+  scope "/", Pleroma.Web.ActivityPub do
+    pipe_through([:activitypub_server_or_client])
+
+    get("/users/:nickname/outbox", ActivityPubController, :outbox)
+
     get("/users/:nickname/followers", ActivityPubController, :followers)
     get("/users/:nickname/following", ActivityPubController, :following)
     get("/users/:nickname/collections/featured", ActivityPubController, :pinned)
   end
 
   scope "/", Pleroma.Web.ActivityPub do
-    pipe_through(:activitypub)
+    pipe_through([:activitypub, :inbox_guard])
     post("/inbox", ActivityPubController, :inbox)
     post("/users/:nickname/inbox", ActivityPubController, :inbox)
   end
@@ -966,7 +1014,7 @@ defmodule Pleroma.Web.Router do
 
   scope "/" do
     pipe_through([:pleroma_html, :authenticate, :require_admin])
-    live_dashboard("/phoenix/live_dashboard")
+    live_dashboard("/phoenix/live_dashboard", additional_pages: [oban: Oban.LiveDashboard])
   end
 
   # Test-only routes needed to test action dispatching and plug chain execution

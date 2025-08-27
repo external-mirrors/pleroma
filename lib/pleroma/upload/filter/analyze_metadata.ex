@@ -29,7 +29,7 @@ defmodule Pleroma.Upload.Filter.AnalyzeMetadata do
       {:ok, :filtered, upload}
     rescue
       e in ErlangError ->
-        Logger.warn("#{__MODULE__}: #{inspect(e)}")
+        Logger.warning("#{__MODULE__}: #{inspect(e)}")
         {:ok, :noop}
     end
   end
@@ -46,7 +46,7 @@ defmodule Pleroma.Upload.Filter.AnalyzeMetadata do
       {:ok, :filtered, upload}
     rescue
       e in ErlangError ->
-        Logger.warn("#{__MODULE__}: #{inspect(e)}")
+        Logger.warning("#{__MODULE__}: #{inspect(e)}")
         {:ok, :noop}
     end
   end
@@ -90,9 +90,13 @@ defmodule Pleroma.Upload.Filter.AnalyzeMetadata do
       {:ok, rgb} =
         if Image.has_alpha?(resized_image) do
           # remove alpha channel
-          resized_image
-          |> Operation.extract_band!(0, n: 3)
-          |> Image.write_to_binary()
+          case Operation.extract_band(resized_image, 0, n: 3) do
+            {:ok, data} ->
+              Image.write_to_binary(data)
+
+            _ ->
+              Image.write_to_binary(resized_image)
+          end
         else
           Image.write_to_binary(resized_image)
         end

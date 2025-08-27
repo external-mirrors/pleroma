@@ -271,7 +271,7 @@ defmodule Mix.Tasks.Pleroma.Instance do
       [config_dir, psql_dir, static_dir, uploads_dir]
       |> Enum.reject(&File.exists?/1)
       |> Enum.each(fn dir ->
-        File.mkdir_p!(dir)
+        Pleroma.Backports.mkdir_p!(dir)
         File.chmod!(dir, 0o700)
       end)
 
@@ -292,7 +292,7 @@ defmodule Mix.Tasks.Pleroma.Instance do
 
       if db_configurable? do
         shell_info(
-          " Please transfer your config to the database after running database migrations. Refer to \"Transfering the config to/from the database\" section of the docs for more information."
+          " Please transfer your config to the database after running database migrations. Refer to \"Transferring the config to/from the database\" section of the docs for more information."
         )
       end
     else
@@ -352,6 +352,4 @@ defmodule Mix.Tasks.Pleroma.Instance do
 
     enabled_filters
   end
-
-  defp upload_filters(_), do: []
 end

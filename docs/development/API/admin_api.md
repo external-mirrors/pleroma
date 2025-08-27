@@ -70,6 +70,8 @@ The `/api/v1/pleroma/admin/*` path is backwards compatible with `/api/pleroma/ad
   - `nicknames`
 - Response: Array of user nicknames
 
+## `POST /api/v1/pleroma/admin/users`
+
 ### Create a user
 
 - Method: `POST`
@@ -81,7 +83,7 @@ The `/api/v1/pleroma/admin/*` path is backwards compatible with `/api/pleroma/ad
       `password`
     }
   ]
-- Response: User’s nickname
+- Response: Array of user objects
 
 ## `POST /api/v1/pleroma/admin/users/follow`
 
@@ -303,7 +305,7 @@ Removes the user(s) from follower recommendations.
 
 ## `GET /api/v1/pleroma/admin/users/:nickname_or_id`
 
-### Retrive the details of a user
+### Retrieve the details of a user
 
 - Params:
   - `nickname` or `id`
@@ -313,7 +315,7 @@ Removes the user(s) from follower recommendations.
 
 ## `GET /api/v1/pleroma/admin/users/:nickname_or_id/statuses`
 
-### Retrive user's latest statuses
+### Retrieve user's latest statuses
 
 - Params:
   - `nickname` or `id`
@@ -337,7 +339,7 @@ Removes the user(s) from follower recommendations.
 
 ## `GET /api/v1/pleroma/admin/instances/:instance/statuses`
 
-### Retrive instance's latest statuses
+### Retrieve instance's latest statuses
 
 - Params:
   - `instance`: instance name
@@ -377,7 +379,7 @@ It may take some time.
 
 ## `GET /api/v1/pleroma/admin/statuses`
 
-### Retrives all latest statuses
+### Retrieves all latest statuses
 
 - Params:
   - *optional* `page_size`: number of statuses to return (default is `20`)
@@ -433,7 +435,7 @@ Response:
 * On success: URL of the unfollowed relay
 
 ```json
-{"https://example.com/relay"}
+"https://example.com/relay"
 ```
 
 ## `POST /api/v1/pleroma/admin/users/invite_token`
@@ -541,7 +543,7 @@ Response:
 
 ## `PATCH /api/v1/pleroma/admin/users/force_password_reset`
 
-### Force passord reset for a user with a given nickname
+### Force password reset for a user with a given nickname
 
 - Params:
   - `nicknames`
@@ -1193,20 +1195,23 @@ Loads json generated from `config/descriptions.exs`.
 - Response:
 
 ```json
-[
-  {
-    "id": 1234,
-    "data": {
-      "actor": {
-        "id": 1,
-        "nickname": "lain"
+{
+  "items": [
+    {
+      "id": 1234,
+      "data": {
+        "actor": {
+          "id": 1,
+          "nickname": "lain"
+        },
+        "action": "relay_follow"
       },
-      "action": "relay_follow"
-    },
-    "time": 1502812026, // timestamp
-    "message": "[2017-08-15 15:47:06] @nick0 followed relay: https://example.org/relay" // log message
-  }
-]
+      "time": 1502812026, // timestamp
+      "message": "[2017-08-15 15:47:06] @nick0 followed relay: https://example.org/relay" // log message
+    }
+  ],
+  "total": 1
+}
 ```
 
 ## `POST /api/v1/pleroma/admin/reload_emoji`
@@ -1745,6 +1750,56 @@ Note that this differs from the Mastodon API variant: Mastodon API only returns 
 ## `DELETE /api/v1/pleroma/admin/announcements/:id`
 
 ### Delete an announcement
+
+- Response: JSON, empty object
+
+```json
+{}
+```
+
+
+## `GET /api/v1/pleroma/admin/rules`
+
+### List rules
+
+- Response: JSON, list of rules
+
+```json
+[
+  {
+    "id": "1",
+    "priority": 1,
+    "text": "There are no rules",
+    "hint": null
+  }
+]
+```
+
+## `POST /api/v1/pleroma/admin/rules`
+
+### Create a rule
+
+- Params:
+  - `text`: string, required, rule content
+  - `hint`: string, optional, rule description
+  - `priority`: integer, optional, rule ordering priority
+
+- Response: JSON, a single rule
+
+## `PATCH /api/v1/pleroma/admin/rules/:id`
+
+### Update a rule
+
+- Params:
+  - `text`: string, optional, rule content
+  - `hint`: string, optional, rule description
+  - `priority`: integer, optional, rule ordering priority
+
+- Response: JSON, a single rule
+
+## `DELETE /api/v1/pleroma/admin/rules/:id`
+
+### Delete a rule
 
 - Response: JSON, empty object
 

@@ -37,7 +37,7 @@ defmodule Pleroma.HTTP do
 
   See `Pleroma.HTTP.request/5`
   """
-  @spec post(Request.url(), String.t(), Request.headers(), keyword()) ::
+  @spec post(Request.url(), Tesla.Env.body(), Request.headers(), keyword()) ::
           {:ok, Env.t()} | {:error, any()}
   def post(url, body, headers \\ [], options \\ []),
     do: request(:post, url, body, headers, options)
@@ -56,7 +56,7 @@ defmodule Pleroma.HTTP do
   `{:ok, %Tesla.Env{}}` or `{:error, error}`
 
   """
-  @spec request(method(), Request.url(), String.t(), Request.headers(), keyword()) ::
+  @spec request(method(), Request.url(), Tesla.Env.body(), Request.headers(), keyword()) ::
           {:ok, Env.t()} | {:error, any()}
   def request(method, url, body, headers, options) when is_binary(url) do
     uri = URI.parse(url)
@@ -68,7 +68,9 @@ defmodule Pleroma.HTTP do
 
     adapter = Application.get_env(:tesla, :adapter)
 
-    client = Tesla.client(adapter_middlewares(adapter), adapter)
+    extra_middleware = options[:tesla_middleware] || []
+
+    client = Tesla.client(adapter_middlewares(adapter, extra_middleware), adapter)
 
     maybe_limit(
       fn ->
@@ -102,16 +104,58 @@ defmodule Pleroma.HTTP do
     fun.()
   end
 
-  defp adapter_middlewares(Tesla.Adapter.Gun) do
-    [Tesla.Middleware.FollowRedirects, Pleroma.Tesla.Middleware.ConnectionPool]
+  defp adapter_middlewares(Tesla.Adapter.Gun, extra_middleware) do
+    default_middleware() ++
+      [Pleroma.Tesla.Middleware.ConnectionPool] ++
+      extra_middleware
   end
 
-  defp adapter_middlewares(_) do
-    if Pleroma.Config.get(:env) == :test do
-      # Emulate redirects in test env, which are handled by adapters in other environments
-      [Tesla.Middleware.FollowRedirects]
-    else
-      []
+  defp adapter_middlewares(_, extra_middleware) do
+    # A lot of tests are written expecting unencoded URLs
+    # and the burden of fixing that is high. Also it makes
+    # them hard to read. Tests will opt-in when we want to validate
+    # the encoding is being done correctly.
+    cond do
+      Pleroma.Config.get(:env) == :test and Pleroma.Config.get(:test_url_encoding) ->
+        default_middleware()
+
+      Pleroma.Config.get(:env) == :test ->
+        # Emulate redirects in test env, which are handled by adapters in other environments
+        [Tesla.Middleware.FollowRedirects]
+
+      # Hackney and Finch
+      true ->
+        default_middleware() ++ extra_middleware
     end
+  end
+
+  defp default_middleware,
+    do: [Tesla.Middleware.FollowRedirects, Pleroma.Tesla.Middleware.EncodeUrl]
+
+  def encode_url(url) when is_binary(url) do
+    URI.parse(url)
+    |> then(fn parsed ->
+      path = encode_path(parsed.path)
+      query = encode_query(parsed.query)
+
+      %{parsed | path: path, query: query}
+    end)
+    |> URI.to_string()
+  end
+
+  defp encode_path(nil), do: nil
+
+  defp encode_path(path) when is_binary(path) do
+    path
+    |> URI.decode()
+    |> URI.encode()
+  end
+
+  defp encode_query(nil), do: nil
+
+  defp encode_query(query) when is_binary(query) do
+    query
+    |> URI.decode_query()
+    |> URI.encode_query()
   end
 end

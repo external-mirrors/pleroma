@@ -129,7 +129,7 @@ The `/api/v1/pleroma/*` path is backwards compatible with `/api/pleroma/*` (`/ap
 * method: `GET`
 * Authentication: required
 * OAuth scope: `write:security`
-* Response: JSON. Returns `{"codes": codes}`when successful, otherwise HTTP 422 `{"error": "[error message]"}`
+* Response: JSON. Returns `{"codes": codes}` when successful, otherwise HTTP 422 `{"error": "[error message]"}`
 
 ## `/api/v1/pleroma/admin/`
 See [Admin-API](admin_api.md)
@@ -145,6 +145,9 @@ See [Admin-API](admin_api.md)
 
 ## `/api/v1/pleroma/accounts/:id/subscribe`
 ### Subscribe to receive notifications for all statuses posted by a user
+
+Deprecated. `notify` parameter in `POST /api/v1/accounts/:id/follow` should be used instead.
+
 * Method `POST`
 * Authentication: required
 * Params:
@@ -171,6 +174,9 @@ See [Admin-API](admin_api.md)
 
 ## `/api/v1/pleroma/accounts/:id/unsubscribe`
 ### Unsubscribe to stop receiving notifications from user statuses
+
+Deprecated. `notify` parameter in `POST /api/v1/accounts/:id/follow` should be used instead.
+
 * Method `POST`
 * Authentication: required
 * Params:
@@ -251,6 +257,15 @@ See [Admin-API](admin_api.md)
 ]
 ```
 
+
+## `/api/v1/pleroma/accounts/:id/endorsements`
+### Returns users endorsed by a user
+* Method `GET`
+* Authentication: not required
+* Params:
+    * `id`: the id of the account for whom to return results
+* Response: JSON, returns a list of Mastodon Account entities
+
 ## `/api/v1/pleroma/accounts/update_*`
 ### Set and clear account avatar, banner, and background
 
@@ -265,6 +280,58 @@ See [Admin-API](admin_api.md)
     * `email`: email of that needs to be verified
 * Authentication: not required
 * Response: 204 No Content
+
+## `/api/v1/pleroma/statuses/:id/quotes`
+### Gets quotes for a given status
+* Method `GET`
+* Authentication: not required
+* Params:
+    * `id`: the id of the status
+* Response: JSON, returns a list of Mastodon Status entities
+
+## `GET /api/v1/pleroma/bookmark_folders`
+### Gets user bookmark folders
+* Authentication: required
+
+* Response: JSON. Returns a list of bookmark folders.
+* Example response:
+```json
+[
+    {
+        "id": "9umDrYheeY451cQnEe",
+        "name": "Read later",
+        "emoji": "🕓",
+        "emoji_url": null
+    }
+]
+```
+
+## `POST /api/v1/pleroma/bookmark_folders`
+### Creates a bookmark folder
+* Authentication: required
+
+* Params:
+    * `name`: folder name
+    * `emoji`: folder emoji (optional)
+* Response: JSON. Returns a single bookmark folder.
+
+## `PATCH /api/v1/pleroma/bookmark_folders/:id`
+### Updates a bookmark folder
+* Authentication: required
+
+* Params:
+    * `id`: folder id
+    * `name`: folder name (optional)
+    * `emoji`: folder emoji (optional)
+* Response: JSON. Returns a single bookmark folder.
+
+## `DELETE /api/v1/pleroma/bookmark_folders/:id`
+### Deletes a bookmark folder
+* Authentication: required
+
+* Params:
+    * `id`: folder id
+* Response: JSON. Returns a single bookmark folder.
 
 ## `/api/v1/pleroma/mascot`
 ### Gets user mascot image
@@ -372,6 +439,15 @@ See [Admin-API](admin_api.md)
     * `alias`: the nickname of the alias to delete, e.g. `foo@example.org`.
 * Response: JSON. Returns `{"status": "success"}` if the change was successful, `{"error": "[error message]"}` otherwise
 
+## `/api/v1/pleroma/remote_interaction`
+## Interact with profile or status from remote account
+* Metod `POST`
+* Authentication: not required
+* Params:
+    * `ap_id`: Profile or status ActivityPub ID
+    * `profile`: Remote profile webfinger
+* Response: JSON. Returns `{"url": "[redirect url]"}` on success, `{"error": "[error message]"}` otherwise
+
 # Pleroma Conversations
 
 Pleroma Conversations have the same general structure that Mastodon Conversations have. The behavior differs in the following ways when using these endpoints:
@@ -382,7 +458,7 @@ Pleroma Conversations have the same general structure that Mastodon Conversation
 
 Conversations have the additional field `recipients` under the `pleroma` key. This holds a list of all the accounts that will receive a message in this conversation.
 
-The status posting endpoint takes an additional parameter, `in_reply_to_conversation_id`, which, when set, will set the visiblity to direct and address only the people who are the recipients of that Conversation.
+The status posting endpoint takes an additional parameter, `in_reply_to_conversation_id`, which, when set, will set the visibility to direct and address only the people who are the recipients of that Conversation.
 
 ⚠ Conversation IDs can be found in direct messages with the `pleroma.direct_conversation_id` key, do not confuse it with `pleroma.conversation_id`.
 
@@ -595,6 +671,7 @@ Audio scrobbling in Pleroma is **deprecated**.
        "artist": "Some Artist",
        "album": "Some Album",
        "length": 180000,
+       "external_link": "https://www.last.fm/music/Some+Artist/_/Some+Title",
        "created_at": "2019-09-28T12:40:45.000Z"
    }
 ]
