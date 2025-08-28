@@ -1,0 +1,1 @@
+Improved docker-compose configuration with PostgreSQL performance optimizations including shm_size for vacuum operations, 4GB RAM tuning parameters, and pre-built image option
