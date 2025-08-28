@@ -1,8 +1,8 @@
-version: '3.4'
-
 services:
   web:
     build: ../..
+    # Uncomment to use pre-built image instead of building locally:
+    # image: git.pleroma.social:5050/pleroma/pleroma:latest-stable
     ports:
       - "4000:4000"
     environment:
@@ -14,13 +14,44 @@ services:
     restart: "always"
   db:
     image: postgres:16
+    # Required for PostgreSQL vacuum operations
+    shm_size: 1gb
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       PGDATA: "/pg_data"
+      # PostgreSQL performance settings for ~4GB RAM server
+      # Adjust these values based on your server resources
+      # See docs/configuration/postgresql.md for recommendations
+      POSTGRES_SHARED_BUFFERS: "1GB"
+      POSTGRES_EFFECTIVE_CACHE_SIZE: "3GB"
+      POSTGRES_MAINTENANCE_WORK_MEM: "256MB"
+      POSTGRES_WORK_MEM: "52MB"
+      POSTGRES_MAX_CONNECTIONS: "20"
+      POSTGRES_MAX_WORKER_PROCESSES: "4"
+      POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER: "2"
+      POSTGRES_MAX_PARALLEL_WORKERS: "4"
     restart: "always"
     volumes:
       - "./workdir/pg_data:/pg_data"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-1GB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-3GB}
+      - -c
+      - maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-256MB}
+      - -c
+      - work_mem=${POSTGRES_WORK_MEM:-52MB}
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-20}
+      - -c
+      - max_worker_processes=${POSTGRES_MAX_WORKER_PROCESSES:-4}
+      - -c
+      - max_parallel_workers_per_gather=${POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER:-2}
+      - -c
+      - max_parallel_workers=${POSTGRES_MAX_PARALLEL_WORKERS:-4}
   grafana:
     image: grafana/grafana-enterprise
     ports: 
