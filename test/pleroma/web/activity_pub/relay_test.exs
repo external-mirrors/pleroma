@@ -24,6 +24,11 @@ defmodule Pleroma.Web.ActivityPub.RelayTest do
     assert User.invisible?(user)
   end
 
+  test "relay actor is of type Application" do
+    user = Relay.get_actor()
+    assert user.actor_type == "Application"
+  end
+
   describe "follow/1" do
     test "returns errors when user not found" do
       assert capture_log(fn ->
