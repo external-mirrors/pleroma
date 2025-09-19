@@ -35,6 +35,10 @@ defmodule Pleroma.Web.MastodonAPI.NotificationController do
       poll
       update
       status
+      pleroma:participation_request
+      pleroma:participation_accepted
+      pleroma:event_reminder
+      pleroma:event_update
     }
 
   # GET /api/v1/notifications

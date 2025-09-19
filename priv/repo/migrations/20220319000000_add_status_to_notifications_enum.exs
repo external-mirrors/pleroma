@@ -36,8 +36,7 @@ defmodule Pleroma.Repo.Migrations.AddStatusToNotificationsEnum do
       'reblog',
       'favourite',
       'pleroma:report',
-      'poll',
-      'update'
+      'poll'
     )
     """
     |> execute()

@@ -501,7 +501,7 @@ config :pleroma, :shout,
   enabled: true,
   limit: 5_000
 
-config :phoenix, :format_encoders, json: Jason, "activity+json": Jason
+config :phoenix, :format_encoders, json: Jason, "activity+json": Jason, ics: ICalendar
 
 config :phoenix, :json_library, Jason
 
@@ -728,6 +728,7 @@ config :pleroma, :rate_limit,
   relation_id_action: {60_000, 2},
   statuses_actions: {10_000, 15},
   status_id_action: {60_000, 3},
+  events_actions: {10_000, 15},
   password_reset: {1_800_000, 5},
   account_confirmation_resend: {8_640_000, 5},
   ap_routes: {60_000, 15}
@@ -959,6 +960,22 @@ config :pleroma, Pleroma.Search.QdrantSearch,
   qdrant_index_configuration: %{
     vectors: %{size: 384, distance: "Cosine"}
   }
+
+config :geospatial, Geospatial.Service, service: Geospatial.Providers.Nominatim
+
+config :geospatial, Geospatial.Providers.GoogleMaps,
+  api_key: nil,
+  fetch_place_details: true
+
+config :geospatial, Geospatial.Providers.Nominatim,
+  endpoint: "https://nominatim.openstreetmap.org",
+  api_key: nil
+
+config :geospatial, Geospatial.Providers.Pelias,
+  endpoint: "https://api.geocode.earth",
+  api_key: nil
+
+config :geospatial, Geospatial.HTTP, user_agent: &Pleroma.Application.user_agent/0
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

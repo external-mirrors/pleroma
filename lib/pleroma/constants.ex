@@ -21,7 +21,11 @@ defmodule Pleroma.Constants do
       "pleroma_internal",
       "generator",
       "rules",
-      "language"
+      "language",
+      "participations",
+      "participation_count",
+      "participation_request_count",
+      "location_id"
     ]
   )
 
@@ -42,7 +46,13 @@ defmodule Pleroma.Constants do
       "sensitive",
       "attachment",
       "generator",
-      "language"
+      "language",
+      "startTime",
+      "endTime",
+      "location",
+      "location_id",
+      "location_provider",
+      "name"
     ]
   )
 
@@ -105,7 +115,9 @@ defmodule Pleroma.Constants do
       "Undo",
       "Flag",
       "EmojiReact",
-      "Listen"
+      "Listen",
+      "Join",
+      "Leave"
     ]
   )
 

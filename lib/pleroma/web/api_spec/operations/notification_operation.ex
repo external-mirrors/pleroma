@@ -174,6 +174,11 @@ defmodule Pleroma.Web.ApiSpec.NotificationOperation do
             "Status that was the object of the notification, e.g. in mentions, reblogs, favourites, or polls.",
           nullable: true
         },
+        participation_message: %Schema{
+          type: :string,
+          description: "Description of event participation request",
+          nullable: true
+        },
         pleroma: %Schema{
           type: :object,
           properties: %{
@@ -211,12 +216,17 @@ defmodule Pleroma.Web.ApiSpec.NotificationOperation do
         "status",
         "update",
         "admin.sign_up",
-        "admin.report"
+        "admin.report",
+        "pleroma:participation_accepted",
+        "pleroma:participation_request",
+        "pleroma:event_reminder",
+        "pleroma:event_update"
       ],
       description: """
       The type of event that resulted in the notification.
 
       - `follow` - Someone followed you
+      - `follow_request` - Someone wants to follow you
       - `mention` - Someone mentioned you in their status
       - `reblog` - Someone boosted one of your statuses
       - `favourite` - Someone favourited one of your statuses
@@ -229,6 +239,10 @@ defmodule Pleroma.Web.ApiSpec.NotificationOperation do
       - `update` - A status you boosted has been edited
       - `admin.sign_up` - Someone signed up (optionally sent to admins)
       - `admin.report` - A new report has been filed
+      - `pleroma:event_reminder` – An event you are participating in or created is taking place soon
+      - `pleroma:event_update` – An event you are participating in was edited
+      - `pleroma:participation_request - Someone wants to participate in your event
+      - `pleroma:participation_accepted - Your event participation request was accepted
       """
     }
   end

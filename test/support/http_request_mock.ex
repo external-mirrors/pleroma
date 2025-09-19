@@ -1508,6 +1508,34 @@ defmodule HttpRequestMock do
     {:ok, %Tesla.Env{status: 200, body: "hello"}}
   end
 
+  def get(
+        "https://nominatim.openstreetmap.org/search?format=geocodejson&q=Benis&limit=10&accept-language=en&addressdetails=1&namedetails=1",
+        _,
+        _,
+        _
+      ) do
+    {:ok,
+     %Tesla.Env{
+       status: 200,
+       body: File.read!("test/fixtures/tesla_mock/nominatim_search_results.json"),
+       headers: [{"content-type", "application/json"}]
+     }}
+  end
+
+  def get(
+        "https://nominatim.openstreetmap.org/lookup?format=geocodejson&osm_ids=N3726208425,R3726208425,W3726208425&accept-language=en&addressdetails=1&namedetails=1",
+        _,
+        _,
+        _
+      ) do
+    {:ok,
+     %Tesla.Env{
+       status: 200,
+       body: File.read!("test/fixtures/tesla_mock/nominatim_single_result.json"),
+       headers: [{"content-type", "application/json"}]
+     }}
+  end
+
   def get("https://friends.grishka.me/posts/54642", _, _, _) do
     {:ok,
      %Tesla.Env{
@@ -1636,6 +1664,41 @@ defmodule HttpRequestMock do
          |> File.read!()
          |> String.replace("{{nickname}}", "a")
          |> String.replace("{{domain}}", "sub.pleroma.example"),
+       headers: [{"content-type", "application/activity+json"}]
+     }}
+  end
+
+  def get("https://wp-test.event-federation.eu/event/test-event/", _, _, _) do
+    {:ok,
+     %Tesla.Env{
+       status: 200,
+       body: File.read!("test/fixtures/tesla_mock/wordpress-event.json"),
+       headers: activitypub_object_headers()
+     }}
+  end
+
+  def get("https://wp-test.event-federation.eu/@test", _, _, _) do
+    {:ok,
+     %Tesla.Env{
+       status: 200,
+       body: File.read!("test/fixtures/tesla_mock/wordpress-user.json"),
+       headers: activitypub_object_headers()
+     }}
+  end
+
+  def get(
+        "https://wp-test.event-federation.eu/wp-json/activitypub/1.0/actors/0/collections/featured",
+        _,
+        _,
+        _
+      ) do
+    {:ok,
+     %Tesla.Env{
+       status: 200,
+       body:
+         File.read!("test/fixtures/users_mock/masto_featured.json")
+         |> String.replace("{{domain}}", "wp-test.event-federation.eu")
+         |> String.replace("{{nickname}}", "test"),
        headers: [{"content-type", "application/activity+json"}]
      }}
   end

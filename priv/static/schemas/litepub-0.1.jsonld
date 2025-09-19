@@ -43,7 +43,29 @@
             "vcard": "http://www.w3.org/2006/vcard/ns#",
             "formerRepresentations": "litepub:formerRepresentations",
             "sm": "http://smithereen.software/ns#",
-            "nonAnonymous": "sm:nonAnonymous"
+            "nonAnonymous": "sm:nonAnonymous",
+            "mz": "https://joinmobilizon.org/ns#",
+            "joinMode": {
+                "@id": "mz:joinMode",
+                "@type": "mz:joinModeType"
+            },
+            "joinModeType": {
+                "@id": "mz:joinModeType",
+                "@type": "rdfs:Class"
+            },
+            "participationMessage": {
+                "@id": "mz:participationMessage",
+                "@type": "schema:Text"
+            },
+            "streetAddress": "schema:streetAddress",
+            "postalCode": "schema:postalCode",
+            "addressLocality": "schema:addressLocality",
+            "addressRegion": "schema:addressRegion",
+            "addressCountry": "schema:addressCountry",
+            "location": {
+                "@id": "schema:location",
+                "@type": "schema:Place"
+            }
         }
     ]
 }

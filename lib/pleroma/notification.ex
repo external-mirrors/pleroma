@@ -74,6 +74,10 @@ defmodule Pleroma.Notification do
     reblog
     poll
     status
+    pleroma:participation_accepted
+    pleroma:participation_request
+    pleroma:event_reminder
+    pleroma:event_update
   }
 
   def changeset(%Notification{} = notification, attrs) do
@@ -367,23 +371,37 @@ defmodule Pleroma.Notification do
   end
 
   def create_notifications(%Activity{data: %{"type" => type}} = activity)
-      when type in ["Follow", "Like", "Announce", "Move", "EmojiReact", "Flag", "Update"] do
+      when type in [
+             "Follow",
+             "Like",
+             "Announce",
+             "Move",
+             "EmojiReact",
+             "Flag",
+             "Update",
+             "Accept",
+             "Join"
+           ] do
     do_create_notifications(activity)
   end
 
   def create_notifications(_), do: {:ok, []}
 
   defp do_create_notifications(%Activity{} = activity) do
+    enabled_participants = get_notified_participants_from_activity(activity)
     enabled_receivers = get_notified_from_activity(activity)
 
     enabled_subscribers = get_notified_subscribers_from_activity(activity)
 
     notifications =
-      (Enum.map(enabled_receivers, fn user ->
+      (Enum.map(enabled_receivers -- enabled_participants, fn user ->
          create_notification(activity, user)
        end) ++
          Enum.map(enabled_subscribers -- enabled_receivers, fn user ->
            create_notification(activity, user, type: "status")
+         end) ++
+         Enum.map(enabled_participants, fn user ->
+           create_notification(activity, user, type: "pleroma:event_update")
          end))
       |> Enum.reject(&is_nil/1)
 
@@ -424,6 +442,12 @@ defmodule Pleroma.Notification do
 
       "Update" ->
         "update"
+
+      "Accept" ->
+        "pleroma:participation_accepted"
+
+      "Join" ->
+        "pleroma:participation_request"
 
       t ->
         raise "No notification type for activity type #{t}"
@@ -483,6 +507,28 @@ defmodule Pleroma.Notification do
     end
   end
 
+  def create_event_notifications(%Activity{} = activity) do
+    with %Object{data: %{"type" => "Event", "actor" => actor} = data} <-
+           Object.normalize(activity) do
+      participations =
+        case data do
+          %{"participations" => participations} when is_list(participations) -> participations
+          _ -> []
+        end
+
+      notifications =
+        Enum.reduce([actor | participations], [], fn ap_id, acc ->
+          with %User{local: true} = user <- User.get_by_ap_id(ap_id) do
+            [create_notification(activity, user, type: "pleroma:event_reminder") | acc]
+          else
+            _ -> acc
+          end
+        end)
+
+      {:ok, notifications}
+    end
+  end
+
   @doc """
   Returns a tuple with 2 elements:
     {notification-enabled receivers, currently disabled receivers (blocking / [thread] muting)}
@@ -501,7 +547,9 @@ defmodule Pleroma.Notification do
              "Move",
              "EmojiReact",
              "Flag",
-             "Update"
+             "Update",
+             "Accept",
+             "Join"
            ] do
     potential_receiver_ap_ids = get_potential_receiver_ap_ids(activity)
 
@@ -537,12 +585,59 @@ defmodule Pleroma.Notification do
 
   def get_notified_subscribers_from_activity(_, _), do: []
 
+  def get_notified_participants_from_activity(activity, local_only \\ true)
+
+  def get_notified_participants_from_activity(
+        %Activity{data: %{"type" => "Update"}} = activity,
+        local_only
+      ) do
+    notification_enabled_ap_ids =
+      []
+      |> Utils.maybe_notify_participants(activity)
+
+    potential_receivers =
+      User.get_users_from_set(notification_enabled_ap_ids, local_only: local_only)
+
+    Enum.filter(potential_receivers, fn u -> u.ap_id in notification_enabled_ap_ids end)
+  end
+
+  def get_notified_participants_from_activity(_, _), do: []
+
   # For some activities, only notify the author of the object
   def get_potential_receiver_ap_ids(%{data: %{"type" => type, "object" => object_id}})
       when type in ~w{Like Announce EmojiReact} do
     case Object.get_cached_by_ap_id(object_id) do
       %Object{data: %{"actor" => actor}} ->
         [actor]
+
+      _ ->
+        []
+    end
+  end
+
+  def get_potential_receiver_ap_ids(%{data: %{"type" => "Accept", "object" => join_id}}) do
+    case Activity.get_by_ap_id_with_object(join_id) do
+      %Activity{
+        data: %{"type" => "Join"},
+        object: %Object{data: %{"type" => "Event", "joinMode" => "free"}}
+      } ->
+        []
+
+      %Activity{data: %{"type" => "Join", "actor" => actor_id}} ->
+        [actor_id]
+
+      _ ->
+        []
+    end
+  end
+
+  def get_potential_receiver_ap_ids(%{data: %{"type" => "Join", "object" => object_id}}) do
+    case Object.get_by_ap_id(object_id) do
+      %Object{data: %{"type" => "Event", "joinMode" => "free"}} ->
+        []
+
+      %Object{data: %{"type" => "Event", "actor" => actor_id}} ->
+        [actor_id]
 
       _ ->
         []

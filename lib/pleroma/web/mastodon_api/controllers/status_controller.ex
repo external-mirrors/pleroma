@@ -23,7 +23,6 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.MastodonAPI.AccountView
   alias Pleroma.Web.MastodonAPI.ScheduledActivityView
-  alias Pleroma.Web.OAuth.Token
   alias Pleroma.Web.Plugs.OAuthScopesPlug
   alias Pleroma.Web.Plugs.RateLimiter
 
@@ -103,6 +102,8 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
   )
 
   plug(RateLimiter, [name: :statuses_actions] when action in @rate_limited_status_actions)
+
+  plug(Pleroma.Web.Plugs.SetApplicationPlug, [] when action in [:create, :update])
 
   action_fallback(Pleroma.Web.MastodonAPI.FallbackController)
 
@@ -279,6 +280,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
          {_, true} <- {:is_create, activity.data["type"] == "Create"},
          actor <- Activity.user_actor(activity),
          {_, true} <- {:own_status, actor.id == user.id},
+         {_, true} <- {:not_event, activity.object.data["type"] != "Event"},
          changes <- body_params |> put_application(conn),
          {_, {:ok, _update_activity}} <- {:pipeline, CommonAPI.update(activity, user, changes)},
          {_, %Activity{}} = {_, activity} <- {:refetched, Activity.get_by_id_with_object(id)} do
@@ -290,6 +292,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
       )
     else
       {:own_status, _} -> {:error, :forbidden}
+      {:not_event, _} -> {:error, :unprocessable_entity, "Use event update route"}
       {:pipeline, _} -> {:error, :internal_server_error}
       _ -> {:error, :not_found}
     end
@@ -629,13 +632,8 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
     )
   end
 
-  defp put_application(params, %{assigns: %{token: %Token{user: %User{} = user} = token}} = _conn) do
-    if user.disclose_client do
-      %{client_name: client_name, website: website} = Repo.preload(token, :app).app
-      Map.put(params, :generator, %{type: "Application", name: client_name, url: website})
-    else
-      Map.put(params, :generator, nil)
-    end
+  defp put_application(params, %{assigns: %{application: application}} = _conn) do
+    Map.put(params, :generator, application)
   end
 
   defp put_application(params, _), do: Map.put(params, :generator, nil)

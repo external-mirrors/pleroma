@@ -106,7 +106,7 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
     }
 
     case notification.type do
-      "mention" ->
+      type when type in ["mention", "poll", "pleroma:event_reminder"] ->
         put_status(response, activity, reading_user, status_render_opts)
 
       "status" ->
@@ -118,14 +118,11 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
       "reblog" ->
         put_status(response, parent_activity_fn.(), reading_user, status_render_opts)
 
-      "update" ->
+      type when type in ["update", "pleroma:event_update"] ->
         put_status(response, parent_activity_fn.(), reading_user, status_render_opts)
 
       "move" ->
         put_target(response, activity, reading_user, %{})
-
-      "poll" ->
-        put_status(response, activity, reading_user, status_render_opts)
 
       "pleroma:emoji_reaction" ->
         response
@@ -137,6 +134,21 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
 
       "pleroma:report" ->
         put_report(response, activity)
+
+      "pleroma:participation_accepted" ->
+        request_activity = Activity.get_by_ap_id(activity.data["object"])
+        create_activity = Activity.get_create_by_object_ap_id(request_activity.data["object"])
+
+        response
+        |> put_status(create_activity, reading_user, status_render_opts)
+        |> put_participation_request(request_activity)
+
+      "pleroma:participation_request" ->
+        create_activity = Activity.get_create_by_object_ap_id(activity.data["object"])
+
+        response
+        |> put_status(create_activity, reading_user, status_render_opts)
+        |> put_participation_request(activity)
 
       type when type in ["follow", "follow_request"] ->
         response
@@ -179,5 +191,9 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
     target_render = AccountView.render("show.json", target_render_opts)
 
     Map.put(response, :target, target_render)
+  end
+
+  defp put_participation_request(response, activity) do
+    Map.put(response, :participation_message, activity.data["participationMessage"])
   end
 end

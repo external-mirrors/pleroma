@@ -158,7 +158,8 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
       if Pleroma.Language.LanguageDetector.configured?() do
         "pleroma:language_detection"
       end,
-      "pleroma:block_expiration"
+      "pleroma:block_expiration",
+      "pleroma:events"
     ]
     |> Enum.filter(& &1)
   end

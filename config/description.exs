@@ -2638,6 +2638,12 @@ config :pleroma, :config_description, [
         suggestions: [{1000, 10}, [{10_000, 10}, {10_000, 50}]]
       },
       %{
+        key: :events_actions,
+        type: [:tuple, {:list, :tuple}],
+        description: "For create / update / join / leave actions on any statuses",
+        suggestions: [{1000, 10}, [{10_000, 10}, {10_000, 50}]]
+      },
+      %{
         key: :authentication,
         type: [:tuple, {:list, :tuple}],
         description: "For authentication create / password check / user existence check requests",
@@ -3588,6 +3594,83 @@ config :pleroma, :config_description, [
         label: "LibreTranslate API Key",
         type: :string,
         suggestions: ["YOUR_API_KEY"]
+      }
+    ]
+  },
+  %{
+    group: :geospatial,
+    key: Geospatial.Service,
+    type: :group,
+    description: "Geospatial service providers",
+    children: [
+      %{
+        key: :service,
+        type: :module,
+        label: "Geospatial service provider",
+        suggestions: [
+          Geospatial.Providers.GoogleMaps,
+          Geospatial.Providers.Nominatim,
+          Geospatial.Providers.Pelias
+        ]
+      }
+    ]
+  },
+  %{
+    group: :geospatial,
+    key: Geospatial.Providers.Nominatim,
+    type: :group,
+    description: "Nominatim provider configuration",
+    children: [
+      %{
+        key: :endpoint,
+        type: :string,
+        description: "Nominatim endpoint",
+        suggestions: ["https://nominatim.openstreetmap.org"]
+      },
+      %{
+        key: :api_key,
+        type: :string,
+        description: "Nominatim API key",
+        suggestions: [nil]
+      }
+    ]
+  },
+  %{
+    group: :geospatial,
+    key: Geospatial.Providers.GoogleMaps,
+    type: :group,
+    description: "Google Maps provider configuration",
+    children: [
+      %{
+        key: :api_key,
+        type: :string,
+        description: "Google Maps API key",
+        suggestions: [nil]
+      },
+      %{
+        key: :fetch_place_details,
+        type: :boolean,
+        description: "Fetch place details"
+      }
+    ]
+  },
+  %{
+    group: :geospatial,
+    key: Geospatial.Providers.Pelias,
+    type: :group,
+    description: "Pelias provider configuration",
+    children: [
+      %{
+        key: :endpoint,
+        type: :string,
+        description: "Pelias endpoint",
+        suggestions: ["https://api.geocode.earth"]
+      },
+      %{
+        key: :api_key,
+        type: :string,
+        description: "Pelias API key",
+        suggestions: [nil]
       }
     ]
   }
