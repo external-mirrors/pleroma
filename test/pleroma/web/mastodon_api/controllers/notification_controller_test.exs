@@ -78,7 +78,7 @@ defmodule Pleroma.Web.MastodonAPI.NotificationControllerTest do
     assert [_] = result
   end
 
-  test "by default, does not contain pleroma:report" do
+  test "by default, does not contain admin.report" do
     clear_config([:instance, :moderator_privileges], [:reports_manage_reports])
 
     user = insert(:user)
@@ -103,13 +103,32 @@ defmodule Pleroma.Web.MastodonAPI.NotificationControllerTest do
 
     result =
       conn
+      |> get("/api/v1/notifications?include_types[]=admin.report")
+      |> json_response_and_validate_schema(200)
+
+    assert [_] = result
+  end
+
+  test "fallback from pleroma:report works" do
+    clear_config([:instance, :moderator_privileges], [:reports_manage_reports])
+
+    user = insert(:user)
+    reporter = insert(:user)
+    reported = insert(:user)
+
+    {:ok, user} = user |> User.admin_api_update(%{is_moderator: true})
+    %{conn: conn} = oauth_access(["read:notifications"], user: user)
+    {:ok, _report} = CommonAPI.report(reporter, %{account_id: reported.id})
+
+    result =
+      conn
       |> get("/api/v1/notifications?include_types[]=pleroma:report")
       |> json_response_and_validate_schema(200)
 
     assert [_] = result
   end
 
-  test "Pleroma:report is hidden for non-privileged users" do
+  test "Admin.report is hidden for non-privileged users" do
     clear_config([:instance, :moderator_privileges], [:reports_manage_reports])
 
     user = insert(:user)
@@ -137,6 +156,13 @@ defmodule Pleroma.Web.MastodonAPI.NotificationControllerTest do
     result =
       conn
       |> get("/api/v1/notifications?include_types[]=pleroma:report")
+      |> json_response_and_validate_schema(200)
+
+    assert [] == result
+
+    result =
+      conn
+      |> get("/api/v1/notifications?include_types[]=admin.report")
       |> json_response_and_validate_schema(200)
 
     assert [] == result

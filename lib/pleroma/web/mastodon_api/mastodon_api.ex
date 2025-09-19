@@ -62,11 +62,17 @@ defmodule Pleroma.Web.MastodonAPI.MastodonAPI do
 
   def get_notifications(user, params \\ %{}) do
     options =
-      cast_params(params) |> Map.update(:include_types, [], fn include_types -> include_types end)
+      cast_params(params)
+      |> Map.update(:types, [], fn types ->
+        if "admin.report" in types do
+          (types -- ["admin.report"]) ++ ["pleroma:report"]
+        else
+          types
+        end
+      end)
 
     options =
-      if ("pleroma:report" not in options.include_types and
-            User.privileged?(user, :reports_manage_reports)) or
+      if "pleroma:report" not in options.types or
            User.privileged?(user, :reports_manage_reports) do
         options
       else

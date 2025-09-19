@@ -96,7 +96,7 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
     response = %{
       id: to_string(notification.id),
       group_key: "ungrouped-" <> to_string(notification.id),
-      type: notification.type,
+      type: get_notification_type(notification),
       created_at: CommonAPI.Utils.to_masto_date(notification.inserted_at),
       account: account,
       pleroma: %{
@@ -142,6 +142,10 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
         response
     end
   end
+
+  defp get_notification_type(%Notification{type: "pleroma:report"}), do: "admin.report"
+
+  defp get_notification_type(%Notification{type: type}), do: type
 
   defp put_report(response, activity) do
     report_render = ReportView.render("show.json", Report.extract_report_info(activity))
