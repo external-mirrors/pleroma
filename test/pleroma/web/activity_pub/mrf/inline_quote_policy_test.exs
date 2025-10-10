@@ -111,7 +111,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.InlineQuotePolicyTest do
   end
 
   # Mastodon uses p tags instead of span in their quote posts
-  # URL in quoteUri and post content are already mismatched
+  # URLs in quoteUri and post content are already mismatched
   test "skips objects which already have an .inline-quote p" do
     object = File.read!("test/fixtures/quote_post/mastodon_quote_post.json") |> Jason.decode!()
 
