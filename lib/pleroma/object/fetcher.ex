@@ -66,8 +66,7 @@ defmodule Pleroma.Object.Fetcher do
   def fetch_object_from_id(id, options \\ []) do
     with %URI{} = uri <- URI.parse(id),
          # If we have instance restrictions, apply them here to prevent fetching from unwanted instances
-         {:ok, _} <- Pleroma.Web.ActivityPub.MRF.SimplePolicy.check_reject(uri, nil),
-         {:ok, _} <- Pleroma.Web.ActivityPub.MRF.SimplePolicy.check_accept(uri, nil),
+         {_, {:ok, nil}} <- {:mrf_reject_accept_check, maybe_check_reject_accept(uri)},
          {_, nil} <- {:fetch_object, Object.get_cached_by_ap_id(id)},
          {_, true} <- {:allowed_depth, Federator.allowed_thread_distance?(options[:depth])},
          {_, {:ok, data}} <- {:fetch, fetch_and_contain_remote_object_from_id(id)},
@@ -96,6 +95,17 @@ defmodule Pleroma.Object.Fetcher do
         Logger.metadata(object: id)
         Logger.error("Object rejected while fetching #{id} #{inspect(e)}")
         e
+    end
+  end
+
+  defp maybe_check_reject_accept(uri) do
+    with {:enabled, true} <- {:enabled, MRF.SimplePolicy in MRF.get_policies()},
+         {:ok, _} <- MRF.SimplePolicy.check_reject(uri, nil),
+         {:ok, _} <- MRF.SimplePolicy.check_accept(uri, nil) do
+      {:ok, nil}
+    else
+      {:enabled, false} -> {:ok, nil}
+      {:reject, reason} -> {:reject, reason}
     end
   end
 
