@@ -1023,6 +1023,20 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   defp restrict_media(query, _), do: query
 
+  defp restrict_events(_query, %{only_events: _val, skip_preload: true}) do
+    raise "Can't use the child object without preloading!"
+  end
+
+  defp restrict_events(query, %{only_events: true}) do
+    from(
+      [activity, object] in query,
+      where: fragment("(?)->>'type' = 'Create'", activity.data),
+      where: fragment("(?)->>'type' = 'Event'", object.data)
+    )
+  end
+
+  defp restrict_events(query, _), do: query
+
   defp restrict_replies(query, %{exclude_replies: true}) do
     from(
       [activity, object] in query,
@@ -1489,6 +1503,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       |> restrict_muted(restrict_muted_opts)
       |> restrict_filtered(opts)
       |> restrict_media(opts)
+      |> restrict_events(opts)
       |> restrict_visibility(opts)
       |> restrict_thread_visibility(opts, config)
       |> restrict_reblogs(opts)
