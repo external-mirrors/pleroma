@@ -60,7 +60,7 @@ defmodule Pleroma.Web.MastodonAPI.MastodonAPI do
 
   def get_friends(user, params \\ %{}) do
     user
-    |> User.get_friends_query()
+    |> User.get_friends_query(nil, params)
     |> Pagination.fetch_paginated(params)
   end
 

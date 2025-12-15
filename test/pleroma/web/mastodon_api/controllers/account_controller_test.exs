@@ -847,6 +847,32 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       assert link_header =~ ~r/min_id=#{following2.id}/
       assert link_header =~ ~r/max_id=#{following2.id}/
     end
+
+    test "getting following ordered by user recent activity" do
+      user = insert(:user)
+      %{conn: conn} = oauth_access(["read:accounts"])
+
+      following1 = insert(:user)
+      following2 = insert(:user)
+      following3 = insert(:user)
+
+      {:ok, _, _} = User.follow(user, following1)
+      {:ok, _, _} = User.follow(user, following2)
+      {:ok, _, _} = User.follow(user, following3)
+
+      User.update_last_status_at(following1)
+      :timer.sleep(1500)
+      User.update_last_status_at(following3)
+
+      res_conn = get(conn, "/api/v1/accounts/#{user.id}/following?order=active")
+
+      assert [%{"id" => id3}, %{"id" => id1}, %{"id" => id2}] =
+               json_response_and_validate_schema(res_conn, 200)
+
+      assert id1 == following1.id
+      assert id3 == following3.id
+      assert id2 == following2.id
+    end
   end
 
   describe "follow/unfollow" do

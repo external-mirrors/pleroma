@@ -1435,14 +1435,20 @@ defmodule Pleroma.User do
     |> Repo.all()
   end
 
-  @spec get_friends_query(User.t(), pos_integer() | nil) :: Ecto.Query.t()
-  def get_friends_query(%User{} = user, nil) do
-    User.Query.build(%{friends: user, deactivated: false})
+  @spec get_friends_query(User.t(), pos_integer() | nil, map()) :: Ecto.Query.t()
+  def get_friends_query(user, page, params \\ %{})
+
+  def get_friends_query(%User{} = user, nil, params) do
+    User.Query.build(%{
+      friends: user,
+      deactivated: false,
+      order_by_recent_activity: params["order"] == "active"
+    })
   end
 
-  def get_friends_query(%User{} = user, page) do
+  def get_friends_query(%User{} = user, page, params) do
     user
-    |> get_friends_query(nil)
+    |> get_friends_query(nil, params)
     |> User.Query.paginate(page, 20)
   end
 
@@ -2896,9 +2902,11 @@ defmodule Pleroma.User do
   end
 
   def update_last_status_at(user) do
+    date_now = NaiveDateTime.utc_now()
+
     User
     |> where(id: ^user.id)
-    |> update([u], set: [last_status_at: fragment("NOW()")])
+    |> update([u], set: [last_status_at: ^date_now])
     |> select([u], u)
     |> Repo.update_all([])
     |> case do

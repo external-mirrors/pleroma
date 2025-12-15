@@ -201,6 +201,12 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
       parameters: [
         %Reference{"$ref": "#/components/parameters/accountIdOrNickname"},
         Operation.parameter(:id, :query, :string, "ID of the resource owner"),
+        Operation.parameter(
+          :order,
+          :query,
+          %Schema{type: :string, enum: ["active"]},
+          "Order by recent activity"
+        ),
         with_relationships_param() | pagination_params()
       ],
       responses: %{200 => Operation.response("Accounts", "application/json", array_of_accounts())}
