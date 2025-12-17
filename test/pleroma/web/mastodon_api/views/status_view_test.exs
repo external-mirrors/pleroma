@@ -345,7 +345,8 @@ defmodule Pleroma.Web.MastodonAPI.StatusViewTest do
         bookmark_folder: nil,
         list_id: nil,
         event: nil
-      }
+      },
+      quotes_count: 0
     }
 
     assert status == expected

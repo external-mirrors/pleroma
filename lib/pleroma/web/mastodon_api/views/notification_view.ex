@@ -106,19 +106,10 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
     }
 
     case notification.type do
-      type when type in ["mention", "poll", "pleroma:event_reminder"] ->
+      type when type in ["mention", "status", "poll", "pleroma:event_reminder"] ->
         put_status(response, activity, reading_user, status_render_opts)
 
-      "status" ->
-        put_status(response, activity, reading_user, status_render_opts)
-
-      "favourite" ->
-        put_status(response, parent_activity_fn.(), reading_user, status_render_opts)
-
-      "reblog" ->
-        put_status(response, parent_activity_fn.(), reading_user, status_render_opts)
-
-      type when type in ["update", "pleroma:event_update"] ->
+      type when type in ["favourite", "reblog", "update", "pleroma:event_update"] ->
         put_status(response, parent_activity_fn.(), reading_user, status_render_opts)
 
       "move" ->
