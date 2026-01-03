@@ -4,8 +4,8 @@ defmodule Pleroma.Mixfile do
   def project do
     [
       app: :pleroma,
-      version: version("2.9.1"),
-      elixir: "~> 1.14",
+      version: version("2.10.0"),
+      elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       compilers: Mix.compilers(),
       elixirc_options: [warnings_as_errors: warnings_as_errors(), prune_code_paths: false],
@@ -137,6 +137,9 @@ defmodule Pleroma.Mixfile do
       {:tzdata, "~> 1.0.3"},
       {:plug_cowboy, "~> 2.7"},
       {:oban, "~> 2.19.0"},
+      {:oban_plugins_lazarus,
+       git: "https://git.pleroma.social/pleroma/elixir-libraries/oban_plugins_lazarus.git",
+       ref: "e49fc355baaf0e435208bf5f534d31e26e897711"},
       {:gettext, "~> 0.20"},
       {:bcrypt_elixir, "~> 2.2"},
       {:trailing_format_plug, "~> 0.0.7"},
