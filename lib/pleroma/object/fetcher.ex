@@ -65,7 +65,6 @@ defmodule Pleroma.Object.Fetcher do
           {:ok, Object.t()} | {fetcher_errors(), any()} | Pipeline.errors()
   def fetch_object_from_id(id, options \\ []) do
     with %URI{} = uri <- URI.parse(id),
-         # If we have instance restrictions, apply them here to prevent fetching from unwanted instances
          {_, {:ok, nil}} <- {:mrf_reject_accept_check, maybe_check_reject_accept(uri)},
          {_, nil} <- {:fetch_object, Object.get_cached_by_ap_id(id)},
          {_, true} <- {:allowed_depth, Federator.allowed_thread_distance?(options[:depth])},
@@ -87,9 +86,6 @@ defmodule Pleroma.Object.Fetcher do
 
       {:object, data, nil} ->
         reinject_object(%Object{}, data)
-
-      {:reject, reason} ->
-        {:reject, reason}
 
       e ->
         Logger.metadata(object: id)
