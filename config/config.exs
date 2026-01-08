@@ -364,7 +364,9 @@ config :pleroma, :activitypub,
   note_replies_output_limit: 5,
   sign_object_fetches: true,
   authorized_fetch_mode: false,
-  client_api_enabled: false
+  client_api_enabled: false,
+  anonymize_reporter: false,
+  anonymize_reporter_local_nickname: ""
 
 config :pleroma, :streamer,
   workers: 3,
@@ -600,7 +602,7 @@ config :pleroma, Oban,
     search_indexing: [limit: 10, paused: true],
     slow: 5
   ],
-  plugins: [{Oban.Plugins.Pruner, max_age: 900}],
+  plugins: [Oban.Plugins.Lazarus, {Oban.Plugins.Pruner, max_age: 900}],
   crontab: [
     {"0 0 * * 0", Pleroma.Workers.Cron.DigestEmailsWorker},
     {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker},
