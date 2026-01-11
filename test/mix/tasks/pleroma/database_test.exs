@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Mix.Tasks.Pleroma.DatabaseTest do
-  use Pleroma.DataCase, async: true
+  use Pleroma.DataCase, async: false
   use Oban.Testing, repo: Pleroma.Repo
 
   alias Pleroma.Activity
@@ -251,7 +251,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
       |> Repo.update!()
 
       {:ok, old_favourite_activity} =
-        CommonAPI.favorite(remote_user2, old_remote_post_activity.id)
+        CommonAPI.favorite(old_remote_post_activity.id, remote_user2)
 
       old_favourite_activity
       |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
@@ -302,7 +302,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
       |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
       |> Repo.update!()
 
-      {:ok, old_favourite_activity} = CommonAPI.favorite(local_user, old_remote_post3_activity.id)
+      {:ok, old_favourite_activity} = CommonAPI.favorite(old_remote_post3_activity.id, local_user)
 
       old_favourite_activity
       |> Ecto.Changeset.change(%{local: true, updated_at: old_insert_date})
@@ -411,7 +411,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
                ["scheduled_activities"],
                ["schema_migrations"],
                ["thread_mutes"],
-               # ["user_follows_hashtag"],                  # not in pleroma
+               ["user_follows_hashtag"],
                # ["user_frontend_setting_profiles"],        # not in pleroma
                ["user_invite_tokens"],
                ["user_notes"],
@@ -586,7 +586,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
       {:ok, %{id: id, object: object}} = CommonAPI.post(user, %{status: "test"})
       {:ok, %{object: object2}} = CommonAPI.post(user, %{status: "test test"})
 
-      CommonAPI.favorite(user2, id)
+      CommonAPI.favorite(id, user2)
 
       likes = %{
         "first" =>
@@ -623,10 +623,12 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
 
       expires_at = DateTime.add(DateTime.utc_now(), 60 * 61)
 
-      Pleroma.Workers.PurgeExpiredActivity.enqueue(%{
-        activity_id: activity_id3,
-        expires_at: expires_at
-      })
+      Pleroma.Workers.PurgeExpiredActivity.enqueue(
+        %{
+          activity_id: activity_id3
+        },
+        scheduled_at: expires_at
+      )
 
       Mix.Tasks.Pleroma.Database.run(["ensure_expiration"])
 

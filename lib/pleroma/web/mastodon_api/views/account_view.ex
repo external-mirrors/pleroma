@@ -9,6 +9,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
   alias Pleroma.User
   alias Pleroma.UserNote
   alias Pleroma.UserRelationship
+  alias Pleroma.Utils.URIEncoding
   alias Pleroma.Web.CommonAPI.Utils
   alias Pleroma.Web.MastodonAPI.AccountView
   alias Pleroma.Web.MediaProxy
@@ -92,14 +93,13 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         User.get_follow_state(reading_user, target)
       end
 
-    followed_by =
-      if following_relationships do
-        case FollowingRelationship.find(following_relationships, target, reading_user) do
-          %{state: :follow_accept} -> true
-          _ -> false
-        end
-      else
-        User.following?(target, reading_user)
+    followed_by = FollowingRelationship.following?(target, reading_user)
+    following = FollowingRelationship.following?(reading_user, target)
+
+    requested =
+      cond do
+        following -> false
+        true -> match?(:follow_pending, follow_state)
       end
 
     subscribing =
@@ -114,7 +114,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     # NOTE: adjust UserRelationship.view_relationships_option/2 on new relation-related flags
     %{
       id: to_string(target.id),
-      following: follow_state == :follow_accept,
+      following: following,
       followed_by: followed_by,
       blocking:
         UserRelationship.exists?(
@@ -150,7 +150,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         ),
       subscribing: subscribing,
       notifying: subscribing,
-      requested: follow_state == :follow_pending,
+      requested: requested,
       domain_blocking: User.blocks_domain?(reading_user, target),
       showing_reblogs:
         not UserRelationship.exists?(
@@ -169,9 +169,9 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         UserRelationship.exists?(
           user_relationships,
           :endorsement,
-          target,
           reading_user,
-          &User.endorses?(&2, &1)
+          target,
+          &User.endorses?(&1, &2)
         )
     }
   end
@@ -220,8 +220,10 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
 
     avatar = User.avatar_url(user) |> MediaProxy.url()
     avatar_static = User.avatar_url(user) |> MediaProxy.preview_url(static: true)
+    avatar_description = User.image_description(user.avatar)
     header = User.banner_url(user) |> MediaProxy.url()
     header_static = User.banner_url(user) |> MediaProxy.preview_url(static: true)
+    header_description = User.image_description(user.banner)
 
     following_count =
       if !user.hide_follows_count or !user.hide_follows or self,
@@ -237,7 +239,10 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
 
     emojis =
       Enum.map(user.emoji, fn {shortcode, raw_url} ->
-        url = MediaProxy.url(raw_url)
+        url =
+          raw_url
+          |> encode_emoji_url()
+          |> MediaProxy.url()
 
         %{
           shortcode: shortcode,
@@ -322,7 +327,9 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         skip_thread_containment: user.skip_thread_containment,
         background_image: image_url(user.background) |> MediaProxy.url(),
         accepts_chat_messages: user.accepts_chat_messages,
-        favicon: favicon
+        favicon: favicon,
+        avatar_description: avatar_description,
+        header_description: header_description
       }
     }
     |> maybe_put_role(user, opts[:for])
@@ -337,6 +344,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     |> maybe_put_unread_notification_count(user, opts[:for])
     |> maybe_put_email_address(user, opts[:for])
     |> maybe_put_mute_expires_at(user, opts[:for], opts)
+    |> maybe_put_block_expires_at(user, opts[:for], opts)
     |> maybe_show_birthday(user, opts[:for])
   end
 
@@ -352,8 +360,9 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
          %User{id: user_id}
        ) do
     count =
-      User.get_follow_requests(user)
-      |> length()
+      user
+      |> User.get_follow_requests_query()
+      |> Pleroma.Repo.aggregate(:count)
 
     data
     |> Kernel.put_in([:follow_requests_count], count)
@@ -473,6 +482,16 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
 
   defp maybe_put_mute_expires_at(data, _, _, _), do: data
 
+  defp maybe_put_block_expires_at(data, %User{} = user, target, %{blocks: true}) do
+    Map.put(
+      data,
+      :block_expires_at,
+      UserRelationship.get_block_expire_date(target, user)
+    )
+  end
+
+  defp maybe_put_block_expires_at(data, _, _, _), do: data
+
   defp maybe_show_birthday(data, %User{id: user_id} = user, %User{id: user_id}) do
     data
     |> Kernel.put_in([:pleroma, :birthday], user.birthday)
@@ -497,4 +516,13 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     # See https://git.pleroma.social/pleroma/pleroma-meta/-/issues/14
     user.actor_type == "Service" || user.actor_type == "Group"
   end
+
+  defp encode_emoji_url(nil), do: nil
+  defp encode_emoji_url("http" <> _ = url), do: URIEncoding.encode_url(url)
+
+  defp encode_emoji_url("/" <> _ = path),
+    do: URIEncoding.encode_url(path, bypass_parse: true, bypass_decode: true)
+
+  defp encode_emoji_url(path) when is_binary(path),
+    do: URIEncoding.encode_url(path, bypass_parse: true, bypass_decode: true)
 end

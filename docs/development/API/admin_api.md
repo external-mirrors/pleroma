@@ -70,6 +70,8 @@ The `/api/v1/pleroma/admin/*` path is backwards compatible with `/api/pleroma/ad
   - `nicknames`
 - Response: Array of user nicknames
 
+## `POST /api/v1/pleroma/admin/users`
+
 ### Create a user
 
 - Method: `POST`
@@ -81,7 +83,7 @@ The `/api/v1/pleroma/admin/*` path is backwards compatible with `/api/pleroma/ad
       `password`
     }
   ]
-- Response: User’s nickname
+- Response: Array of user objects
 
 ## `POST /api/v1/pleroma/admin/users/follow`
 
@@ -433,7 +435,7 @@ Response:
 * On success: URL of the unfollowed relay
 
 ```json
-{"https://example.com/relay"}
+"https://example.com/relay"
 ```
 
 ## `POST /api/v1/pleroma/admin/users/invite_token`
@@ -1193,20 +1195,23 @@ Loads json generated from `config/descriptions.exs`.
 - Response:
 
 ```json
-[
-  {
-    "id": 1234,
-    "data": {
-      "actor": {
-        "id": 1,
-        "nickname": "lain"
+{
+  "items": [
+    {
+      "id": 1234,
+      "data": {
+        "actor": {
+          "id": 1,
+          "nickname": "lain"
+        },
+        "action": "relay_follow"
       },
-      "action": "relay_follow"
-    },
-    "time": 1502812026, // timestamp
-    "message": "[2017-08-15 15:47:06] @nick0 followed relay: https://example.org/relay" // log message
-  }
-]
+      "time": 1502812026, // timestamp
+      "message": "[2017-08-15 15:47:06] @nick0 followed relay: https://example.org/relay" // log message
+    }
+  ],
+  "total": 1
+}
 ```
 
 ## `POST /api/v1/pleroma/admin/reload_emoji`

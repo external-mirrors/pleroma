@@ -15,109 +15,219 @@ defmodule Pleroma.Upload.Filter.Exiftool.StripLocation do
   def filter(%Pleroma.Upload{content_type: "image/svg" <> _}), do: {:ok, :noop}
 
   def filter(%Pleroma.Upload{tempfile: file, content_type: "image" <> _}) do
-    case ExifGpsStripper.strip_gps_data(file, file) do
-      :ok -> {:ok, :filtered}
-      {:error, reason} -> {:error, reason}
+    if Pleroma.Utils.command_available?("exiftool") do
+      strip_with_exiftool(file)
+    else
+      strip_with_elixir(file)
     end
   end
 
   def filter(_), do: {:ok, :noop}
-end
 
-defmodule ExifGpsStripper do
-  @exif_header <<0xFF, 0xE1>>
-  @gps_ifd_tag 0x8825
-
-  def strip_gps_data(input_path, output_path) do
-    case File.read(input_path) do
-      {:ok, data} ->
-        case process_file(data) do
-          {:ok, stripped_data} -> File.write(output_path, stripped_data)
-          {:error, reason} -> {:error, reason}
-        end
-
-      {:error, reason} ->
-        {:error, "Failed to read file: #{reason}"}
+  defp strip_with_exiftool(file) do
+    try do
+      case System.cmd("exiftool", ["-m", "-overwrite_original", "-gps:all=", "-png:all=", file],
+             stderr_to_stdout: true,
+             parallelism: true
+           ) do
+        {_response, 0} -> {:ok, :filtered}
+        {error, _} -> {:error, error}
+      end
+    rescue
+      e in ErlangError ->
+        {:error, "#{__MODULE__}: #{inspect(e)}"}
     end
   end
 
-  defp process_file(<<0x89, "PNG", 0x0D, 0x0A, 0x1A, 0x0A, rest::binary>>) do
-    # PNG file
-    {:ok, <<0x89, "PNG", 0x0D, 0x0A, 0x1A, 0x0A>> <> strip_png_gps(rest)}
+  defp strip_with_elixir(file) do
+    case ExifGpsStripper.strip_gps_data(file, file) do
+      :ok -> {:ok, :filtered}
+      :noop -> {:ok, :noop}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+end
+
+defmodule ExifGpsStripper do
+  @moduledoc false
+
+  @gps_ifd_tag 0x8825
+
+  @png_signature <<0x89, "PNG", 0x0D, 0x0A, 0x1A, 0x0A>>
+  @jpg_soi_marker <<0xFF, 0xD8>>
+
+  @jpg_app1_marker 0xE1
+  @jpg_sos_marker 0xDA
+  @jpg_tem_marker 0x01
+
+  @type result :: :ok | :noop | {:error, term()}
+
+  @spec strip_gps_data(Path.t(), Path.t()) :: result()
+  def strip_gps_data(input_path, output_path) do
+    with {:ok, data} <- File.read(input_path),
+         {:ok, stripped_data} <- process_file(data),
+         :ok <- File.write(output_path, stripped_data) do
+      :ok
+    else
+      :noop -> :noop
+      {:error, _} = error -> error
+    end
+  rescue
+    e ->
+      {:error, "#{__MODULE__}: #{inspect(e)}"}
   end
 
-  defp process_file(<<0xFF, 0xD8, rest::binary>>) do
-    # JPEG file
-    {:ok, <<0xFF, 0xD8>> <> strip_jpeg_gps(rest)}
+  defp process_file(<<@png_signature, rest::binary>>) do
+    case strip_png_chunks(rest, [], false) do
+      {:ok, new_rest, true} -> {:ok, @png_signature <> new_rest}
+      {:ok, _new_rest, false} -> :noop
+      {:error, _} = error -> error
+    end
   end
 
-  defp process_file(_), do: {:error, "Unsupported file format"}
-
-  defp strip_png_gps(data) do
-    strip_png_chunks(data, [])
+  defp process_file(<<@jpg_soi_marker, rest::binary>>) do
+    case strip_jpeg_segments(rest, [], false) do
+      {:ok, iodata, true} -> {:ok, @jpg_soi_marker <> IO.iodata_to_binary(iodata)}
+      {:ok, _iodata, false} -> :noop
+      {:error, _} = error -> error
+    end
   end
 
-  defp strip_png_chunks(<<>>, acc), do: IO.iodata_to_binary(Enum.reverse(acc))
+  defp process_file(_), do: :noop
+
+  defp strip_png_chunks(<<>>, acc, stripped?),
+    do: {:ok, IO.iodata_to_binary(Enum.reverse(acc)), stripped?}
 
   defp strip_png_chunks(
          <<chunk_size::32, chunk_type::binary-size(4), chunk_data::binary-size(chunk_size),
            crc::32, rest::binary>>,
-         acc
+         acc,
+         stripped?
        ) do
-    case chunk_type do
-      "eXIf" ->
-        strip_png_chunks(rest, acc)
+    if chunk_type in ["eXIf", "tEXt", "zTXt", "iTXt"] do
+      strip_png_chunks(rest, acc, true)
+    else
+      chunk =
+        <<chunk_size::32, chunk_type::binary-size(4), chunk_data::binary-size(chunk_size),
+          crc::32>>
 
-      "tEXt" -> 
-        strip_png_chunks(rest, acc)
-
-      _ ->
-        chunk =
-          <<chunk_size::32, chunk_type::binary-size(4), chunk_data::binary-size(chunk_size),
-            crc::32>>
-
-        strip_png_chunks(rest, [chunk | acc])
+      strip_png_chunks(rest, [chunk | acc], stripped?)
     end
   end
 
-  defp strip_jpeg_gps(data) do
-    case :binary.match(data, @exif_header) do
-      :nomatch ->
-        data
+  defp strip_png_chunks(_data, _acc, _stripped?), do: {:error, :invalid_png}
 
-      {pos, _} ->
-        <<before::binary-size(pos), @exif_header, size::16, exif_data::binary-size(size - 2),
-          rest::binary>> = data
+  defp strip_jpeg_segments(<<0xFF, @jpg_sos_marker, _::binary>> = data, acc, changed?) do
+    {:ok, Enum.reverse([data | acc]), changed?}
+  end
 
-        stripped_exif = strip_gps_from_exif(exif_data)
-        new_size = byte_size(stripped_exif) + 2
-        before <> @exif_header <> <<new_size::16>> <> stripped_exif <> rest
+  defp strip_jpeg_segments(<<0xFF, 0xFF, rest::binary>>, acc, changed?) do
+    strip_jpeg_segments(<<0xFF, rest::binary>>, acc, changed?)
+  end
+
+  defp strip_jpeg_segments(<<0xFF, @jpg_tem_marker, rest::binary>>, acc, changed?) do
+    strip_jpeg_segments(rest, [<<0xFF, @jpg_tem_marker>> | acc], changed?)
+  end
+
+  defp strip_jpeg_segments(<<0xFF, marker, rest::binary>>, acc, changed?)
+       when marker in 0xD0..0xD9 do
+    strip_jpeg_segments(rest, [<<0xFF, marker>> | acc], changed?)
+  end
+
+  defp strip_jpeg_segments(<<0xFF, marker, segment_length::16, rest::binary>>, acc, changed?) do
+    segment_data_len = segment_length - 2
+
+    if segment_length >= 2 and byte_size(rest) >= segment_data_len do
+      <<segment_data::binary-size(segment_data_len), remaining::binary>> = rest
+
+      {segment_data, patched?} =
+        if marker == @jpg_app1_marker do
+          strip_gps_from_app1_segment(segment_data)
+        else
+          {segment_data, false}
+        end
+
+      segment = <<0xFF, marker, segment_length::16>> <> segment_data
+      strip_jpeg_segments(remaining, [segment | acc], changed? or patched?)
+    else
+      {:error, :invalid_jpeg}
     end
   end
 
-  defp strip_gps_from_exif(<<"Exif", 0, 0, tiff_header::binary-size(8), ifd_data::binary>>) do
-    {stripped_ifd, _} = strip_gps_from_ifd(ifd_data)
-    <<"Exif", 0, 0, tiff_header::binary-size(8), stripped_ifd::binary>>
+  defp strip_jpeg_segments(<<>>, acc, changed?), do: {:ok, Enum.reverse(acc), changed?}
+  defp strip_jpeg_segments(_data, _acc, _changed?), do: {:error, :invalid_jpeg}
+
+  defp strip_gps_from_app1_segment(<<"Exif", 0, 0, tiff::binary>> = segment_data) do
+    case strip_gps_from_tiff(tiff) do
+      {:ok, _tiff, false} -> {segment_data, false}
+      {:ok, new_tiff, true} -> {<<"Exif", 0, 0>> <> new_tiff, true}
+      {:error, _reason} -> {segment_data, false}
+    end
   end
 
-  defp strip_gps_from_ifd(<<count::16-little, rest::binary>>) do
-    {entries, remaining} = strip_gps_from_entries(rest, count, [])
-    {<<count::16-little>> <> IO.iodata_to_binary(entries), remaining}
+  defp strip_gps_from_app1_segment(segment_data), do: {segment_data, false}
+
+  defp strip_gps_from_tiff(<<"II", 0x002A::16-little, ifd0_offset::32-little, _::binary>> = tiff) do
+    strip_gps_from_ifd0(tiff, ifd0_offset, :little)
   end
 
-  defp strip_gps_from_entries(data, 0, acc), do: {Enum.reverse(acc), data}
+  defp strip_gps_from_tiff(<<"MM", 0x002A::16-big, ifd0_offset::32-big, _::binary>> = tiff) do
+    strip_gps_from_ifd0(tiff, ifd0_offset, :big)
+  end
 
-  defp strip_gps_from_entries(
-         <<tag::16-little, type::16-little, count::32-little, value::32-little, rest::binary>>,
-         entries_left,
-         acc
-       ) do
-    entry = <<tag::16-little, type::16-little, count::32-little, value::32-little>>
+  defp strip_gps_from_tiff(_), do: {:error, :unsupported_tiff}
+
+  defp strip_gps_from_ifd0(tiff, ifd0_offset, endian) do
+    if byte_size(tiff) < ifd0_offset + 2 do
+      {:error, :invalid_ifd0_offset}
+    else
+      <<before_ifd0::binary-size(ifd0_offset), ifd0::binary>> = tiff
+
+      {entry_count, entry_count_bytes, ifd0_entries_and_rest} =
+        case endian do
+          :little ->
+            <<count::16-little, rest::binary>> = ifd0
+            {count, <<count::16-little>>, rest}
+
+          :big ->
+            <<count::16-big, rest::binary>> = ifd0
+            {count, <<count::16-big>>, rest}
+        end
+
+      entries_len = entry_count * 12
+
+      if byte_size(ifd0_entries_and_rest) < entries_len do
+        {:error, :invalid_ifd0}
+      else
+        <<entries::binary-size(entries_len), rest_after_entries::binary>> = ifd0_entries_and_rest
+
+        {patched_entries, patched?} = patch_ifd_entries(entries, endian, false, [])
+
+        new_tiff = before_ifd0 <> entry_count_bytes <> patched_entries <> rest_after_entries
+        {:ok, new_tiff, patched?}
+      end
+    end
+  end
+
+  defp patch_ifd_entries(<<>>, _endian, patched?, acc),
+    do: {IO.iodata_to_binary(Enum.reverse(acc)), patched?}
+
+  defp patch_ifd_entries(<<entry::binary-size(12), rest::binary>>, endian, patched?, acc) do
+    tag =
+      case endian do
+        :little ->
+          <<tag::16-little, _::binary-size(10)>> = entry
+          tag
+
+        :big ->
+          <<tag::16-big, _::binary-size(10)>> = entry
+          tag
+      end
 
     if tag == @gps_ifd_tag do
-      strip_gps_from_entries(rest, entries_left - 1, acc)
+      patch_ifd_entries(rest, endian, true, [<<0::size(12)-unit(8)>> | acc])
     else
-      strip_gps_from_entries(rest, entries_left - 1, [entry | acc])
+      patch_ifd_entries(rest, endian, patched?, [entry | acc])
     end
   end
 end
