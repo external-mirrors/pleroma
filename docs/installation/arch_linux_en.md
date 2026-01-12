@@ -21,7 +21,6 @@ This guide will assume that you have administrative rights, either as root or a 
 * `certbot` (or any other ACME client for Let’s Encrypt certificates)
 * `ImageMagick`
 * `ffmpeg`
-* `exiftool`
 
 ### Prepare the system
 
@@ -62,7 +61,7 @@ sudo systemctl enable --now postgresql.service
 ### Install media / graphics packages (optional, see [`docs/installation/optional/media_graphics_packages.md`](../installation/optional/media_graphics_packages.md))
 
 ```shell
-sudo pacman -S ffmpeg imagemagick perl-image-exiftool
+sudo pacman -S ffmpeg imagemagick
 ```
 
 ### Install PleromaBE

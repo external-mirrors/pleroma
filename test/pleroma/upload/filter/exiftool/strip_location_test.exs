@@ -7,14 +7,22 @@ defmodule Pleroma.Upload.Filter.Exiftool.StripLocationTest do
   alias Pleroma.Upload.Filter
 
   test "apply exiftool filter" do
-    ~w{jpg png}
+    ~w{jpg png webp heic}
     |> Enum.map(fn type ->
       source = Path.absname("test/fixtures/strip_location_gps.#{type}")
       tmp_path = copy_to_tmp(source)
 
+      content_type =
+        case type do
+          "png" -> "image/png"
+          "jpg" -> "image/jpeg"
+          "webp" -> "image/webp"
+          "heic" -> "image/heic"
+        end
+
       upload = %Pleroma.Upload{
         name: "image_with_GPS_data.#{type}",
-        content_type: if(type == "png", do: "image/png", else: "image/jpeg"),
+        content_type: content_type,
         path: source,
         tempfile: tmp_path
       }
@@ -27,8 +35,8 @@ defmodule Pleroma.Upload.Filter.Exiftool.StripLocationTest do
   end
 
   describe "ExifGpsStripper.strip_gps_data/2" do
-    test "strips GPS data from JPEG and PNG" do
-      for type <- ~w{jpg png} do
+    test "strips GPS data from JPEG, PNG, WebP and HEIC" do
+      for type <- ~w{jpg png webp heic} do
         source_path = Path.absname("test/fixtures/strip_location_gps.#{type}")
         tmp_path = copy_to_tmp(source_path)
 
@@ -39,7 +47,12 @@ defmodule Pleroma.Upload.Filter.Exiftool.StripLocationTest do
     end
 
     test "returns :noop for images without GPS metadata" do
-      for fixture <- ["test/fixtures/image.jpg", "test/fixtures/image.png"] do
+      for fixture <- [
+            "test/fixtures/image.jpg",
+            "test/fixtures/image.png",
+            "test/fixtures/image.webp",
+            "test/fixtures/image.heic"
+          ] do
         source_path = Path.absname(fixture)
         original = File.read!(source_path)
         tmp_path = copy_to_tmp(source_path)
@@ -51,20 +64,27 @@ defmodule Pleroma.Upload.Filter.Exiftool.StripLocationTest do
     end
   end
 
-  test "verify webp, heic, svg files are skipped" do
-    uploads =
-      ~w{webp heic svg svg+xml}
-      |> Enum.map(fn type ->
-        %Pleroma.Upload{
-          name: "sample.#{type}",
-          content_type: "image/#{type}"
-        }
-      end)
+  test "verify unsupported image types are skipped/noop" do
+    fixtures = [
+      {"test/fixtures/image.svg", "image/svg+xml"},
+      {"test/fixtures/image.gif", "image/gif"}
+    ]
 
-    uploads
-    |> Enum.each(fn upload ->
+    for {fixture, content_type} <- fixtures do
+      source_path = Path.absname(fixture)
+      tmp_path = copy_to_tmp(source_path)
+      original = File.read!(tmp_path)
+
+      upload = %Pleroma.Upload{
+        name: Path.basename(source_path),
+        content_type: content_type,
+        path: source_path,
+        tempfile: tmp_path
+      }
+
       assert Filter.Exiftool.StripLocation.filter(upload) == {:ok, :noop}
-    end)
+      assert File.read!(tmp_path) == original
+    end
   end
 
   defp copy_to_tmp(source_path) do

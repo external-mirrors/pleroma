@@ -83,12 +83,11 @@ $ mix compile
 
 ## Install media / graphics packages (optional, see [`docs/installation/optional/media_graphics_packages.md`](../installation/optional/media_graphics_packages.md))
 
-`# pkgin install ImageMagick ffmpeg4 p5-Image-ExifTool`
+`# pkgin install ImageMagick ffmpeg4`
 
 or via pkgsrc:
 
 ```
-graphics/p5-Image-ExifTool
 graphics/ImageMagick
 multimedia/ffmpeg4
 ```

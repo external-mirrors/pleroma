@@ -692,13 +692,13 @@ No specific configuration.
 
 #### Pleroma.Upload.Filter.Exiftool.StripLocation
 
-This filter only strips the GPS and location metadata with Exiftool leaving color profiles and attributes intact.
+This filter only strips the GPS and location metadata leaving color profiles and attributes intact.
 
 No specific configuration.
 
 #### Pleroma.Upload.Filter.Exiftool.ReadDescription
 
-This filter reads the ImageDescription and iptc:Caption-Abstract fields with Exiftool so clients can prefill the media description field.
+This filter reads the ImageDescription and iptc:Caption-Abstract fields so clients can prefill the media description field.
 
 No specific configuration.
 
