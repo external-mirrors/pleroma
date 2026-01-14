@@ -6,3 +6,4 @@
 * [ ] Tag the release on the merge commit
 * [ ] Make the tag into a Gitlab Release™
 * [ ] Merge `stable` into `develop` (in case the fixes are already in develop, use `git merge -s ours --no-commit` and manually merge the changelogs)
+* [ ] Review milestones and if any issues are left bump them to next version
