@@ -21,7 +21,7 @@ defmodule Pleroma.Config.DeprecationWarningsTest do
       assert capture_log(fn -> DeprecationWarnings.check_exiftool_filter() end) =~
                """
                !!!DEPRECATION WARNING!!!
-               Your config is using Exiftool as a filter instead of Exiftool.StripLocation. This should work for now, but you are advised to change to the new configuration to prevent possible issues later:
+               Your config is using Exiftool as a filter. This should work for now, but you are advised to change to the new configuration to prevent possible issues later:
 
                ```
                config :pleroma, Pleroma.Upload,
@@ -33,7 +33,7 @@ defmodule Pleroma.Config.DeprecationWarningsTest do
 
                ```
                config :pleroma, Pleroma.Upload,
-                 filters: [Pleroma.Upload.Filter.Exiftool.StripLocation]
+                 filters: [Pleroma.Upload.Filter.Exif.StripLocation]
                ```
                """
     end
@@ -45,8 +45,8 @@ defmodule Pleroma.Config.DeprecationWarningsTest do
       )
 
       expected_config = [
-        Pleroma.Upload.Filter.Exiftool.StripLocation,
-        Pleroma.Upload.Filter.Exiftool.ReadDescription
+        Pleroma.Upload.Filter.Exif.StripLocation,
+        Pleroma.Upload.Filter.Exif.ReadDescription
       ]
 
       capture_log(fn -> DeprecationWarnings.warn() end)
@@ -58,8 +58,8 @@ defmodule Pleroma.Config.DeprecationWarningsTest do
       clear_config(
         [Pleroma.Upload, :filters],
         [
-          Pleroma.Upload.Filter.Exiftool.StripLocation,
-          Pleroma.Upload.Filter.Exiftool.ReadDescription
+          Pleroma.Upload.Filter.Exif.StripLocation,
+          Pleroma.Upload.Filter.Exif.ReadDescription
         ]
       )
 
@@ -121,9 +121,10 @@ defmodule Pleroma.Config.DeprecationWarningsTest do
     end
 
     test "transforms config to tuples" do
-      clear_config([:mrf_simple],
-        media_removal: ["some.removal", {"some.other.instance", "Some reason"}]
-      )
+      clear_config([:mrf_simple, :media_removal], [
+        "some.removal",
+        {"some.other.instance", "Some reason"}
+      ])
 
       expected_config =
         {:media_removal, [{"some.removal", ""}, {"some.other.instance", "Some reason"}]}
@@ -134,9 +135,10 @@ defmodule Pleroma.Config.DeprecationWarningsTest do
     end
 
     test "doesn't give a warning with correct config" do
-      clear_config([:mrf_simple],
-        media_removal: [{"some.removal", ""}, {"some.other.instance", "Some reason"}]
-      )
+      clear_config([:mrf_simple, :media_removal], [
+        {"some.removal", ""},
+        {"some.other.instance", "Some reason"}
+      ])
 
       assert capture_log(fn -> DeprecationWarnings.check_simple_policy_tuples() end) == ""
     end
@@ -319,7 +321,7 @@ defmodule Pleroma.Config.DeprecationWarningsTest do
   end
 
   test "check_activity_expiration_config/0" do
-    clear_config([Pleroma.ActivityExpiration], enabled: true)
+    clear_config([Pleroma.ActivityExpiration, :enabled], true)
 
     assert capture_log(fn ->
              DeprecationWarnings.check_activity_expiration_config()
@@ -327,7 +329,7 @@ defmodule Pleroma.Config.DeprecationWarningsTest do
   end
 
   test "check_uploaders_s3_public_endpoint/0" do
-    clear_config([Pleroma.Uploaders.S3], public_endpoint: "https://fake.amazonaws.com/bucket/")
+    clear_config([Pleroma.Uploaders.S3, :public_endpoint], "https://fake.amazonaws.com/bucket/")
 
     assert capture_log(fn ->
              DeprecationWarnings.check_uploaders_s3_public_endpoint()

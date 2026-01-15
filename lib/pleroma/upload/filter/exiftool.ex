@@ -2,7 +2,7 @@
 # Copyright © 2017-2022 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
-defmodule Pleroma.Upload.Filter.Exiftool.StripLocation do
+defmodule Pleroma.Upload.Filter.Exiftool do
   @moduledoc """
   Deprecated wrapper around `Pleroma.Upload.Filter.Exif.StripLocation`.
   """

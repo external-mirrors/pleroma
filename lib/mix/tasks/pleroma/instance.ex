@@ -306,14 +306,14 @@ defmodule Mix.Tasks.Pleroma.Instance do
   defp upload_filters(filters) when is_map(filters) do
     enabled_filters =
       if filters.strip_location do
-        [Pleroma.Upload.Filter.Exiftool.StripLocation]
+        [Pleroma.Upload.Filter.Exif.StripLocation]
       else
         []
       end
 
     enabled_filters =
       if filters.read_description do
-        enabled_filters ++ [Pleroma.Upload.Filter.Exiftool.ReadDescription]
+        enabled_filters ++ [Pleroma.Upload.Filter.Exif.ReadDescription]
       else
         enabled_filters
       end

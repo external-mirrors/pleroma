@@ -3,8 +3,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Config.DeprecationWarnings do
-  alias Pleroma.Config
-
   require Logger
   alias Pleroma.Config
 
@@ -23,10 +21,16 @@ defmodule Pleroma.Config.DeprecationWarnings do
   def check_exiftool_filter do
     filters = Config.get([Pleroma.Upload]) |> Keyword.get(:filters, [])
 
-    if Pleroma.Upload.Filter.Exiftool in filters do
+    deprecated_filters = [
+      Pleroma.Upload.Filter.Exiftool,
+      Pleroma.Upload.Filter.Exiftool.StripLocation,
+      Pleroma.Upload.Filter.Exiftool.ReadDescription
+    ]
+
+    if Enum.any?(filters, &(&1 in deprecated_filters)) do
       Logger.warning("""
       !!!DEPRECATION WARNING!!!
-      Your config is using Exiftool as a filter instead of Exiftool.StripLocation. This should work for now, but you are advised to change to the new configuration to prevent possible issues later:
+      Your config is using Exiftool as a filter. This should work for now, but you are advised to change to the new configuration to prevent possible issues later:
 
       ```
       config :pleroma, Pleroma.Upload,
@@ -38,15 +42,24 @@ defmodule Pleroma.Config.DeprecationWarnings do
 
       ```
       config :pleroma, Pleroma.Upload,
-        filters: [Pleroma.Upload.Filter.Exiftool.StripLocation]
+        filters: [Pleroma.Upload.Filter.Exif.StripLocation]
       ```
       """)
 
       new_config =
         filters
         |> Enum.map(fn
-          Pleroma.Upload.Filter.Exiftool -> Pleroma.Upload.Filter.Exiftool.StripLocation
-          filter -> filter
+          Pleroma.Upload.Filter.Exiftool ->
+            Pleroma.Upload.Filter.Exif.StripLocation
+
+          Pleroma.Upload.Filter.Exiftool.StripLocation ->
+            Pleroma.Upload.Filter.Exif.StripLocation
+
+          Pleroma.Upload.Filter.Exiftool.ReadDescription ->
+            Pleroma.Upload.Filter.Exif.ReadDescription
+
+          filter ->
+            filter
         end)
 
       Config.put([Pleroma.Upload, :filters], new_config)

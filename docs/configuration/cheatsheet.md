@@ -690,13 +690,13 @@ This filter replaces the filename (not the path) of an upload. For complete obfu
 
 No specific configuration.
 
-#### Pleroma.Upload.Filter.Exiftool.StripLocation
+#### Pleroma.Upload.Filter.Exif.StripLocation
 
 This filter only strips the GPS and location metadata leaving color profiles and attributes intact.
 
 No specific configuration.
 
-#### Pleroma.Upload.Filter.Exiftool.ReadDescription
+#### Pleroma.Upload.Filter.Exif.ReadDescription
 
 This filter reads the ImageDescription and iptc:Caption-Abstract fields so clients can prefill the media description field.
 
