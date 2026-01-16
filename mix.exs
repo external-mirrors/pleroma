@@ -343,27 +343,25 @@ defmodule Pleroma.Mixfile do
   end
 
   defp add_copyright(_) do
-    year = NaiveDateTime.utc_now().year
     template = ~s[\
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-#{year} Pleroma Authors <https://pleroma.social/>
+# Copyright © Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 ] |> String.replace("\n", "\\n")
 
     find = "find lib test priv -type f \\( -name '*.ex' -or -name '*.exs' \\) -exec "
-    grep = "grep -L '# Copyright © [0-9\-]* Pleroma' {} \\;"
+    grep = "grep -L '# Copyright © .* Pleroma Authors' {} \\;"
     xargs = "xargs -n1 sed -i'' '1s;^;#{template};'"
 
     :os.cmd(String.to_charlist("#{find}#{grep} | #{xargs}"))
   end
 
   defp bump_copyright(_) do
-    year = NaiveDateTime.utc_now().year
     find = "find lib test priv -type f \\( -name '*.ex' -or -name '*.exs' \\)"
 
     xargs =
-      "xargs sed -i'' 's;# Copyright © [0-9\-]* Pleroma.*$;# Copyright © 2017-#{year} Pleroma Authors <https://pleroma.social/>;'"
+      "xargs sed -i'' 's;# Copyright © .* Pleroma Authors <https://pleroma.social/>$;# Copyright © Pleroma Authors <https://pleroma.social/>;'"
 
     :os.cmd(String.to_charlist("#{find} | #{xargs}"))
   end
