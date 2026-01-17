@@ -3,32 +3,21 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.MultiLanguage do
+  import Pleroma.EctoType.ActivityPub.ObjectValidators.LanguageCode,
+    only: [good_locale_code?: 1]
+
   defp template(:multi), do: Pleroma.Config.get([__MODULE__, :template])
   defp template(:single), do: Pleroma.Config.get([__MODULE__, :single_line_template])
 
   defp sep(:multi), do: Pleroma.Config.get([__MODULE__, :separator])
   defp sep(:single), do: Pleroma.Config.get([__MODULE__, :single_line_separator])
 
-  def is_good_locale_code?(code) do
-    code
-    |> String.codepoints()
-    |> Enum.all?(&valid_char?/1)
-  end
-
-  # [a-zA-Z0-9-]
-  defp valid_char?(char) do
-    ("a" <= char and char <= "z") or
-      ("A" <= char and char <= "Z") or
-      ("0" <= char and char <= "9") or
-      char == "-"
-  end
-
   def validate_map(%{} = object) do
     {status, data} =
       object
       |> Enum.reduce({:ok, %{}}, fn
         {lang, value}, {status, acc} when is_binary(lang) and is_binary(value) ->
-          if is_good_locale_code?(lang) do
+          if good_locale_code?(lang) do
             {status, Map.put(acc, lang, value)}
           else
             {:modified, acc}
@@ -70,7 +59,7 @@ defmodule Pleroma.MultiLanguage do
 
   def str_to_map(data, opts \\ []) do
     with lang when is_binary(lang) <- opts[:lang],
-         true <- is_good_locale_code?(lang) do
+         true <- good_locale_code?(lang) do
       %{lang => data}
     else
       _ ->

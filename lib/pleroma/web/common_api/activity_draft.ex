@@ -25,7 +25,6 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
             errors: [],
             user: nil,
             params: %{},
-            language: nil,
             status: nil,
             status_map: nil,
             summary: nil,
@@ -47,6 +46,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
             cc: [],
             context: nil,
             sensitive: false,
+            language: nil,
             object: nil,
             preview?: false,
             changes: %{}
@@ -59,7 +59,6 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   def create(user, params) do
     user
     |> new(params)
-    |> language()
     |> status()
     |> summary()
     |> with_valid(&attachments/1)
@@ -112,18 +111,6 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     %__MODULE__{draft | params: params}
   end
 
-  defp language(draft) do
-    language =
-      with language <- draft.params[:language],
-           true <- good_locale_code?(language) do
-        language
-      else
-        _ -> LanguageDetector.detect(draft.content_html <> " " <> draft.summary)
-      end
-
-    %__MODULE__{draft | language: language}
-  end
-
   defp status(%{params: %{status_map: %{} = status_map}} = draft) do
     with {:ok, %{}} <- MultiLanguage.validate_map(status_map) do
       %__MODULE__{draft | status_map: status_map}
@@ -148,25 +135,36 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     %__MODULE__{draft | summary: Map.get(params, :spoiler_text, "")}
   end
 
-  defp full_payload(%{status: status, status_map: nil} = draft) do
-    full_payload(%__MODULE__{
-      draft
-      | status_map: MultiLanguage.str_to_map(status, lang: draft.language)
-    })
-  end
+  # defp full_payload(%{status: status, status_map: nil} = draft) do
+  #   full_payload(%__MODULE__{
+  #     draft
+  #     | status_map: MultiLanguage.str_to_map(status, lang: draft.language)
+  #   })
+  # end
 
-  defp full_payload(%{summary: summary, summary_map: nil} = draft) do
-    full_payload(%__MODULE__{
-      draft
-      | summary_map: MultiLanguage.str_to_map(summary, lang: draft.language)
-    })
-  end
+  # defp full_payload(%{summary: summary, summary_map: nil} = draft) do
+  #   full_payload(%__MODULE__{
+  #     draft
+  #     | summary_map: MultiLanguage.str_to_map(summary, lang: draft.language)
+  #   })
+  # end
 
-  defp full_payload(%{status_map: %{} = status_map, summary_map: %{} = summary_map} = draft) do
-    status = status_map |> Enum.reduce("", fn {_lang, content}, acc -> acc <> " " <> content end)
+  defp full_payload(draft) do
+    status =
+      with %{} <- draft.status_map do
+        draft.status_map
+        |> Enum.reduce("", fn {_lang, content}, acc -> acc <> " " <> content end)
+      else
+        _ -> draft.status
+      end
 
     summary =
-      summary_map |> Enum.reduce("", fn {_lang, content}, acc -> acc <> " " <> content end)
+      with %{} <- draft.summary_map do
+        draft.summary_map
+        |> Enum.reduce("", fn {_lang, content}, acc -> acc <> " " <> content end)
+      else
+        _ -> draft.summary || ""
+      end
 
     full_payload = String.trim(status <> summary)
 
@@ -330,6 +328,25 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   defp sensitive(draft) do
     sensitive = draft.params[:sensitive]
     %__MODULE__{draft | sensitive: sensitive}
+  end
+
+  defp language(draft) do
+    language =
+      with language <- draft.params[:language],
+           true <- good_locale_code?(language) do
+        language
+      end
+
+    cond do
+      language != nil ->
+        %__MODULE__{draft | language: language}
+
+      draft.status_map != nil ->
+        add_error(draft, dgettext("errors", "valid language is required when using status_map"))
+
+      true ->
+        %__MODULE__{draft | language: LanguageDetector.detect(draft.content_html <> " " <> draft.summary || "")}
+    end
   end
 
   defp object(draft) do
