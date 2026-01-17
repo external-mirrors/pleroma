@@ -8,9 +8,11 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
 
   alias Pleroma.Activity
   alias Pleroma.Object
-  alias Pleroma.Tests.ObanHelpers
   alias Pleroma.User
+  alias Pleroma.Web.ActivityPub.Builder
+  alias Pleroma.Web.ActivityPub.Pipeline
   alias Pleroma.Web.ActivityPub.Transmogrifier
+  alias Pleroma.Web.ActivityPub.UserView
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.AdminAPI.AccountView
   alias Pleroma.Web.CommonAPI
@@ -123,6 +125,304 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
 
       assert activity.data["context"] == object.data["context"]
     end
+
+    test "it fixes the public scope addressing" do
+      insert(:user,
+        ap_id: "https://mymath.rocks/endpoints/SYn3cl_N4HAPfPHgo2x37XunLEmhV9LnxCggcYwyec0"
+      )
+
+      object =
+        "test/fixtures/bovine-bogus-public-note.json"
+        |> File.read!()
+        |> Jason.decode!()
+
+      message = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Create",
+        "actor" => "https://mymath.rocks/endpoints/SYn3cl_N4HAPfPHgo2x37XunLEmhV9LnxCggcYwyec0",
+        "object" => object
+      }
+
+      assert {:ok, activity} = Transmogrifier.handle_incoming(message)
+
+      object = Object.normalize(activity, fetch: false)
+      assert "https://www.w3.org/ns/activitystreams#Public" in activity.data["to"]
+      assert "https://www.w3.org/ns/activitystreams#Public" in object.data["to"]
+    end
+
+    test "it keeps link tags" do
+      insert(:user, ap_id: "https://example.org/users/alice")
+
+      message = File.read!("test/fixtures/fep-e232.json") |> Jason.decode!()
+
+      assert capture_log(fn ->
+               assert {:ok, activity} = Transmogrifier.handle_incoming(message)
+               object = Object.normalize(activity)
+               assert [%{"type" => "Mention"}, %{"type" => "Link"}] = object.data["tag"]
+             end) =~ "Object rejected while fetching"
+    end
+
+    test "it accepts quote posts" do
+      insert(:user, ap_id: "https://misskey.io/users/7rkrarq81i")
+
+      object = File.read!("test/fixtures/quote_post/misskey_quote_post.json") |> Jason.decode!()
+
+      message = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Create",
+        "actor" => "https://misskey.io/users/7rkrarq81i",
+        "object" => object
+      }
+
+      assert {:ok, activity} = Transmogrifier.handle_incoming(message)
+
+      # Object was created in the database
+      object = Object.normalize(activity)
+      assert object.data["quoteUrl"] == "https://misskey.io/notes/8vs6wxufd0"
+
+      # It fetched the quoted post
+      assert Object.normalize("https://misskey.io/notes/8vs6wxufd0")
+    end
+
+    test "doesn't allow remote edits to fake local likes" do
+      # as a spot check for no internal fields getting injected
+      now = DateTime.utc_now()
+      pub_date = DateTime.to_iso8601(Timex.subtract(now, Timex.Duration.from_minutes(3)))
+      edit_date = DateTime.to_iso8601(now)
+
+      local_user = insert(:user)
+
+      create_data = %{
+        "type" => "Create",
+        "id" => "http://mastodon.example.org/users/admin/statuses/2619539638/activity",
+        "actor" => "http://mastodon.example.org/users/admin",
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => [],
+        "object" => %{
+          "type" => "Note",
+          "id" => "http://mastodon.example.org/users/admin/statuses/2619539638",
+          "attributedTo" => "http://mastodon.example.org/users/admin",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => [],
+          "published" => pub_date,
+          "content" => "miaow",
+          "likes" => [local_user.ap_id]
+        }
+      }
+
+      update_data =
+        create_data
+        |> Map.put("type", "Update")
+        |> Map.put("id", create_data["object"]["id"] <> "/update/1")
+        |> put_in(["object", "content"], "miaow :3")
+        |> put_in(["object", "updated"], edit_date)
+        |> put_in(["object", "formerRepresentations"], %{
+          "type" => "OrderedCollection",
+          "totalItems" => 1,
+          "orderedItems" => [create_data["object"]]
+        })
+
+      {:ok, %Pleroma.Activity{} = activity} = Transmogrifier.handle_incoming(create_data)
+      %Pleroma.Object{} = object = Object.get_by_ap_id(activity.data["object"])
+      assert object.data["content"] == "miaow"
+      assert object.data["likes"] == []
+      assert object.data["like_count"] == 0
+
+      {:ok, %Pleroma.Activity{} = activity} = Transmogrifier.handle_incoming(update_data)
+      %Pleroma.Object{} = object = Object.get_by_ap_id(activity.data["object"]["id"])
+      assert object.data["content"] == "miaow :3"
+      assert object.data["likes"] == []
+      assert object.data["like_count"] == 0
+    end
+
+    test "strips internal fields from history items in edited notes" do
+      now = DateTime.utc_now()
+      pub_date = DateTime.to_iso8601(Timex.subtract(now, Timex.Duration.from_minutes(3)))
+      edit_date = DateTime.to_iso8601(now)
+
+      local_user = insert(:user)
+
+      create_data = %{
+        "type" => "Create",
+        "id" => "http://mastodon.example.org/users/admin/statuses/2619539638/activity",
+        "actor" => "http://mastodon.example.org/users/admin",
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => [],
+        "object" => %{
+          "type" => "Note",
+          "id" => "http://mastodon.example.org/users/admin/statuses/2619539638",
+          "attributedTo" => "http://mastodon.example.org/users/admin",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => [],
+          "published" => pub_date,
+          "content" => "miaow",
+          "likes" => [],
+          "like_count" => 0
+        }
+      }
+
+      update_data =
+        create_data
+        |> Map.put("type", "Update")
+        |> Map.put("id", create_data["object"]["id"] <> "/update/1")
+        |> put_in(["object", "content"], "miaow :3")
+        |> put_in(["object", "updated"], edit_date)
+        |> put_in(["object", "formerRepresentations"], %{
+          "type" => "OrderedCollection",
+          "totalItems" => 1,
+          "orderedItems" => [
+            Map.merge(create_data["object"], %{
+              "likes" => [local_user.ap_id],
+              "like_count" => 1,
+              "pleroma" => %{"internal_field" => "should_be_stripped"}
+            })
+          ]
+        })
+
+      {:ok, %Pleroma.Activity{} = activity} = Transmogrifier.handle_incoming(create_data)
+      %Pleroma.Object{} = object = Object.get_by_ap_id(activity.data["object"])
+      assert object.data["content"] == "miaow"
+      assert object.data["likes"] == []
+      assert object.data["like_count"] == 0
+
+      {:ok, %Pleroma.Activity{} = activity} = Transmogrifier.handle_incoming(update_data)
+      %Pleroma.Object{} = object = Object.get_by_ap_id(activity.data["object"]["id"])
+      assert object.data["content"] == "miaow :3"
+      assert object.data["likes"] == []
+      assert object.data["like_count"] == 0
+
+      # Check that internal fields are stripped from history items
+      history_item = List.first(object.data["formerRepresentations"]["orderedItems"])
+      assert history_item["likes"] == []
+      assert history_item["like_count"] == 0
+      refute Map.has_key?(history_item, "pleroma")
+    end
+
+    test "doesn't trip over remote likes in notes" do
+      now = DateTime.utc_now()
+      pub_date = DateTime.to_iso8601(Timex.subtract(now, Timex.Duration.from_minutes(3)))
+      edit_date = DateTime.to_iso8601(now)
+
+      create_data = %{
+        "type" => "Create",
+        "id" => "http://mastodon.example.org/users/admin/statuses/3409297097/activity",
+        "actor" => "http://mastodon.example.org/users/admin",
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => [],
+        "object" => %{
+          "type" => "Note",
+          "id" => "http://mastodon.example.org/users/admin/statuses/3409297097",
+          "attributedTo" => "http://mastodon.example.org/users/admin",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => [],
+          "published" => pub_date,
+          "content" => "miaow",
+          "likes" => %{
+            "id" => "http://mastodon.example.org/users/admin/statuses/3409297097/likes",
+            "totalItems" => 0,
+            "type" => "Collection"
+          }
+        }
+      }
+
+      update_data =
+        create_data
+        |> Map.put("type", "Update")
+        |> Map.put("id", create_data["object"]["id"] <> "/update/1")
+        |> put_in(["object", "content"], "miaow :3")
+        |> put_in(["object", "updated"], edit_date)
+        |> put_in(["object", "likes", "totalItems"], 666)
+        |> put_in(["object", "formerRepresentations"], %{
+          "type" => "OrderedCollection",
+          "totalItems" => 1,
+          "orderedItems" => [create_data["object"]]
+        })
+
+      {:ok, %Pleroma.Activity{} = activity} = Transmogrifier.handle_incoming(create_data)
+      %Pleroma.Object{} = object = Object.get_by_ap_id(activity.data["object"])
+      assert object.data["content"] == "miaow"
+      assert object.data["likes"] == []
+      assert object.data["like_count"] == 0
+
+      {:ok, %Pleroma.Activity{} = activity} = Transmogrifier.handle_incoming(update_data)
+      %Pleroma.Object{} = object = Object.get_by_ap_id(activity.data["object"]["id"])
+      assert object.data["content"] == "miaow :3"
+      assert object.data["likes"] == []
+      # in the future this should retain remote likes, but for now:
+      assert object.data["like_count"] == 0
+    end
+
+    test "doesn't trip over remote likes in polls" do
+      now = DateTime.utc_now()
+      pub_date = DateTime.to_iso8601(Timex.subtract(now, Timex.Duration.from_minutes(3)))
+      edit_date = DateTime.to_iso8601(now)
+
+      create_data = %{
+        "type" => "Create",
+        "id" => "http://mastodon.example.org/users/admin/statuses/2471790073/activity",
+        "actor" => "http://mastodon.example.org/users/admin",
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => [],
+        "object" => %{
+          "type" => "Question",
+          "id" => "http://mastodon.example.org/users/admin/statuses/2471790073",
+          "attributedTo" => "http://mastodon.example.org/users/admin",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => [],
+          "published" => pub_date,
+          "content" => "vote!",
+          "anyOf" => [
+            %{
+              "type" => "Note",
+              "name" => "a",
+              "replies" => %{
+                "type" => "Collection",
+                "totalItems" => 3
+              }
+            },
+            %{
+              "type" => "Note",
+              "name" => "b",
+              "replies" => %{
+                "type" => "Collection",
+                "totalItems" => 1
+              }
+            }
+          ],
+          "likes" => %{
+            "id" => "http://mastodon.example.org/users/admin/statuses/2471790073/likes",
+            "totalItems" => 0,
+            "type" => "Collection"
+          }
+        }
+      }
+
+      update_data =
+        create_data
+        |> Map.put("type", "Update")
+        |> Map.put("id", create_data["object"]["id"] <> "/update/1")
+        |> put_in(["object", "content"], "vote now!")
+        |> put_in(["object", "updated"], edit_date)
+        |> put_in(["object", "likes", "totalItems"], 666)
+        |> put_in(["object", "formerRepresentations"], %{
+          "type" => "OrderedCollection",
+          "totalItems" => 1,
+          "orderedItems" => [create_data["object"]]
+        })
+
+      {:ok, %Pleroma.Activity{} = activity} = Transmogrifier.handle_incoming(create_data)
+      %Pleroma.Object{} = object = Object.get_by_ap_id(activity.data["object"])
+      assert object.data["content"] == "vote!"
+      assert object.data["likes"] == []
+      assert object.data["like_count"] == 0
+
+      {:ok, %Pleroma.Activity{} = activity} = Transmogrifier.handle_incoming(update_data)
+      %Pleroma.Object{} = object = Object.get_by_ap_id(activity.data["object"]["id"])
+      assert object.data["content"] == "vote now!"
+      assert object.data["likes"] == []
+      # in the future this should retain remote likes, but for now:
+      assert object.data["like_count"] == 0
+    end
   end
 
   describe "prepare outgoing" do
@@ -233,6 +533,9 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       assert is_nil(modified["object"]["announcements"])
       assert is_nil(modified["object"]["announcement_count"])
       assert is_nil(modified["object"]["generator"])
+      assert is_nil(modified["object"]["rules"])
+      assert is_nil(modified["object"]["language"])
+      assert is_nil(modified["object"]["voters"])
     end
 
     test "it strips internal fields of article" do
@@ -290,6 +593,7 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
     test "it can handle Listen activities" do
       listen_activity = insert(:listen)
 
+      # This has an inlined object as in ObjectView
       {:ok, modified} = Transmogrifier.prepare_outgoing(listen_activity.data)
 
       assert modified["type"] == "Listen"
@@ -298,7 +602,36 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
 
       {:ok, activity} = CommonAPI.listen(user, %{"title" => "lain radio episode 1"})
 
-      {:ok, _modified} = Transmogrifier.prepare_outgoing(activity.data)
+      user_ap_id = user.ap_id
+      activity_ap_id = activity.data["id"]
+      activity_to = activity.data["to"]
+      activity_cc = activity.data["cc"]
+      object_ap_id = activity.data["object"]
+      object_type = activity.object.data["type"]
+
+      # This does not have an inlined object
+      {:ok, modified2} = Transmogrifier.prepare_outgoing(activity.data)
+
+      assert match?(
+               %{
+                 "@context" => [_ | _],
+                 "type" => "Listen",
+                 "actor" => ^user_ap_id,
+                 "to" => ^activity_to,
+                 "cc" => ^activity_cc,
+                 "context" => "http://localhost" <> _,
+                 "id" => ^activity_ap_id,
+                 "object" => %{
+                   "actor" => ^user_ap_id,
+                   "attributedTo" => ^user_ap_id,
+                   "id" => ^object_ap_id,
+                   "type" => ^object_type,
+                   "to" => ^activity_to,
+                   "cc" => ^activity_cc
+                 }
+               },
+               modified2
+             )
     end
 
     test "custom emoji urls are URI encoded" do
@@ -320,7 +653,7 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       user = insert(:user)
 
       {:ok, activity} = CommonAPI.post(user, %{status: "everybody do the dinosaur :dinosaur:"})
-      {:ok, update} = CommonAPI.update(user, activity, %{status: "mew mew :blank:"})
+      {:ok, update} = CommonAPI.update(activity, user, %{status: "mew mew :blank:"})
 
       {:ok, prepared} = Transmogrifier.prepare_outgoing(update.data)
 
@@ -337,68 +670,204 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
                }
              } = prepared["object"]
     end
-  end
 
-  describe "user upgrade" do
-    test "it upgrades a user to activitypub" do
-      user =
-        insert(:user, %{
-          nickname: "rye@niu.moe",
-          local: false,
-          ap_id: "https://niu.moe/users/rye",
-          follower_address: User.ap_followers(%User{nickname: "rye@niu.moe"})
-        })
+    test "Updates of Actors are handled" do
+      user = insert(:user, local: true)
 
-      user_two = insert(:user)
-      Pleroma.FollowingRelationship.follow(user_two, user, :follow_accept)
+      changeset = User.update_changeset(user, %{name: "new name"})
+      {:ok, unpersisted_user} = Ecto.Changeset.apply_action(changeset, :update)
 
-      {:ok, activity} = CommonAPI.post(user, %{status: "test"})
-      {:ok, unrelated_activity} = CommonAPI.post(user_two, %{status: "test"})
-      assert "http://localhost:4001/users/rye@niu.moe/followers" in activity.recipients
+      updated_object =
+        UserView.render("user.json", user: unpersisted_user)
+        |> Map.delete("@context")
 
-      user = User.get_cached_by_id(user.id)
-      assert user.note_count == 1
+      {:ok, update_data, []} = Builder.update(user, updated_object)
 
-      {:ok, user} = Transmogrifier.upgrade_user_from_ap_id("https://niu.moe/users/rye")
-      ObanHelpers.perform_all()
+      {:ok, activity, _} =
+        Pipeline.common_pipeline(update_data,
+          local: true,
+          user_update_changeset: changeset
+        )
 
-      assert user.ap_enabled
-      assert user.note_count == 1
-      assert user.follower_address == "https://niu.moe/users/rye/followers"
-      assert user.following_address == "https://niu.moe/users/rye/following"
+      assert {:ok, prepared} = Transmogrifier.prepare_outgoing(activity.data)
+      assert prepared["type"] == "Update"
+      assert prepared["@context"]
+      assert prepared["object"]["type"] == user.actor_type
+    end
 
-      user = User.get_cached_by_id(user.id)
-      assert user.note_count == 1
+    test "Correctly handles Undo activities" do
+      blocked = insert(:user)
+      blocker = insert(:user, local: true)
 
-      activity = Activity.get_by_id(activity.id)
-      assert user.follower_address in activity.recipients
+      blocked_ap_id = blocked.ap_id
+      blocker_ap_id = blocker.ap_id
 
-      assert %{
-               "url" => [
-                 %{
-                   "href" =>
-                     "https://cdn.niu.moe/accounts/avatars/000/033/323/original/fd7f8ae0b3ffedc9.jpeg"
-                 }
-               ]
-             } = user.avatar
+      {:ok, %Activity{} = block_activity} = CommonAPI.block(blocked, blocker)
+      {:ok, %Activity{} = undo_activity} = CommonAPI.unblock(blocked, blocker)
+      {:ok, data} = Transmogrifier.prepare_outgoing(undo_activity.data)
 
-      assert %{
-               "url" => [
-                 %{
-                   "href" =>
-                     "https://cdn.niu.moe/accounts/headers/000/033/323/original/850b3448fa5fd477.png"
-                 }
-               ]
-             } = user.banner
+      block_ap_id = block_activity.data["id"]
+      assert is_binary(block_ap_id)
 
-      refute "..." in activity.recipients
+      assert match?(
+               %{
+                 "@context" => [_ | _],
+                 "type" => "Undo",
+                 "id" => "http://localhost" <> _,
+                 "actor" => ^blocker_ap_id,
+                 "object" => ^block_ap_id,
+                 "to" => [^blocked_ap_id],
+                 "cc" => [],
+                 "bto" => [],
+                 "bcc" => []
+               },
+               data
+             )
+    end
 
-      unrelated_activity = Activity.get_by_id(unrelated_activity.id)
-      refute user.follower_address in unrelated_activity.recipients
+    test "Correctly handles EmojiReact activities" do
+      user = insert(:user, local: true)
+      note_activity = insert(:note_activity)
 
-      user_two = User.get_cached_by_id(user_two.id)
-      assert User.following?(user_two, user)
-      refute "..." in User.following(user_two)
+      user_ap_id = user.ap_id
+      user_followers = user.follower_address
+      note_author = note_activity.data["actor"]
+      note_ap_id = note_activity.data["object"]
+
+      assert is_binary(note_author)
+      assert is_binary(note_ap_id)
+
+      {:ok, react_activity} = CommonAPI.react_with_emoji(note_activity.id, user, "🐈")
+      {:ok, data} = Transmogrifier.prepare_outgoing(react_activity.data)
+
+      assert match?(
+               %{
+                 "@context" => [_ | _],
+                 "type" => "EmojiReact",
+                 "actor" => ^user_ap_id,
+                 "to" => [^user_followers, ^note_author],
+                 "cc" => ["https://www.w3.org/ns/activitystreams#Public"],
+                 "bto" => [],
+                 "bcc" => [],
+                 "content" => "🐈",
+                 "context" => "2hu",
+                 "id" => "http://localhost" <> _,
+                 "object" => ^note_ap_id,
+                 "tag" => []
+               },
+               data
+             )
+    end
+
+    test "EmojiReact custom emoji urls are URI encoded" do
+      user = insert(:user, local: true)
+      note_activity = insert(:note_activity)
+
+      {:ok, react_activity} = CommonAPI.react_with_emoji(note_activity.id, user, ":dinosaur:")
+      {:ok, data} = Transmogrifier.prepare_outgoing(react_activity.data)
+
+      assert length(data["tag"]) == 1
+
+      tag = List.first(data["tag"])
+      url = tag["icon"]["url"]
+
+      assert url == "http://localhost:4001/emoji/dino%20walking.gif"
+      assert tag["id"] == "http://localhost:4001/emoji/dino%20walking.gif"
+    end
+
+    test "it prepares a quote post" do
+      user = insert(:user)
+
+      {:ok, quoted_post} = CommonAPI.post(user, %{status: "hey"})
+      {:ok, quote_post} = CommonAPI.post(user, %{status: "hey", quoted_status_id: quoted_post.id})
+
+      {:ok, modified} = Transmogrifier.prepare_outgoing(quote_post.data)
+
+      %{data: %{"id" => quote_id}} = Object.normalize(quoted_post)
+
+      assert modified["object"]["quoteUrl"] == quote_id
+      assert modified["object"]["quoteUri"] == quote_id
+    end
+
+    test "it adds language of the object to its json-ld context" do
+      user = insert(:user)
+
+      {:ok, activity} = CommonAPI.post(user, %{status: "Cześć", language: "pl"})
+      {:ok, modified} = Transmogrifier.prepare_outgoing(activity.object.data)
+
+      assert [_, _, %{"@language" => "pl"}] = modified["@context"]
+    end
+
+    test "it adds language of the object to Create activity json-ld context" do
+      user = insert(:user)
+
+      {:ok, activity} = CommonAPI.post(user, %{status: "Cześć", language: "pl"})
+      {:ok, modified} = Transmogrifier.prepare_outgoing(activity.data)
+
+      assert [_, _, %{"@language" => "pl"}] = modified["@context"]
+    end
+
+    test "it strips report data" do
+      reporter = insert(:user)
+      target_account = insert(:user)
+      content = "foobar"
+      {:ok, reported_activity} = CommonAPI.post(target_account, %{status: content})
+      context = Utils.generate_context_id()
+
+      object_ap_id = reported_activity.object.data["id"]
+
+      assert {:ok, activity} =
+               Pleroma.Web.ActivityPub.ActivityPub.flag(%{
+                 actor: reporter,
+                 context: context,
+                 account: target_account,
+                 statuses: [reported_activity],
+                 content: content
+               })
+
+      {:ok, data} = Transmogrifier.prepare_outgoing(activity.data)
+
+      expected_data =
+        activity.data
+        |> put_in(["object"], [target_account.ap_id, object_ap_id])
+        |> Map.put("actor", reporter.ap_id)
+        |> Map.merge(Utils.make_json_ld_header())
+
+      assert data == expected_data
+    end
+
+    test "it strips report data and anonymize" do
+      placeholder = insert(:user)
+
+      reporter = insert(:user)
+      target_account = insert(:user)
+      content = "foobar"
+      {:ok, reported_activity} = CommonAPI.post(target_account, %{status: content})
+      context = Utils.generate_context_id()
+
+      object_ap_id = reported_activity.object.data["id"]
+
+      assert {:ok, activity} =
+               Pleroma.Web.ActivityPub.ActivityPub.flag(%{
+                 actor: reporter,
+                 context: context,
+                 account: target_account,
+                 statuses: [reported_activity],
+                 content: content
+               })
+
+      clear_config([:activitypub, :anonymize_reporter], true)
+      clear_config([:activitypub, :anonymize_reporter_local_nickname], placeholder.nickname)
+
+      {:ok, data} = Transmogrifier.prepare_outgoing(activity.data)
+
+      expected_data =
+        activity.data
+        |> put_in(["object"], [target_account.ap_id, object_ap_id])
+        |> Map.put("actor", placeholder.ap_id)
+        |> Map.merge(Utils.make_json_ld_header())
+
+      assert data == expected_data
     end
   end
 
@@ -426,7 +895,7 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
 
       assert capture_log(fn ->
                {:error, _} = Transmogrifier.handle_incoming(data)
-             end) =~ "Object containment failed"
+             end) =~ "Object rejected while fetching"
     end
 
     test "it rejects activities which reference objects that have an incorrect attribution (variant 1)" do
@@ -441,7 +910,7 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
 
       assert capture_log(fn ->
                {:error, _} = Transmogrifier.handle_incoming(data)
-             end) =~ "Object containment failed"
+             end) =~ "Object rejected while fetching"
     end
 
     test "it rejects activities which reference objects that have an incorrect attribution (variant 2)" do
@@ -456,7 +925,7 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
 
       assert capture_log(fn ->
                {:error, _} = Transmogrifier.handle_incoming(data)
-             end) =~ "Object containment failed"
+             end) =~ "Object rejected while fetching"
     end
   end
 
@@ -552,7 +1021,6 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
              end) =~ "Unsupported URI scheme"
     end
 
-    @tag capture_log: true
     test "returns {:ok, %Object{}} for success case" do
       assert {:ok, %Object{}} =
                Transmogrifier.get_obj_helper(
@@ -637,6 +1105,15 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
 
       processed = Transmogrifier.prepare_object(original)
       assert processed["formerRepresentations"] == original["formerRepresentations"]
+    end
+
+    test "it uses contentMap to specify post language" do
+      user = insert(:user)
+
+      {:ok, activity} = CommonAPI.post(user, %{status: "Cześć", language: "pl"})
+      object = Transmogrifier.prepare_object(activity.object.data)
+
+      assert %{"contentMap" => %{"pl" => "Cześć"}} = object
     end
   end
 end

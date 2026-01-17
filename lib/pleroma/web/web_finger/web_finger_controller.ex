@@ -30,7 +30,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerController do
   end
 
   def webfinger(%{assigns: %{format: format}} = conn, %{"resource" => resource})
-      when format in ["json", "jrd+json"] do
+      when format in ["jrd", "json", "jrd+json"] do
     with {:ok, response} <- WebFinger.webfinger(resource, "JSON") do
       json(conn, response)
     else
@@ -39,6 +39,11 @@ defmodule Pleroma.Web.WebFinger.WebFingerController do
         |> put_status(404)
         |> json("Couldn't find user")
     end
+  end
+
+  # Default to JSON when no format is specified or format is not recognized
+  def webfinger(%{assigns: %{format: _format}} = conn, %{"resource" => _resource} = params) do
+    webfinger(put_in(conn.assigns.format, "json"), params)
   end
 
   def webfinger(conn, _params), do: send_resp(conn, 400, "Bad Request")

@@ -7,6 +7,7 @@ defmodule Pleroma.Web.ApiSpec.ReportOperation do
   alias OpenApiSpex.Schema
   alias Pleroma.Web.ApiSpec.Helpers
   alias Pleroma.Web.ApiSpec.Schemas.ApiError
+  alias Pleroma.Web.ApiSpec.Schemas.ApiNotFoundError
   alias Pleroma.Web.ApiSpec.Schemas.BooleanLike
 
   def open_api_operation(action) do
@@ -24,7 +25,8 @@ defmodule Pleroma.Web.ApiSpec.ReportOperation do
       requestBody: Helpers.request_body("Parameters", create_request(), required: true),
       responses: %{
         200 => Operation.response("Report", "application/json", create_response()),
-        400 => Operation.response("Report", "application/json", ApiError)
+        400 => Operation.response("Report", "application/json", ApiError),
+        404 => Operation.response("Report", "application/json", ApiNotFoundError)
       }
     }
   end
@@ -53,6 +55,12 @@ defmodule Pleroma.Web.ApiSpec.ReportOperation do
           default: false,
           description:
             "If the account is remote, should the report be forwarded to the remote admin?"
+        },
+        rule_ids: %Schema{
+          type: :array,
+          nullable: true,
+          items: %Schema{type: :string},
+          description: "Array of rules"
         }
       },
       required: [:account_id],
@@ -60,7 +68,8 @@ defmodule Pleroma.Web.ApiSpec.ReportOperation do
         "account_id" => "123",
         "status_ids" => ["1337"],
         "comment" => "bad status!",
-        "forward" => "false"
+        "forward" => "false",
+        "rule_ids" => ["3"]
       }
     }
   end

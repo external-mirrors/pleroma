@@ -4,81 +4,33 @@
 
 defmodule Pleroma.Object.Fetcher do
   alias Pleroma.HTTP
-  alias Pleroma.Instances
   alias Pleroma.Maps
   alias Pleroma.Object
   alias Pleroma.Object.Containment
-  alias Pleroma.Repo
   alias Pleroma.Signature
   alias Pleroma.Web.ActivityPub.InternalFetchActor
+  alias Pleroma.Web.ActivityPub.MRF
   alias Pleroma.Web.ActivityPub.ObjectValidator
+  alias Pleroma.Web.ActivityPub.Pipeline
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.Federator
 
   require Logger
   require Pleroma.Constants
 
-  defp touch_changeset(changeset) do
-    updated_at =
-      NaiveDateTime.utc_now()
-      |> NaiveDateTime.truncate(:second)
-
-    Ecto.Changeset.put_change(changeset, :updated_at, updated_at)
-  end
-
-  defp maybe_reinject_internal_fields(%{data: %{} = old_data}, new_data) do
-    has_history? = fn
-      %{"formerRepresentations" => %{"orderedItems" => list}} when is_list(list) -> true
-      _ -> false
-    end
-
-    internal_fields = Map.take(old_data, Pleroma.Constants.object_internal_fields())
-
-    remote_history_exists? = has_history?.(new_data)
-
-    # If the remote history exists, we treat that as the only source of truth.
-    new_data =
-      if has_history?.(old_data) and not remote_history_exists? do
-        Map.put(new_data, "formerRepresentations", old_data["formerRepresentations"])
-      else
-        new_data
-      end
-
-    # If the remote does not have history information, we need to manage it ourselves
-    new_data =
-      if not remote_history_exists? do
-        changed? =
-          Pleroma.Constants.status_updatable_fields()
-          |> Enum.any?(fn field -> Map.get(old_data, field) != Map.get(new_data, field) end)
-
-        %{updated_object: updated_object} =
-          new_data
-          |> Object.Updater.maybe_update_history(old_data,
-            updated: changed?,
-            use_history_in_new_object?: false
-          )
-
-        updated_object
-      else
-        new_data
-      end
-
-    Map.merge(new_data, internal_fields)
-  end
-
-  defp maybe_reinject_internal_fields(_, new_data), do: new_data
-
   @spec reinject_object(struct(), map()) :: {:ok, Object.t()} | {:error, any()}
-  defp reinject_object(%Object{data: %{"type" => "Question"}} = object, new_data) do
+  defp reinject_object(%Object{data: %{}} = object, new_data) do
     Logger.debug("Reinjecting object #{new_data["id"]}")
 
-    with data <- maybe_reinject_internal_fields(object, new_data),
-         {:ok, data, _} <- ObjectValidator.validate(data, %{}),
-         changeset <- Object.change(object, %{data: data}),
-         changeset <- touch_changeset(changeset),
-         {:ok, object} <- Repo.insert_or_update(changeset),
-         {:ok, object} <- Object.set_cache(object) do
-      {:ok, object}
+    with {:ok, new_data, _} <- ObjectValidator.validate(new_data, %{}),
+         {:ok, new_data} <- MRF.filter(new_data),
+         {:ok, new_object, _} <-
+           Object.Updater.do_update_and_invalidate_cache(
+             object,
+             new_data,
+             _touch_changeset? = true
+           ) do
+      {:ok, new_object}
     else
       e ->
         Logger.error("Error while processing object: #{inspect(e)}")
@@ -86,20 +38,11 @@ defmodule Pleroma.Object.Fetcher do
     end
   end
 
-  defp reinject_object(%Object{} = object, new_data) do
-    Logger.debug("Reinjecting object #{new_data["id"]}")
-
-    with new_data <- Transmogrifier.fix_object(new_data),
-         data <- maybe_reinject_internal_fields(object, new_data),
-         changeset <- Object.change(object, %{data: data}),
-         changeset <- touch_changeset(changeset),
-         {:ok, object} <- Repo.insert_or_update(changeset),
-         {:ok, object} <- Object.set_cache(object) do
+  defp reinject_object(_, new_data) do
+    with {:ok, object, _} <- Pipeline.common_pipeline(new_data, local: false) do
       {:ok, object}
     else
-      e ->
-        Logger.error("Error while processing object: #{inspect(e)}")
-        {:error, e}
+      e -> e
     end
   end
 
@@ -114,7 +57,12 @@ defmodule Pleroma.Object.Fetcher do
     end
   end
 
+  @typep fetcher_errors ::
+           :error | :reject | :allowed_depth | :fetch | :containment | :transmogrifier
+
   # Note: will create a Create activity, which we need internally at the moment.
+  @spec fetch_object_from_id(String.t(), list()) ::
+          {:ok, Object.t()} | {fetcher_errors(), any()} | Pipeline.errors()
   def fetch_object_from_id(id, options \\ []) do
     with {_, nil} <- {:fetch_object, Object.get_cached_by_ap_id(id)},
          {_, true} <- {:allowed_depth, Federator.allowed_thread_distance?(options[:depth])},
@@ -128,34 +76,18 @@ defmodule Pleroma.Object.Fetcher do
            {:object, data, Object.normalize(activity, fetch: false)} do
       {:ok, object}
     else
-      {:allowed_depth, false} ->
-        {:error, "Max thread distance exceeded."}
-
-      {:containment, _} ->
-        {:error, "Object containment failed."}
-
-      {:transmogrifier, {:error, {:reject, e}}} ->
-        {:reject, e}
-
-      {:transmogrifier, {:reject, e}} ->
-        {:reject, e}
-
-      {:transmogrifier, _} = e ->
-        {:error, e}
-
-      {:object, data, nil} ->
-        reinject_object(%Object{}, data)
-
       {:normalize, object = %Object{}} ->
         {:ok, object}
 
       {:fetch_object, %Object{} = object} ->
         {:ok, object}
 
-      {:fetch, {:error, error}} ->
-        {:error, error}
+      {:object, data, nil} ->
+        reinject_object(%Object{}, data)
 
       e ->
+        Logger.metadata(object: id)
+        Logger.error("Object rejected while fetching #{id} #{inspect(e)}")
         e
     end
   end
@@ -171,26 +103,6 @@ defmodule Pleroma.Object.Fetcher do
     |> Maps.put_if_present("cc", data["cc"])
     |> Maps.put_if_present("bto", data["bto"])
     |> Maps.put_if_present("bcc", data["bcc"])
-  end
-
-  def fetch_object_from_id!(id, options \\ []) do
-    with {:ok, object} <- fetch_object_from_id(id, options) do
-      object
-    else
-      {:error, %Tesla.Mock.Error{}} ->
-        nil
-
-      {:error, "Object has been deleted"} ->
-        nil
-
-      {:reject, reason} ->
-        Logger.info("Rejected #{id} while fetching: #{inspect(reason)}")
-        nil
-
-      e ->
-        Logger.error("Error while fetching #{id}: #{inspect(e)}")
-        nil
-    end
   end
 
   defp make_signature(id, date) do
@@ -232,20 +144,24 @@ defmodule Pleroma.Object.Fetcher do
     Logger.debug("Fetching object #{id} via AP")
 
     with {:scheme, true} <- {:scheme, String.starts_with?(id, "http")},
+         {_, true} <- {:mrf, MRF.id_filter(id)},
+         {_, :ok} <- {:local_fetch, Containment.contain_local_fetch(id)},
          {:ok, body} <- get_object(id),
          {:ok, data} <- safe_json_decode(body),
          :ok <- Containment.contain_origin_from_id(id, data) do
-      if not Instances.reachable?(id) do
-        Instances.set_reachable(id)
-      end
-
       {:ok, data}
     else
       {:scheme, _} ->
         {:error, "Unsupported URI scheme"}
 
+      {:local_fetch, _} ->
+        {:error, "Trying to fetch local resource"}
+
       {:error, e} ->
         {:error, e}
+
+      {:mrf, false} ->
+        {:error, {:reject, "Filtered by id"}}
 
       e ->
         {:error, e}
@@ -254,6 +170,14 @@ defmodule Pleroma.Object.Fetcher do
 
   def fetch_and_contain_remote_object_from_id(_id),
     do: {:error, "id must be a string"}
+
+  defp check_crossdomain_redirect(final_host, _original_url) when is_nil(final_host) do
+    {:cross_domain_redirect, false}
+  end
+
+  defp check_crossdomain_redirect(final_host, original_url) do
+    {:cross_domain_redirect, final_host != URI.parse(original_url).host}
+  end
 
   defp get_object(id) do
     date = Pleroma.Signature.signed_date()
@@ -264,27 +188,40 @@ defmodule Pleroma.Object.Fetcher do
       |> sign_fetch(id, date)
 
     case HTTP.get(id, headers) do
+      {:ok, %{body: body, status: code, headers: headers, url: final_url}}
+      when code in 200..299 ->
+        remote_host = if final_url, do: URI.parse(final_url).host, else: nil
+
+        with {:cross_domain_redirect, false} <- check_crossdomain_redirect(remote_host, id),
+             {_, content_type} <- List.keyfind(headers, "content-type", 0),
+             {:ok, _media_type} <- verify_content_type(content_type) do
+          {:ok, body}
+        else
+          {:cross_domain_redirect, true} ->
+            {:error, {:cross_domain_redirect, true}}
+
+          error ->
+            error
+        end
+
+      # Handle the case where URL is not in the response (older HTTP library versions)
       {:ok, %{body: body, status: code, headers: headers}} when code in 200..299 ->
         case List.keyfind(headers, "content-type", 0) do
           {_, content_type} ->
-            case Plug.Conn.Utils.media_type(content_type) do
-              {:ok, "application", "activity+json", _} ->
-                {:ok, body}
-
-              {:ok, "application", "ld+json",
-               %{"profile" => "https://www.w3.org/ns/activitystreams"}} ->
-                {:ok, body}
-
-              _ ->
-                {:error, {:content_type, content_type}}
+            case verify_content_type(content_type) do
+              {:ok, _} -> {:ok, body}
+              error -> error
             end
 
           _ ->
             {:error, {:content_type, nil}}
         end
 
+      {:ok, %{status: code}} when code in [401, 403] ->
+        {:error, :forbidden}
+
       {:ok, %{status: code}} when code in [404, 410] ->
-        {:error, "Object has been deleted"}
+        {:error, :not_found}
 
       {:error, e} ->
         {:error, e}
@@ -296,4 +233,17 @@ defmodule Pleroma.Object.Fetcher do
 
   defp safe_json_decode(nil), do: {:ok, nil}
   defp safe_json_decode(json), do: Jason.decode(json)
+
+  defp verify_content_type(content_type) do
+    case Plug.Conn.Utils.media_type(content_type) do
+      {:ok, "application", "activity+json", _} ->
+        {:ok, :activity_json}
+
+      {:ok, "application", "ld+json", %{"profile" => "https://www.w3.org/ns/activitystreams"}} ->
+        {:ok, :ld_json}
+
+      _ ->
+        {:error, {:content_type, content_type}}
+    end
+  end
 end

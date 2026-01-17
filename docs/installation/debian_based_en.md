@@ -4,7 +4,7 @@
 
 ## Installation
 
-This guide will assume you are on Debian 11 (“bullseye”) or later. This guide should also work with Ubuntu 18.04 (“Bionic Beaver”) and later. It also assumes that you have administrative rights, either as root or a user with [sudo permissions](https://www.digitalocean.com/community/tutorials/how-to-add-delete-and-grant-sudo-privileges-to-users-on-a-debian-vps). If you want to run this guide with root, ignore the `sudo` at the beginning of the lines, unless it calls a user like `sudo -Hu pleroma`; in this case, use `su <username> -s $SHELL -c 'command'` instead.
+This guide will assume you are on Debian 12 (“bookworm”) or later. This guide should also work with Ubuntu 22.04 (“jammy”) and later. It also assumes that you have administrative rights, either as root or a user with [sudo permissions](https://www.digitalocean.com/community/tutorials/how-to-add-delete-and-grant-sudo-privileges-to-users-on-a-debian-vps). If you want to run this guide with root, ignore the `sudo` at the beginning of the lines, unless it calls a user like `sudo -Hu pleroma`; in this case, use `su <username> -s $SHELL -c 'command'` instead.
 
 {! backend/installation/generic_dependencies.include !}
 
@@ -69,12 +69,18 @@ cd /opt/pleroma
 sudo -Hu pleroma mix deps.get
 ```
 
-* Generate the configuration: `sudo -Hu pleroma MIX_ENV=prod mix pleroma.instance gen`
+* Generate the configuration: 
+
+```shell
+sudo -Hu pleroma MIX_ENV=prod mix pleroma.instance gen
+```
+
+* During this process:
   * Answer with `yes` if it asks you to install `rebar3`.
   * This may take some time, because parts of pleroma get compiled first.
   * After that it will ask you a few questions about your instance and generates a configuration file in `config/generated_config.exs`.
 
-* Check the configuration and if all looks right, rename it, so Pleroma will load it (`prod.secret.exs` for productive instance, `dev.secret.exs` for development instances):
+* Check the configuration and if all looks right, rename it, so Pleroma will load it (`prod.secret.exs` for production instances, `dev.secret.exs` for development instances):
 
 ```shell
 sudo -Hu pleroma mv config/{generated_config.exs,prod.secret.exs}
@@ -136,6 +142,11 @@ sudo ln -s /etc/nginx/sites-available/pleroma.nginx /etc/nginx/sites-enabled/ple
 ```
 
 * Before starting nginx edit the configuration and change it to your needs (e.g. change servername, change cert paths)
+
+* (Strongly recommended) serve media on another domain
+
+Refer to the [Hardening your instance](../configuration/hardening.md) document on how to serve media on another domain. We STRONGLY RECOMMEND you to do this to minimize attack vectors.
+
 * Enable and start nginx:
 
 ```shell

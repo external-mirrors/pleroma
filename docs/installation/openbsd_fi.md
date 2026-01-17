@@ -1,8 +1,10 @@
 # Pleroman asennus OpenBSD:llä
 
+Note: This article is potentially outdated because at this time we may not have people who can speak this language well enough to update it. To see the up-to-date version, which may have significant differences or important caveats of the installation process, look up the English version.
+
 Tarvitset:
 * Oman domainin
-* OpenBSD 6.3 -serverin
+* OpenBSD 7.5 -serverin
 * Auttavan ymmärryksen unix-järjestelmistä
 
 Komennot, joiden edessä on '#', tulee ajaa käyttäjänä `root`. Tämä on
@@ -16,7 +18,7 @@ Matrix-kanava #pleroma:libera.chat ovat hyviä paikkoja löytää apua
 
 Asenna tarvittava ohjelmisto:
 
-`# pkg_add git elixir gmake postgresql-server-10.3 postgresql-contrib-10.3 cmake ffmpeg ImageMagick`
+`# pkg_add git elixir gmake postgresql-server postgresql-contrib cmake libmagic libvips`
 
 #### Optional software
 

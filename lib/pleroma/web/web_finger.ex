@@ -5,8 +5,8 @@
 defmodule Pleroma.Web.WebFinger do
   alias Pleroma.HTTP
   alias Pleroma.User
+  alias Pleroma.Web.ActivityPub.Publisher
   alias Pleroma.Web.Endpoint
-  alias Pleroma.Web.Federator.Publisher
   alias Pleroma.Web.XML
   alias Pleroma.XmlBuilder
   require Jason
@@ -35,9 +35,9 @@ defmodule Pleroma.Web.WebFinger do
 
     regex =
       if webfinger_domain = Pleroma.Config.get([__MODULE__, :domain]) do
-        ~r/(acct:)?(?<username>[a-z0-9A-Z_\.-]+)@(#{host}|#{webfinger_domain})/
+        ~r/(acct:)?(?<username>[a-z0-9A-Z_\.-]+)@(#{host}|#{webfinger_domain})$/
       else
-        ~r/(acct:)?(?<username>[a-z0-9A-Z_\.-]+)@#{host}/
+        ~r/(acct:)?(?<username>[a-z0-9A-Z_\.-]+)@#{host}$/
       end
 
     with %{"username" => username} <- Regex.named_captures(regex, resource),
@@ -70,7 +70,7 @@ defmodule Pleroma.Web.WebFinger do
 
   def represent_user(user, "JSON") do
     %{
-      "subject" => "acct:#{user.nickname}@#{domain()}",
+      "subject" => "acct:#{user.nickname}@#{host()}",
       "aliases" => gather_aliases(user),
       "links" => gather_links(user)
     }
@@ -90,13 +90,13 @@ defmodule Pleroma.Web.WebFinger do
       :XRD,
       %{xmlns: "http://docs.oasis-open.org/ns/xri/xrd-1.0"},
       [
-        {:Subject, "acct:#{user.nickname}@#{domain()}"}
+        {:Subject, "acct:#{user.nickname}@#{host()}"}
       ] ++ aliases ++ links
     }
     |> XmlBuilder.to_doc()
   end
 
-  defp domain do
+  def host do
     Pleroma.Config.get([__MODULE__, :domain]) || Pleroma.Web.Endpoint.host()
   end
 
@@ -155,7 +155,16 @@ defmodule Pleroma.Web.WebFinger do
     end
   end
 
+  @cachex Pleroma.Config.get([:cachex, :provider], Cachex)
   def find_lrdd_template(domain) do
+    @cachex.fetch!(:host_meta_cache, domain, fn _ ->
+      {:commit, fetch_lrdd_template(domain)}
+    end)
+  rescue
+    e -> {:error, "Cachex error: #{inspect(e)}"}
+  end
+
+  defp fetch_lrdd_template(domain) do
     # WebFinger is restricted to HTTPS - https://tools.ietf.org/html/rfc7033#section-9.1
     meta_url = "https://#{domain}/.well-known/host-meta"
 
@@ -163,12 +172,12 @@ defmodule Pleroma.Web.WebFinger do
       get_template_from_xml(body)
     else
       error ->
-        Logger.warn("Can't find LRDD template in #{inspect(meta_url)}: #{inspect(error)}")
+        Logger.warning("Can't find LRDD template in #{inspect(meta_url)}: #{inspect(error)}")
         {:error, :lrdd_not_found}
     end
   end
 
-  defp get_address_from_domain(domain, encoded_account) when is_binary(domain) do
+  defp get_address_from_domain(domain, "acct:" <> _ = encoded_account) when is_binary(domain) do
     case find_lrdd_template(domain) do
       {:ok, template} ->
         String.replace(template, "{uri}", encoded_account)
@@ -178,10 +187,17 @@ defmodule Pleroma.Web.WebFinger do
     end
   end
 
+  defp get_address_from_domain(domain, account) when is_binary(domain) do
+    encoded_account = URI.encode("acct:#{account}")
+    get_address_from_domain(domain, encoded_account)
+  end
+
   defp get_address_from_domain(_, _), do: {:error, :webfinger_no_domain}
 
   @spec finger(String.t()) :: {:ok, map()} | {:error, any()}
-  def finger(account) do
+  def finger(account), do: do_finger(account, true)
+
+  defp do_finger(account, follow_redirects) do
     account = String.trim_leading(account, "@")
 
     domain =
@@ -192,9 +208,7 @@ defmodule Pleroma.Web.WebFinger do
           URI.parse(account).host
       end
 
-    encoded_account = URI.encode("acct:#{account}")
-
-    with address when is_binary(address) <- get_address_from_domain(domain, encoded_account),
+    with address when is_binary(address) <- get_address_from_domain(domain, account),
          {:ok, %{status: status, body: body, headers: headers}} when status in 200..299 <-
            HTTP.get(
              address,
@@ -216,10 +230,58 @@ defmodule Pleroma.Web.WebFinger do
         _ ->
           {:error, {:content_type, nil}}
       end
+      |> case do
+        {:ok, data} ->
+          if follow_redirects do
+            validate_webfinger(address, data)
+          else
+            {:ok, data}
+          end
+
+        error ->
+          error
+      end
     else
       error ->
         Logger.debug("Couldn't finger #{account}: #{inspect(error)}")
         error
     end
   end
+
+  defp validate_webfinger(request_url, %{"subject" => "acct:" <> acct = subject} = data) do
+    with [_name, acct_host] <- String.split(acct, "@"),
+         {_, resolved_url} <- {:address, get_address_from_domain(acct_host, subject)},
+         {_, true} <- {:url_match, resolved_webfinger_matches?(request_url, resolved_url, data)} do
+      {:ok, data}
+    else
+      _ -> {:error, {:webfinger_invalid, request_url, data}}
+    end
+  end
+
+  defp validate_webfinger(url, data), do: {:error, {:webfinger_invalid, url, data}}
+
+  defp resolved_webfinger_matches?(request_url, resolved_url, _data)
+       when request_url == resolved_url do
+    true
+  end
+
+  defp resolved_webfinger_matches?(
+         _request_url,
+         _resolved_url,
+         %{"subject" => "acct:" <> acct} = data
+       ) do
+    with {:ok, %{"subject" => "acct:" <> new_acct} = new_data} <- do_finger(acct, false),
+         true <- acct == new_acct,
+         true <- webfinger_data_matches?(data, new_data) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  defp webfinger_data_matches?(%{"ap_id" => ap_id}, %{"ap_id" => ap_id}) when ap_id != "" do
+    true
+  end
+
+  defp webfinger_data_matches?(_data, _new_data), do: false
 end

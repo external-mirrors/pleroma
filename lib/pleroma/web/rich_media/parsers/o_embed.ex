@@ -6,8 +6,8 @@ defmodule Pleroma.Web.RichMedia.Parsers.OEmbed do
   def parse(html, _data) do
     with elements = [_ | _] <- get_discovery_data(html),
          oembed_url when is_binary(oembed_url) <- get_oembed_url(elements),
-         {:ok, oembed_data} <- get_oembed_data(oembed_url) do
-      oembed_data
+         {:ok, oembed_data = %{"html" => html}} <- get_oembed_data(oembed_url) do
+      %{oembed_data | "html" => Pleroma.HTML.filter_tags(html)}
     else
       _e -> %{}
     end
@@ -22,7 +22,7 @@ defmodule Pleroma.Web.RichMedia.Parsers.OEmbed do
   end
 
   defp get_oembed_data(url) do
-    with {:ok, %Tesla.Env{body: json}} <- Pleroma.Web.RichMedia.Helpers.rich_media_get(url) do
+    with {:ok, json} <- Pleroma.Web.RichMedia.Helpers.rich_media_get(url) do
       Jason.decode(json)
     end
   end

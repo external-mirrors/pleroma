@@ -6,6 +6,7 @@ defmodule Pleroma.Web.MastodonAPI.InstanceControllerTest do
   # TODO: Should not need Cachex
   use Pleroma.Web.ConnCase
 
+  alias Pleroma.Rule
   alias Pleroma.User
   import Pleroma.Factory
 
@@ -40,7 +41,8 @@ defmodule Pleroma.Web.MastodonAPI.InstanceControllerTest do
              "banner_upload_limit" => _,
              "background_image" => from_config_background,
              "shout_limit" => _,
-             "description_limit" => _
+             "description_limit" => _,
+             "rules" => _
            } = result
 
     assert result["pleroma"]["metadata"]["account_activation_required"] != nil
@@ -91,5 +93,172 @@ defmodule Pleroma.Web.MastodonAPI.InstanceControllerTest do
     assert result = json_response_and_validate_schema(conn, 200)
 
     assert ["peer1.com", "peer2.com"] == Enum.sort(result)
+  end
+
+  test "instance languages", %{conn: conn} do
+    assert %{"languages" => ["en"]} =
+             conn
+             |> get("/api/v1/instance")
+             |> json_response_and_validate_schema(200)
+
+    clear_config([:instance, :languages], ["aa", "bb"])
+
+    assert %{"languages" => ["aa", "bb"]} =
+             conn
+             |> get("/api/v1/instance")
+             |> json_response_and_validate_schema(200)
+  end
+
+  test "get instance contact information", %{conn: conn} do
+    user = insert(:user, %{local: true})
+
+    clear_config([:instance, :contact_username], user.nickname)
+
+    conn = get(conn, "/api/v1/instance")
+
+    assert result = json_response_and_validate_schema(conn, 200)
+
+    assert result["contact_account"]["id"] == user.id
+  end
+
+  test "get instance information v2", %{conn: conn} do
+    clear_config([:auth, :oauth_consumer_strategies], [])
+
+    assert get(conn, "/api/v2/instance")
+           |> json_response_and_validate_schema(200)
+  end
+
+  test "get instance rules", %{conn: conn} do
+    Rule.create(%{text: "Example rule", hint: "Rule description", priority: 1})
+    Rule.create(%{text: "Third rule", priority: 2})
+    Rule.create(%{text: "Second rule", priority: 1})
+
+    conn = get(conn, "/api/v1/instance")
+
+    assert result = json_response_and_validate_schema(conn, 200)
+
+    assert [
+             %{
+               "text" => "Example rule",
+               "hint" => "Rule description"
+             },
+             %{
+               "text" => "Second rule",
+               "hint" => ""
+             },
+             %{
+               "text" => "Third rule",
+               "hint" => ""
+             }
+           ] = result["rules"]
+  end
+
+  describe "instance domain blocks" do
+    setup do
+      clear_config([:mrf_simple, :reject], [{"fediverse.pl", "uses pl-fe"}])
+    end
+
+    test "get instance domain blocks", %{conn: conn} do
+      conn = get(conn, "/api/v1/instance/domain_blocks")
+
+      assert [
+               %{
+                 "comment" => "uses pl-fe",
+                 "digest" => "55e3f44aefe7eb022d3b1daaf7396cabf7f181bf6093c8ea841e30c9fc7d8226",
+                 "domain" => "fediverse.pl",
+                 "severity" => "suspend"
+               }
+             ] == json_response_and_validate_schema(conn, 200)
+    end
+
+    test "omits comment field if comment is empty", %{conn: conn} do
+      clear_config([:mrf_simple, :reject], ["fediverse.pl"])
+
+      conn = get(conn, "/api/v1/instance/domain_blocks")
+
+      assert [
+               %{
+                 "digest" => "55e3f44aefe7eb022d3b1daaf7396cabf7f181bf6093c8ea841e30c9fc7d8226",
+                 "domain" => "fediverse.pl",
+                 "severity" => "suspend"
+               } = domain_block
+             ] = json_response_and_validate_schema(conn, 200)
+
+      refute Map.has_key?(domain_block, "comment")
+    end
+
+    test "returns empty array if mrf transparency is disabled", %{conn: conn} do
+      clear_config([:mrf, :transparency], false)
+
+      conn = get(conn, "/api/v1/instance/domain_blocks")
+
+      assert [] == json_response_and_validate_schema(conn, 200)
+    end
+  end
+
+  test "translation languages matrix", %{conn: conn} do
+    clear_config([Pleroma.Language.Translation, :provider], TranslationMock)
+
+    assert %{"en" => ["pl"], "pl" => ["en"]} =
+             conn
+             |> get("/api/v1/instance/translation_languages")
+             |> json_response_and_validate_schema(200)
+  end
+
+  test "base_urls in pleroma metadata", %{conn: conn} do
+    media_proxy_base_url = "https://media.example.org"
+    upload_base_url = "https://uploads.example.org"
+
+    clear_config([:media_proxy, :enabled], true)
+    clear_config([:media_proxy, :base_url], media_proxy_base_url)
+    clear_config([Pleroma.Upload, :base_url], upload_base_url)
+
+    conn = get(conn, "/api/v1/instance")
+
+    assert result = json_response_and_validate_schema(conn, 200)
+    assert result["pleroma"]["metadata"]["base_urls"]["media_proxy"] == media_proxy_base_url
+    assert result["pleroma"]["metadata"]["base_urls"]["upload"] == upload_base_url
+
+    # Test when media_proxy is disabled
+    clear_config([:media_proxy, :enabled], false)
+
+    conn = get(conn, "/api/v1/instance")
+
+    assert result = json_response_and_validate_schema(conn, 200)
+    refute Map.has_key?(result["pleroma"]["metadata"]["base_urls"], "media_proxy")
+    assert result["pleroma"]["metadata"]["base_urls"]["upload"] == upload_base_url
+
+    # Test when upload base_url is not set
+    clear_config([Pleroma.Upload, :base_url], nil)
+
+    conn = get(conn, "/api/v1/instance")
+
+    assert result = json_response_and_validate_schema(conn, 200)
+    refute Map.has_key?(result["pleroma"]["metadata"]["base_urls"], "media_proxy")
+    refute Map.has_key?(result["pleroma"]["metadata"]["base_urls"], "upload")
+  end
+
+  test "display timeline access restrictions", %{conn: conn} do
+    clear_config([:restrict_unauthenticated, :timelines, :local], true)
+    clear_config([:restrict_unauthenticated, :timelines, :federated], false)
+
+    conn = get(conn, "/api/v2/instance")
+
+    assert result = json_response_and_validate_schema(conn, 200)
+
+    assert result["configuration"]["timelines_access"] == %{
+             "live_feeds" => %{
+               "local" => "authenticated",
+               "remote" => "public"
+             },
+             "hashtag_feeds" => %{
+               "local" => "authenticated",
+               "remote" => "public"
+             },
+             "trending_link_feeds" => %{
+               "local" => "disabled",
+               "remote" => "disabled"
+             }
+           }
   end
 end

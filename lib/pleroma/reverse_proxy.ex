@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.ReverseProxy do
+  alias Pleroma.Utils.URIEncoding
+
   @range_headers ~w(range if-range)
   @keep_req_headers ~w(accept accept-encoding cache-control if-modified-since) ++
                       ~w(if-unmodified-since if-none-match) ++ @range_headers
@@ -16,6 +18,8 @@ defmodule Pleroma.ReverseProxy do
   @max_body_length :infinity
   @failed_request_ttl :timer.seconds(60)
   @methods ~w(GET HEAD)
+
+  @allowed_mime_types Pleroma.Config.get([Pleroma.Upload, :allowed_mime_types], [])
 
   @cachex Pleroma.Config.get([:cachex, :provider], Cachex)
 
@@ -81,16 +85,16 @@ defmodule Pleroma.ReverseProxy do
   import Plug.Conn
 
   @type option() ::
-          {:max_read_duration, :timer.time() | :infinity}
+          {:max_read_duration, non_neg_integer() | :infinity}
           | {:max_body_length, non_neg_integer() | :infinity}
-          | {:failed_request_ttl, :timer.time() | :infinity}
-          | {:http, []}
+          | {:failed_request_ttl, non_neg_integer() | :infinity}
+          | {:http, keyword()}
           | {:req_headers, [{String.t(), String.t()}]}
           | {:resp_headers, [{String.t(), String.t()}]}
-          | {:inline_content_types, boolean() | [String.t()]}
+          | {:inline_content_types, boolean() | list(String.t())}
           | {:redirect_on_failure, boolean()}
 
-  @spec call(Plug.Conn.t(), url :: String.t(), [option()]) :: Plug.Conn.t()
+  @spec call(Plug.Conn.t(), String.t(), list(option())) :: Plug.Conn.t()
   def call(_conn, _url, _opts \\ [])
 
   def call(conn = %{method: method}, url, opts) when method in @methods do
@@ -153,8 +157,11 @@ defmodule Pleroma.ReverseProxy do
   end
 
   defp request(method, url, headers, opts) do
-    Logger.debug("#{__MODULE__} #{method} #{url} #{inspect(headers)}")
     method = method |> String.downcase() |> String.to_existing_atom()
+
+    url = maybe_encode_url(url)
+
+    Logger.debug("#{__MODULE__} #{method} #{url} #{inspect(headers)}")
 
     case client().request(method, url, headers, "", opts) do
       {:ok, code, headers, client} when code in @valid_resp_codes ->
@@ -180,6 +187,7 @@ defmodule Pleroma.ReverseProxy do
     result =
       conn
       |> put_resp_headers(build_resp_headers(headers, opts))
+      |> streaming_compat
       |> send_chunked(status)
       |> chunk_reply(client, opts)
 
@@ -192,7 +200,7 @@ defmodule Pleroma.ReverseProxy do
         halt(conn)
 
       {:error, error, conn} ->
-        Logger.warn(
+        Logger.warning(
           "#{__MODULE__} request to #{url} failed while reading/chunking: #{inspect(error)}"
         )
 
@@ -300,8 +308,24 @@ defmodule Pleroma.ReverseProxy do
     headers
     |> Enum.filter(fn {k, _} -> k in @keep_resp_headers end)
     |> build_resp_cache_headers(opts)
+    |> sanitise_content_type()
     |> build_resp_content_disposition_header(opts)
     |> Keyword.merge(Keyword.get(opts, :resp_headers, []))
+  end
+
+  defp sanitise_content_type(headers) do
+    original_ct = get_content_type(headers)
+
+    safe_ct =
+      Pleroma.Web.Plugs.Utils.get_safe_mime_type(
+        %{allowed_mime_types: @allowed_mime_types},
+        original_ct
+      )
+
+    [
+      {"content-type", safe_ct}
+      | Enum.filter(headers, fn {k, _v} -> k != "content-type" end)
+    ]
   end
 
   defp build_resp_cache_headers(headers, _opts) do
@@ -388,8 +412,6 @@ defmodule Pleroma.ReverseProxy do
 
   defp body_size_constraint(_, _), do: :ok
 
-  defp check_read_duration(nil = _duration, max), do: check_read_duration(@max_read_duration, max)
-
   defp check_read_duration(duration, max)
        when is_integer(duration) and is_integer(max) and max > 0 do
     if duration > max do
@@ -407,10 +429,6 @@ defmodule Pleroma.ReverseProxy do
     {:ok, previous_duration + duration}
   end
 
-  defp increase_read_duration(_) do
-    {:ok, :no_duration_limit, :no_duration_limit}
-  end
-
   defp client, do: Pleroma.ReverseProxy.Client.Wrapper
 
   defp track_failed_url(url, error, opts) do
@@ -422,5 +440,32 @@ defmodule Pleroma.ReverseProxy do
       end
 
     @cachex.put(:failed_proxy_url_cache, url, true, ttl: ttl)
+  end
+
+  # When Cowboy handles a chunked response with a content-length header it streams
+  # over HTTP 1.1 instead of chunking. Bandit cannot stream over HTTP 1.1 so the header
+  # must be stripped or it breaks RFC compliance for Transfer Encoding: Chunked. RFC9112§6.2
+  #
+  # HTTP2 is always streamed for all adapters.
+  defp streaming_compat(conn) do
+    with Phoenix.Endpoint.Cowboy2Adapter <- Pleroma.Web.Endpoint.config(:adapter) do
+      conn
+    else
+      _ -> delete_resp_header(conn, "content-length")
+    end
+  end
+
+  # Only when Tesla adapter is Hackney or Finch does the URL
+  # need encoding before Reverse Proxying as both end up
+  # using the raw Hackney client and cannot leverage our
+  # EncodeUrl Tesla middleware
+  # Also do it for test environment
+  defp maybe_encode_url(url) do
+    case Application.get_env(:tesla, :adapter) do
+      Tesla.Adapter.Hackney -> URIEncoding.encode_url(url)
+      {Tesla.Adapter.Finch, _} -> URIEncoding.encode_url(url)
+      Tesla.Mock -> URIEncoding.encode_url(url)
+      _ -> url
+    end
   end
 end

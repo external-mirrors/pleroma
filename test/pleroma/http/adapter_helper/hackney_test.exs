@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.HTTP.AdapterHelper.HackneyTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case
   use Pleroma.Tests.Helpers
 
   alias Pleroma.HTTP.AdapterHelper.Hackney
@@ -15,6 +15,14 @@ defmodule Pleroma.HTTP.AdapterHelper.HackneyTest do
 
   describe "options/2" do
     setup do: clear_config([:http, :adapter], a: 1, b: 2)
+
+    test "uses redirect-safe defaults", %{uri: uri} do
+      opts = Hackney.options([], uri)
+
+      assert opts[:follow_redirect] == false
+      assert opts[:force_redirect] == false
+      assert opts[:with_body] == true
+    end
 
     test "add proxy and opts from config", %{uri: uri} do
       opts = Hackney.options([proxy: "localhost:8123"], uri)

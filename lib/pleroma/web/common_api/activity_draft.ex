@@ -5,13 +5,21 @@
 defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   alias Pleroma.Activity
   alias Pleroma.Conversation.Participation
+  alias Pleroma.Language.LanguageDetector
   alias Pleroma.MultiLanguage
   alias Pleroma.Object
   alias Pleroma.Web.ActivityPub.Builder
+  alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.CommonAPI.Utils
 
+  import Pleroma.EctoType.ActivityPub.ObjectValidators.LanguageCode,
+    only: [good_locale_code?: 1]
+
   import Pleroma.Web.Gettext
+  import Pleroma.Web.Utils.Guards, only: [not_empty_string: 1]
+
+  @type t :: %__MODULE__{}
 
   defstruct valid?: true,
             errors: [],
@@ -26,6 +34,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
             attachments: [],
             in_reply_to: nil,
             in_reply_to_conversation: nil,
+            quote_post: nil,
             visibility: nil,
             expires_at: nil,
             extra: nil,
@@ -59,10 +68,13 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     |> poll()
     |> with_valid(&in_reply_to/1)
     |> with_valid(&in_reply_to_conversation/1)
+    |> with_valid(&quote_post/1)
     |> with_valid(&visibility/1)
     |> with_valid(&content/1)
+    |> with_valid(&quoting_visibility/1)
     |> with_valid(&to_and_cc/1)
     |> with_valid(&context/1)
+    |> with_valid(&language/1)
     |> sensitive()
     |> with_valid(&object/1)
     |> preview?()
@@ -85,6 +97,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     object =
       draft.params
       |> Map.take([:album, :artist, :title, :length])
+      |> Map.put(:externalLink, Map.get(draft.params, :external_link))
       |> Map.new(fn {key, value} -> {to_string(key), value} end)
       |> Map.put("type", "Audio")
       |> Map.put("to", draft.to)
@@ -99,18 +112,17 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     %__MODULE__{draft | params: params}
   end
 
-  defp language(%{params: %{language: language}} = draft) do
-    if MultiLanguage.is_good_locale_code?(language) do
-      %__MODULE__{draft | language: language}
-    else
-      add_error(
-        draft,
-        dgettext("errors", "language \"%{language}\" is invalid", language: language)
-      )
-    end
-  end
+  defp language(draft) do
+    language =
+      with language <- draft.params[:language],
+           true <- good_locale_code?(language) do
+        language
+      else
+        _ -> LanguageDetector.detect(draft.content_html <> " " <> draft.summary)
+      end
 
-  defp language(draft), do: draft
+    %__MODULE__{draft | language: language}
+  end
 
   defp status(%{params: %{status_map: %{} = status_map}} = draft) do
     with {:ok, %{}} <- MultiLanguage.validate_map(status_map) do
@@ -165,7 +177,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   end
 
   defp attachments(%{params: params} = draft) do
-    attachments = Utils.attachments_from_ids(params)
+    attachments = Utils.attachments_from_ids(params, draft.user)
     draft = %__MODULE__{draft | attachments: attachments}
 
     case Utils.validate_attachments_count(attachments) do
@@ -177,7 +189,33 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   defp in_reply_to(%{params: %{in_reply_to_status_id: ""}} = draft), do: draft
 
   defp in_reply_to(%{params: %{in_reply_to_status_id: id}} = draft) when is_binary(id) do
-    %__MODULE__{draft | in_reply_to: Activity.get_by_id(id)}
+    # If a post was deleted all its activities (except the newly added Delete) are purged too,
+    # thus lookup by Create db ID will yield nil just as if it never existed in the first place.
+    #
+    # We allow replying to Announce here, due to a Pleroma-FE quirk where if presented with
+    # an Announce id it will render it as if it was just the normal referenced post, but
+    # use the Announce id for replies in the in_reply_to_id key of a POST request to
+    # /api/v1/statuses, or as an :id in /api/v1/statuses/:id/*.
+    # TODO: Fix this quirk in FE and remove here and other affected places
+    with %Activity{} = activity <- Activity.get_by_id(id),
+         true <- Visibility.visible_for_user?(activity, draft.user),
+         {_, type} when type in ["Create", "Announce"] <- {:type, activity.data["type"]} do
+      %__MODULE__{draft | in_reply_to: activity}
+    else
+      nil ->
+        add_error(draft, dgettext("errors", "Cannot reply to a deleted status"))
+
+      false ->
+        add_error(draft, dgettext("errors", "Record not found"))
+
+      {:type, type} ->
+        add_error(
+          draft,
+          dgettext("errors", "Can only reply to posts, not %{type} activities",
+            type: inspect(type)
+          )
+        )
+    end
   end
 
   defp in_reply_to(%{params: %{in_reply_to_status_id: %Activity{} = in_reply_to}} = draft) do
@@ -185,6 +223,22 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   end
 
   defp in_reply_to(draft), do: draft
+
+  defp quote_post(%{params: %{quoted_status_id: id}} = draft) when not_empty_string(id) do
+    case Activity.get_by_id_with_object(id) do
+      %Activity{} = activity ->
+        %__MODULE__{draft | quote_post: activity}
+
+      _ ->
+        draft
+    end
+  end
+
+  defp quote_post(%{params: %{quote_id: id}} = draft) when not_empty_string(id) do
+    quote_post(%{draft | params: Map.put(draft.params, :quoted_status_id, id)})
+  end
+
+  defp quote_post(draft), do: draft
 
   defp in_reply_to_conversation(draft) do
     in_reply_to_conversation = Participation.get(draft.params[:in_reply_to_conversation_id])
@@ -200,6 +254,29 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
         %__MODULE__{draft | visibility: visibility}
     end
   end
+
+  defp can_quote?(_draft, _object, visibility) when visibility in ~w(public unlisted local) do
+    true
+  end
+
+  defp can_quote?(draft, object, "private") do
+    draft.user.ap_id == object.data["actor"]
+  end
+
+  defp can_quote?(_, _, _) do
+    false
+  end
+
+  defp quoting_visibility(%{quote_post: %Activity{}} = draft) do
+    with %Object{} = object <- Object.normalize(draft.quote_post, fetch: false),
+         true <- can_quote?(draft, object, Visibility.get_visibility(object)) do
+      draft
+    else
+      _ -> add_error(draft, dgettext("errors", "Cannot quote private message"))
+    end
+  end
+
+  defp quoting_visibility(draft), do: draft
 
   defp expires_at(draft) do
     case CommonAPI.check_expiry_date(draft.params[:expires_in]) do
@@ -218,14 +295,17 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     end
   end
 
-  defp content(draft) do
+  defp content(%{mentions: mentions} = draft) do
     {content_html_or_map, mentioned_users, tags} = Utils.make_content_html(draft)
 
     {content_html, content_html_map} = differentiate_string_map(content_html_or_map)
 
+    mentioned_ap_ids =
+      Enum.map(mentioned_users, fn {_, mentioned_user} -> mentioned_user.ap_id end)
+
     mentions =
-      mentioned_users
-      |> Enum.map(fn {_, mentioned_user} -> mentioned_user.ap_id end)
+      mentions
+      |> Kernel.++(mentioned_ap_ids)
       |> Utils.get_addressed_users(draft.params[:to])
 
     %__MODULE__{
@@ -293,6 +373,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
         })
       )
       |> Map.put("generator", draft.params[:generator])
+      |> Map.put("language", draft.language)
 
     %__MODULE__{draft | object: object}
   end

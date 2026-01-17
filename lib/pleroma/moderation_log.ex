@@ -121,7 +121,7 @@ defmodule Pleroma.ModerationLog do
 
   defp prepare_log_data(attrs), do: attrs
 
-  @spec insert_log(log_params()) :: {:ok, ModerationLog} | {:error, any}
+  @spec insert_log(log_params()) :: {:ok, ModerationLog.t()} | {:error, any}
   def insert_log(%{actor: %User{}, subject: subjects, permission: permission} = attrs) do
     data =
       attrs
@@ -248,7 +248,8 @@ defmodule Pleroma.ModerationLog do
     |> insert_log_entry_with_message()
   end
 
-  @spec insert_log_entry_with_message(ModerationLog) :: {:ok, ModerationLog} | {:error, any}
+  @spec insert_log_entry_with_message(ModerationLog.t()) ::
+          {:ok, ModerationLog.t()} | {:error, any}
   defp insert_log_entry_with_message(entry) do
     entry.data["message"]
     |> put_in(get_log_entry_message(entry))
@@ -572,6 +573,12 @@ defmodule Pleroma.ModerationLog do
         }
       }) do
     "@#{actor_nickname} requested account backup for @#{user_nickname}"
+  end
+
+  def get_log_entry_message(%ModerationLog{data: data}) do
+    actor_name = get_in(data, ["actor", "nickname"]) || "unknown"
+    action = data["action"] || "unknown"
+    "@#{actor_name} performed action #{action}"
   end
 
   defp nicknames_to_string(nicknames) do

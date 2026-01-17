@@ -64,7 +64,8 @@ defmodule Pleroma.Web.ApiSpec.PleromaBackupOperation do
         content_type: %Schema{type: :string},
         file_name: %Schema{type: :string},
         file_size: %Schema{type: :integer},
-        processed: %Schema{type: :boolean}
+        processed: %Schema{type: :boolean, description: "whether this backup has succeeded"},
+        tempdir: %Schema{type: :string}
       },
       example: %{
         "content_type" => "application/zip",
@@ -72,7 +73,8 @@ defmodule Pleroma.Web.ApiSpec.PleromaBackupOperation do
           "https://cofe.fe:4000/media/backups/archive-foobar-20200908T164207-Yr7vuT5Wycv-sN3kSN2iJ0k-9pMo60j9qmvRCdDqIew.zip",
         "file_size" => 4105,
         "inserted_at" => "2020-09-08T16:42:07.000Z",
-        "processed" => true
+        "processed" => true,
+        "tempdir" => "/tmp/PZIMw40vmpM"
       }
     }
   end

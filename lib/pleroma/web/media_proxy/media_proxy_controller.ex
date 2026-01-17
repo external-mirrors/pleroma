@@ -12,6 +12,8 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyController do
   alias Pleroma.Web.MediaProxy
   alias Plug.Conn
 
+  plug(:sandbox)
+
   def remote(conn, %{"sig" => sig64, "url" => url64}) do
     with {_, true} <- {:enabled, MediaProxy.enabled?()},
          {:ok, url} <- MediaProxy.decode_url(sig64, url64),
@@ -52,9 +54,10 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyController do
 
   defp handle_preview(conn, url) do
     media_proxy_url = MediaProxy.url(url)
+    http_client_opts = Pleroma.Config.get([:media_proxy, :proxy_opts, :http], pool: :media)
 
     with {:ok, %{status: status} = head_response} when status in 200..299 <-
-           Pleroma.HTTP.request("HEAD", media_proxy_url, [], [], pool: :media) do
+           Pleroma.HTTP.request(:head, media_proxy_url, "", [], http_client_opts) do
       content_type = Tesla.get_header(head_response, "content-type")
       content_length = Tesla.get_header(head_response, "content-length")
       content_length = content_length && String.to_integer(content_length)
@@ -68,11 +71,15 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyController do
           drop_static_param_and_redirect(conn)
 
         content_type == "image/gif" ->
-          redirect(conn, external: media_proxy_url)
+          conn
+          |> put_status(301)
+          |> redirect(external: media_proxy_url)
 
         min_content_length_for_preview() > 0 and content_length > 0 and
             content_length < min_content_length_for_preview() ->
-          redirect(conn, external: media_proxy_url)
+          conn
+          |> put_status(301)
+          |> redirect(external: media_proxy_url)
 
         true ->
           handle_preview(content_type, conn, media_proxy_url)
@@ -201,5 +208,10 @@ defmodule Pleroma.Web.MediaProxy.MediaProxyController do
 
   defp media_proxy_opts do
     Config.get([:media_proxy, :proxy_opts], [])
+  end
+
+  defp sandbox(conn, _params) do
+    conn
+    |> merge_resp_headers([{"content-security-policy", "sandbox;"}])
   end
 end

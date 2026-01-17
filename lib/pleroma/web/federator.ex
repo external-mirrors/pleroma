@@ -6,10 +6,9 @@ defmodule Pleroma.Web.Federator do
   alias Pleroma.Activity
   alias Pleroma.Object.Containment
   alias Pleroma.User
-  alias Pleroma.Web.ActivityPub.ActivityPub
+  alias Pleroma.Web.ActivityPub.Publisher
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.ActivityPub.Utils
-  alias Pleroma.Web.Federator.Publisher
   alias Pleroma.Workers.PublisherWorker
   alias Pleroma.Workers.ReceiverWorker
 
@@ -36,9 +35,30 @@ defmodule Pleroma.Web.Federator do
   end
 
   # Client API
+  def incoming_ap_doc(%{params: params, req_headers: req_headers}) do
+    ReceiverWorker.new(
+      %{
+        "op" => "incoming_ap_doc",
+        "req_headers" => req_headers,
+        "params" => params,
+        "timeout" => :timer.seconds(20)
+      },
+      priority: 2
+    )
+    |> Oban.insert()
+  end
+
+  def incoming_ap_doc(%{"type" => "Delete"} = params) do
+    ReceiverWorker.new(%{"op" => "incoming_ap_doc", "params" => params},
+      priority: 3,
+      queue: :slow
+    )
+    |> Oban.insert()
+  end
 
   def incoming_ap_doc(params) do
-    ReceiverWorker.enqueue("incoming_ap_doc", %{"params" => params})
+    ReceiverWorker.new(%{"op" => "incoming_ap_doc", "params" => params})
+    |> Oban.insert()
   end
 
   @impl true
@@ -48,9 +68,10 @@ defmodule Pleroma.Web.Federator do
 
   @impl true
   def publish(%Pleroma.Activity{data: %{"type" => type}} = activity) do
-    PublisherWorker.enqueue("publish", %{"activity_id" => activity.id},
+    PublisherWorker.new(%{"op" => "publish", "activity_id" => activity.id},
       priority: publish_priority(type)
     )
+    |> Oban.insert()
   end
 
   defp publish_priority("Delete"), do: 3
@@ -58,9 +79,10 @@ defmodule Pleroma.Web.Federator do
 
   # Job Worker Callbacks
 
-  @spec perform(atom(), module(), any()) :: {:ok, any()} | {:error, any()}
-  def perform(:publish_one, module, params) do
-    apply(module, :publish_one, [params])
+  @spec perform(atom(), any()) :: {:ok, any()} | {:error, any()}
+  def perform(:publish_one, params) do
+    Publisher.prepare_one(params)
+    |> Publisher.publish_one()
   end
 
   def perform(:publish, activity) do
@@ -80,7 +102,8 @@ defmodule Pleroma.Web.Federator do
 
     # NOTE: we use the actor ID to do the containment, this is fine because an
     # actor shouldn't be acting on objects outside their own AP server.
-    with {_, {:ok, _user}} <- {:actor, ap_enabled_actor(actor)},
+    with {_, {:ok, user}} <- {:actor, User.get_or_fetch_by_ap_id(actor)},
+         {:user_active, true} <- {:user_active, match?(true, user.is_active)},
          nil <- Activity.normalize(params["id"]),
          {_, :ok} <-
            {:correct_origin?, Containment.contain_origin_from_id(actor, params)},
@@ -99,25 +122,14 @@ defmodule Pleroma.Web.Federator do
         Logger.debug("Unhandled actor #{actor}, #{inspect(e)}")
         {:error, e}
 
-      {:error, {:validate_object, _}} = e ->
-        Logger.error("Incoming AP doc validation error: #{inspect(e)}")
-        Logger.debug(Jason.encode!(params, pretty: true))
-        e
+      {:reject, reason} = e ->
+        Logger.debug("Rejected by MRF: #{inspect(reason)}")
+        {:error, e}
 
       e ->
         # Just drop those for now
         Logger.debug(fn -> "Unhandled activity\n" <> Jason.encode!(params, pretty: true) end)
         {:error, e}
-    end
-  end
-
-  def ap_enabled_actor(id) do
-    user = User.get_cached_by_ap_id(id)
-
-    if User.ap_enabled?(user) do
-      {:ok, user}
-    else
-      ActivityPub.make_user_from_ap_id(id)
     end
   end
 end

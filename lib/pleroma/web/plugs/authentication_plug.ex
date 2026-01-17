@@ -38,10 +38,6 @@ defmodule Pleroma.Web.Plugs.AuthenticationPlug do
 
   def call(conn, _), do: conn
 
-  def checkpw(password, "$6" <> _ = password_hash) do
-    :crypt.crypt(password, password_hash) == password_hash
-  end
-
   def checkpw(password, "$2" <> _ = password_hash) do
     # Handle bcrypt passwords for Mastodon migration
     Bcrypt.verify_pass(password, password_hash)
@@ -49,6 +45,11 @@ defmodule Pleroma.Web.Plugs.AuthenticationPlug do
 
   def checkpw(password, "$pbkdf2" <> _ = password_hash) do
     Pleroma.Password.Pbkdf2.verify_pass(password, password_hash)
+  end
+
+  def checkpw(password, "$argon2" <> _ = password_hash) do
+    # Handle argon2 passwords for Akkoma migration
+    Argon2.verify_pass(password, password_hash)
   end
 
   def checkpw(_password, _password_hash) do
@@ -60,7 +61,7 @@ defmodule Pleroma.Web.Plugs.AuthenticationPlug do
     do_update_password(user, password)
   end
 
-  def maybe_update_password(%User{password_hash: "$6" <> _} = user, password) do
+  def maybe_update_password(%User{password_hash: "$argon2" <> _} = user, password) do
     do_update_password(user, password)
   end
 

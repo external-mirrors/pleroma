@@ -34,8 +34,8 @@ defmodule Pleroma.Upload do
 
   """
   alias Ecto.UUID
-  alias Pleroma.Config
   alias Pleroma.Maps
+  alias Pleroma.Utils.URIEncoding
   alias Pleroma.Web.ActivityPub.Utils
   require Logger
 
@@ -52,6 +52,7 @@ defmodule Pleroma.Upload do
           | {:size_limit, nil | non_neg_integer()}
           | {:uploader, module()}
           | {:filters, [module()]}
+          | {:actor, String.t()}
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -77,6 +78,8 @@ defmodule Pleroma.Upload do
     :description_map,
     :path
   ]
+
+  @config_impl Application.compile_env(:pleroma, [__MODULE__, :config_impl], Pleroma.Config)
 
   defp get_description(upload) do
     case {upload, Pleroma.Config.get([Pleroma.Upload, :default_description])} do
@@ -109,7 +112,7 @@ defmodule Pleroma.Upload do
     %{"name" => description}
   end
 
-  @spec store(source, options :: [option()]) :: {:ok, Map.t()} | {:error, any()}
+  @spec store(source, options :: [option()]) :: {:ok, map()} | {:error, any()}
   @doc "Store a file. If using a `Plug.Upload{}` as the source, be sure to use `Majic.Plug` to ensure its content_type and filename is correct."
   def store(upload, opts \\ []) do
     opts = get_opts(opts)
@@ -198,7 +201,7 @@ defmodule Pleroma.Upload do
   defp prepare_upload(%{img: "data:image/" <> image_data}, opts) do
     parsed = Regex.named_captures(~r/(?<filetype>jpeg|png|gif);base64,(?<data>.*)/, image_data)
     data = Base.decode64!(parsed["data"], ignore: :whitespace)
-    hash = Base.encode16(:crypto.hash(:sha256, data), lower: true)
+    hash = Base.encode16(:crypto.hash(:sha256, data), case: :upper)
 
     with :ok <- check_binary_size(data, opts.size_limit),
          tmp_path <- tempfile_for_image(data),
@@ -252,45 +255,61 @@ defmodule Pleroma.Upload do
     tmp_path
   end
 
+  # Encoding the whole path here is fine since the path is in a
+  # UUID/<file name> form.
+  # The file at this point isn't %-encoded, so the path shouldn't
+  # be decoded first like Pleroma.Utils.URIEncoding.encode_url/1 does.
   defp url_from_spec(%__MODULE__{name: name}, base_url, {:file, path}) do
+    encode_opts = [bypass_decode: true, bypass_parse: true]
+
     path =
-      URI.encode(path, &char_unescaped?/1) <>
+      URIEncoding.encode_url(path, encode_opts) <>
         if Pleroma.Config.get([__MODULE__, :link_name], false) do
-          "?name=#{URI.encode(name, &char_unescaped?/1)}"
+          enum = %{name: name}
+          "?#{URI.encode_query(enum)}"
         else
           ""
         end
 
-    [base_url, path]
-    |> Path.join()
+    if String.contains?(base_url, Pleroma.Uploaders.IPFS.placeholder()) do
+      String.replace(base_url, Pleroma.Uploaders.IPFS.placeholder(), path)
+    else
+      [base_url, path]
+      |> Path.join()
+    end
   end
 
   defp url_from_spec(_upload, _base_url, {:url, url}), do: url
 
+  @spec base_url() :: binary
   def base_url do
-    uploader = Config.get([Pleroma.Upload, :uploader])
-    upload_base_url = Config.get([Pleroma.Upload, :base_url])
-    public_endpoint = Config.get([uploader, :public_endpoint])
+    uploader = @config_impl.get([Pleroma.Upload, :uploader])
+    upload_fallback_url = Pleroma.Web.Endpoint.url() <> "/media/"
+    upload_base_url = @config_impl.get([Pleroma.Upload, :base_url]) || upload_fallback_url
+    public_endpoint = @config_impl.get([uploader, :public_endpoint])
 
     case uploader do
       Pleroma.Uploaders.Local ->
-        upload_base_url || Pleroma.Web.Endpoint.url() <> "/media/"
+        upload_base_url
 
       Pleroma.Uploaders.S3 ->
-        bucket = Config.get([Pleroma.Uploaders.S3, :bucket])
-        truncated_namespace = Config.get([Pleroma.Uploaders.S3, :truncated_namespace])
-        namespace = Config.get([Pleroma.Uploaders.S3, :bucket_namespace])
+        bucket = @config_impl.get([Pleroma.Uploaders.S3, :bucket])
+        truncated_namespace = @config_impl.get([Pleroma.Uploaders.S3, :truncated_namespace])
+        namespace = @config_impl.get([Pleroma.Uploaders.S3, :bucket_namespace])
 
         bucket_with_namespace =
           cond do
             !is_nil(truncated_namespace) ->
               truncated_namespace
 
-            !is_nil(namespace) ->
+            !is_nil(namespace) and !is_nil(bucket) ->
               namespace <> ":" <> bucket
 
-            true ->
+            !is_nil(bucket) ->
               bucket
+
+            true ->
+              ""
           end
 
         if public_endpoint do
@@ -299,8 +318,11 @@ defmodule Pleroma.Upload do
           Path.join([upload_base_url, bucket_with_namespace])
         end
 
+      Pleroma.Uploaders.IPFS ->
+        @config_impl.get([Pleroma.Uploaders.IPFS, :get_gateway_url])
+
       _ ->
-        public_endpoint || upload_base_url || Pleroma.Web.Endpoint.url() <> "/media/"
+        public_endpoint || upload_base_url
     end
   end
 end

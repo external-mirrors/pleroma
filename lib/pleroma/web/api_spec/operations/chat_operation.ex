@@ -137,7 +137,13 @@ defmodule Pleroma.Web.ApiSpec.ChatOperation do
         "Deprecated due to no support for pagination. Using [/api/v2/pleroma/chats](#operation/ChatController.index2) instead is recommended.",
       operationId: "ChatController.index",
       parameters: [
-        Operation.parameter(:with_muted, :query, BooleanLike, "Include chats from muted users")
+        Operation.parameter(
+          :with_muted,
+          :query,
+          BooleanLike.schema(),
+          "Include chats from muted users"
+        ),
+        Operation.parameter(:pinned, :query, BooleanLike.schema(), "Include only pinned chats")
       ],
       responses: %{
         200 => Operation.response("The chats of the user", "application/json", chats_response())
@@ -156,7 +162,13 @@ defmodule Pleroma.Web.ApiSpec.ChatOperation do
       summary: "Retrieve list of chats",
       operationId: "ChatController.index2",
       parameters: [
-        Operation.parameter(:with_muted, :query, BooleanLike, "Include chats from muted users")
+        Operation.parameter(
+          :with_muted,
+          :query,
+          BooleanLike.schema(),
+          "Include chats from muted users"
+        ),
+        Operation.parameter(:pinned, :query, BooleanLike.schema(), "Include only pinned chats")
         | pagination_params()
       ],
       responses: %{
@@ -238,6 +250,44 @@ defmodule Pleroma.Web.ApiSpec.ChatOperation do
             "application/json",
             ChatMessage
           )
+      },
+      security: [
+        %{
+          "oAuth" => ["write:chats"]
+        }
+      ]
+    }
+  end
+
+  def pin_operation do
+    %Operation{
+      tags: ["Chats"],
+      summary: "Pin a chat",
+      operationId: "ChatController.pin",
+      parameters: [
+        Operation.parameter(:id, :path, :string, "The id of the chat", required: true)
+      ],
+      responses: %{
+        200 => Operation.response("The existing chat", "application/json", Chat)
+      },
+      security: [
+        %{
+          "oAuth" => ["write:chats"]
+        }
+      ]
+    }
+  end
+
+  def unpin_operation do
+    %Operation{
+      tags: ["Chats"],
+      summary: "Unpin a chat",
+      operationId: "ChatController.unpin",
+      parameters: [
+        Operation.parameter(:id, :path, :string, "The id of the chat", required: true)
+      ],
+      responses: %{
+        200 => Operation.response("The existing chat", "application/json", Chat)
       },
       security: [
         %{

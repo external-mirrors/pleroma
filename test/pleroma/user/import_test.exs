@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.User.ImportTest do
-  alias Pleroma.Repo
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.User
 
@@ -26,11 +25,12 @@ defmodule Pleroma.User.ImportTest do
         user3.nickname
       ]
 
-      {:ok, job} = User.Import.follow_import(user1, identifiers)
+      {:ok, jobs} = User.Import.follows_import(user1, identifiers)
 
-      assert {:ok, result} = ObanHelpers.perform(job)
-      assert is_list(result)
-      assert result == [refresh_record(user2), refresh_record(user3)]
+      for job <- jobs do
+        assert {:ok, %User{}} = ObanHelpers.perform(job)
+      end
+
       assert User.following?(user1, user2)
       assert User.following?(user1, user3)
     end
@@ -45,11 +45,12 @@ defmodule Pleroma.User.ImportTest do
         user3.nickname
       ]
 
-      {:ok, job} = User.Import.blocks_import(user1, identifiers)
+      {:ok, jobs} = User.Import.blocks_import(user1, identifiers)
 
-      assert {:ok, result} = ObanHelpers.perform(job)
-      assert is_list(result)
-      assert result == [user2, user3]
+      for job <- jobs do
+        assert {:ok, %User{}} = ObanHelpers.perform(job)
+      end
+
       assert User.blocks?(user1, user2)
       assert User.blocks?(user1, user3)
     end
@@ -64,11 +65,12 @@ defmodule Pleroma.User.ImportTest do
         user3.nickname
       ]
 
-      {:ok, job} = User.Import.mutes_import(user1, identifiers)
+      {:ok, jobs} = User.Import.mutes_import(user1, identifiers)
 
-      assert {:ok, result} = ObanHelpers.perform(job)
-      assert is_list(result)
-      assert result == [user2, user3]
+      for job <- jobs do
+        assert {:ok, %User{}} = ObanHelpers.perform(job)
+      end
+
       assert User.mutes?(user1, user2)
       assert User.mutes?(user1, user3)
     end

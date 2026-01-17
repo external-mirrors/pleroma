@@ -15,8 +15,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.NoPlaceholderTextPolicy do
   def filter(
         %{
           "type" => type,
-          "object" => %{"contentMap" => %{} = content_map, "attachment" => _} = _child_object
-        } = object
+          "object" => %{"contentMap" => %{} = content_map, "attachment" => _} = _object
+        } = activity
       )
       when type in ["Create", "Update"] do
     fixed_content_map =
@@ -28,17 +28,17 @@ defmodule Pleroma.Web.ActivityPub.MRF.NoPlaceholderTextPolicy do
         end
       end)
 
-    fixed_object =
+    fixed_activity =
       if fixed_content_map == %{} do
         Map.put(
-          object,
+          activity,
           "object",
-          object["object"]
+          activity["object"]
           |> Map.drop(["contentMap"])
           |> Map.put("content", "")
         )
       else
-        object
+        activity
         |> put_in(["object", "contentMap"], fixed_content_map)
         |> put_in(
           ["object", "content"],
@@ -46,22 +46,22 @@ defmodule Pleroma.Web.ActivityPub.MRF.NoPlaceholderTextPolicy do
         )
       end
 
-    {:ok, fixed_object}
+    {:ok, fixed_activity}
   end
 
   @impl true
   def filter(
         %{
           "type" => type,
-          "object" => %{"content" => content, "attachment" => _} = _child_object
-        } = object
+          "object" => %{"content" => content, "attachment" => _} = _object
+        } = activity
       )
       when type in ["Create", "Update"] and content in @placeholders do
-    {:ok, put_in(object, ["object", "content"], "")}
+    {:ok, put_in(activity, ["object", "content"], "")}
   end
 
   @impl true
-  def filter(object), do: {:ok, object}
+  def filter(activity), do: {:ok, activity}
 
   @impl true
   def describe, do: {:ok, %{}}

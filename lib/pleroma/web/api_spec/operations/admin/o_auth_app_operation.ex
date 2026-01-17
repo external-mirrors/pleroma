@@ -17,7 +17,7 @@ defmodule Pleroma.Web.ApiSpec.Admin.OAuthAppOperation do
   def index_operation do
     %Operation{
       summary: "Retrieve a list of OAuth applications",
-      tags: ["OAuth application managment"],
+      tags: ["OAuth application management"],
       operationId: "AdminAPI.OAuthAppController.index",
       security: [%{"oAuth" => ["admin:write"]}],
       parameters: [
@@ -69,7 +69,7 @@ defmodule Pleroma.Web.ApiSpec.Admin.OAuthAppOperation do
 
   def create_operation do
     %Operation{
-      tags: ["OAuth application managment"],
+      tags: ["OAuth application management"],
       summary: "Create an OAuth application",
       operationId: "AdminAPI.OAuthAppController.create",
       requestBody: request_body("Parameters", create_request()),
@@ -84,7 +84,7 @@ defmodule Pleroma.Web.ApiSpec.Admin.OAuthAppOperation do
 
   def update_operation do
     %Operation{
-      tags: ["OAuth application managment"],
+      tags: ["OAuth application management"],
       summary: "Update OAuth application",
       operationId: "AdminAPI.OAuthAppController.update",
       parameters: [id_param() | admin_api_params()],
@@ -102,7 +102,7 @@ defmodule Pleroma.Web.ApiSpec.Admin.OAuthAppOperation do
 
   def delete_operation do
     %Operation{
-      tags: ["OAuth application managment"],
+      tags: ["OAuth application management"],
       summary: "Delete OAuth application",
       operationId: "AdminAPI.OAuthAppController.delete",
       parameters: [id_param() | admin_api_params()],
@@ -123,7 +123,10 @@ defmodule Pleroma.Web.ApiSpec.Admin.OAuthAppOperation do
         name: %Schema{type: :string, description: "Application Name"},
         scopes: %Schema{type: :array, items: %Schema{type: :string}, description: "oAuth scopes"},
         redirect_uris: %Schema{
-          type: :string,
+          oneOf: [
+            %Schema{type: :string},
+            %Schema{type: :array, items: %Schema{type: :string}}
+          ],
           description:
             "Where the user should be redirected after authorization. To display the authorization code to the user instead of redirecting to a web page, use `urn:ietf:wg:oauth:2.0:oob` in this parameter."
         },
@@ -141,7 +144,7 @@ defmodule Pleroma.Web.ApiSpec.Admin.OAuthAppOperation do
       },
       example: %{
         "name" => "My App",
-        "redirect_uris" => "https://myapp.com/auth/callback",
+        "redirect_uris" => ["https://myapp.com/auth/callback"],
         "website" => "https://myapp.com/",
         "scopes" => ["read", "write"],
         "trusted" => true
@@ -157,7 +160,10 @@ defmodule Pleroma.Web.ApiSpec.Admin.OAuthAppOperation do
         name: %Schema{type: :string, description: "Application Name"},
         scopes: %Schema{type: :array, items: %Schema{type: :string}, description: "oAuth scopes"},
         redirect_uris: %Schema{
-          type: :string,
+          oneOf: [
+            %Schema{type: :string},
+            %Schema{type: :array, items: %Schema{type: :string}}
+          ],
           description:
             "Where the user should be redirected after authorization. To display the authorization code to the user instead of redirecting to a web page, use `urn:ietf:wg:oauth:2.0:oob` in this parameter."
         },
@@ -175,7 +181,7 @@ defmodule Pleroma.Web.ApiSpec.Admin.OAuthAppOperation do
       },
       example: %{
         "name" => "My App",
-        "redirect_uris" => "https://myapp.com/auth/callback",
+        "redirect_uris" => ["https://myapp.com/auth/callback"],
         "website" => "https://myapp.com/",
         "scopes" => ["read", "write"],
         "trusted" => true

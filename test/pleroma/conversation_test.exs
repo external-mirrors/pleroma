@@ -13,6 +13,11 @@ defmodule Pleroma.ConversationTest do
 
   setup_all do: clear_config([:instance, :federating], true)
 
+  setup do
+    Mox.stub_with(Pleroma.UnstubbedConfigMock, Pleroma.Test.StaticConfig)
+    :ok
+  end
+
   test "it goes through old direct conversations" do
     user = insert(:user)
     other_user = insert(:user)
@@ -61,8 +66,10 @@ defmodule Pleroma.ConversationTest do
     jafnhar = insert(:user, local: false)
     tridi = insert(:user)
 
+    to = [har.nickname, jafnhar.nickname, tridi.nickname]
+
     {:ok, activity} =
-      CommonAPI.post(har, %{status: "Hey @#{jafnhar.nickname}", visibility: "direct"})
+      CommonAPI.post(har, %{status: "Hey @#{jafnhar.nickname}", visibility: "direct", to: to})
 
     object = Pleroma.Object.normalize(activity, fetch: false)
     context = object.data["context"]
@@ -83,7 +90,8 @@ defmodule Pleroma.ConversationTest do
       CommonAPI.post(jafnhar, %{
         status: "Hey @#{har.nickname}",
         visibility: "direct",
-        in_reply_to_status_id: activity.id
+        in_reply_to_status_id: activity.id,
+        to: to
       })
 
     object = Pleroma.Object.normalize(activity, fetch: false)
@@ -107,7 +115,8 @@ defmodule Pleroma.ConversationTest do
       CommonAPI.post(tridi, %{
         status: "Hey @#{har.nickname}",
         visibility: "direct",
-        in_reply_to_status_id: activity.id
+        in_reply_to_status_id: activity.id,
+        to: to
       })
 
     object = Pleroma.Object.normalize(activity, fetch: false)

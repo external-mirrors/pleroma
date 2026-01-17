@@ -99,24 +99,6 @@ defmodule Pleroma.Object do
   def get_by_id(nil), do: nil
   def get_by_id(id), do: Repo.get(Object, id)
 
-  def get_by_id_and_maybe_refetch(id, opts \\ []) do
-    %{updated_at: updated_at} = object = get_by_id(id)
-
-    if opts[:interval] &&
-         NaiveDateTime.diff(NaiveDateTime.utc_now(), updated_at) > opts[:interval] do
-      case Fetcher.refetch_object(object) do
-        {:ok, %Object{} = object} ->
-          object
-
-        e ->
-          Logger.error("Couldn't refresh #{object.data["id"]}:\n#{inspect(e)}")
-          object
-      end
-    else
-      object
-    end
-  end
-
   def get_by_ap_id(nil), do: nil
 
   def get_by_ap_id(ap_id) do
@@ -144,7 +126,7 @@ defmodule Pleroma.Object do
     Logger.debug("Backtrace: #{inspect(Process.info(:erlang.self(), :current_stacktrace))}")
   end
 
-  def normalize(_, options \\ [fetch: false, id_only: false])
+  def normalize(_, options \\ [fetch: false])
 
   # If we pass an Activity to Object.normalize(), we can try to use the preloaded object.
   # Use this whenever possible, especially when walking graphs in an O(N) loop!
@@ -173,11 +155,11 @@ defmodule Pleroma.Object do
 
   def normalize(ap_id, options) when is_binary(ap_id) do
     cond do
-      Keyword.get(options, :id_only) ->
-        ap_id
-
       Keyword.get(options, :fetch) ->
-        Fetcher.fetch_object_from_id!(ap_id, options)
+        case Fetcher.fetch_object_from_id(ap_id, options) do
+          {:ok, object} -> object
+          _ -> nil
+        end
 
       true ->
         get_cached_by_ap_id(ap_id)
@@ -239,17 +221,18 @@ defmodule Pleroma.Object do
          {:ok, _} <- invalid_object_cache(object) do
       cleanup_attachments(
         Config.get([:instance, :cleanup_attachments]),
-        %{"object" => object}
+        object
       )
 
       {:ok, object, deleted_activity}
     end
   end
 
-  @spec cleanup_attachments(boolean(), %{required(:object) => map()}) ::
+  @spec cleanup_attachments(boolean(), Object.t()) ::
           {:ok, Oban.Job.t() | nil}
-  def cleanup_attachments(true, %{"object" => _} = params) do
-    AttachmentsCleanupWorker.enqueue("cleanup_attachments", params)
+  def cleanup_attachments(true, %Object{} = object) do
+    AttachmentsCleanupWorker.new(%{"op" => "cleanup_attachments", "object" => object})
+    |> Oban.insert()
   end
 
   def cleanup_attachments(_, _), do: {:ok, nil}
@@ -328,6 +311,52 @@ defmodule Pleroma.Object do
     end
   end
 
+  def increase_quotes_count(ap_id) do
+    Object
+    |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
+    |> update([o],
+      set: [
+        data:
+          fragment(
+            """
+            safe_jsonb_set(?, '{quotesCount}',
+              (coalesce((?->>'quotesCount')::int, 0) + 1)::varchar::jsonb, true)
+            """,
+            o.data,
+            o.data
+          )
+      ]
+    )
+    |> Repo.update_all([])
+    |> case do
+      {1, [object]} -> set_cache(object)
+      _ -> {:error, "Not found"}
+    end
+  end
+
+  def decrease_quotes_count(ap_id) do
+    Object
+    |> where([o], fragment("?->>'id' = ?::text", o.data, ^to_string(ap_id)))
+    |> update([o],
+      set: [
+        data:
+          fragment(
+            """
+            safe_jsonb_set(?, '{quotesCount}',
+              (greatest(0, (?->>'quotesCount')::int - 1))::varchar::jsonb, true)
+            """,
+            o.data,
+            o.data
+          )
+      ]
+    )
+    |> Repo.update_all([])
+    |> case do
+      {1, [object]} -> set_cache(object)
+      _ -> {:error, "Not found"}
+    end
+  end
+
   def increase_vote_count(ap_id, name, actor) do
     with %Object{} = object <- Object.normalize(ap_id, fetch: false),
          "Question" <- object.data["type"] do
@@ -369,28 +398,6 @@ defmodule Pleroma.Object do
     String.starts_with?(id, Pleroma.Web.Endpoint.url() <> "/")
   end
 
-  def replies(object, opts \\ []) do
-    object = Object.normalize(object, fetch: false)
-
-    query =
-      Object
-      |> where(
-        [o],
-        fragment("(?)->>'inReplyTo' = ?", o.data, ^object.data["id"])
-      )
-      |> order_by([o], asc: o.id)
-
-    if opts[:self_only] do
-      actor = object.data["actor"]
-      where(query, [o], fragment("(?)->>'actor' = ?", o.data, ^actor))
-    else
-      query
-    end
-  end
-
-  def self_replies(object, opts \\ []),
-    do: replies(object, Keyword.put(opts, :self_only, true))
-
   def tags(%Object{data: %{"tag" => tags}}) when is_list(tags), do: tags
 
   def tags(_), do: []
@@ -425,4 +432,30 @@ defmodule Pleroma.Object do
   end
 
   def object_data_hashtags(_), do: []
+
+  def get_emoji_reactions(object) do
+    reactions = object.data["reactions"]
+
+    if is_list(reactions) or is_map(reactions) do
+      reactions
+      |> Enum.map(fn
+        [_emoji, users, _maybe_url] = item when is_list(users) ->
+          item
+
+        [emoji, users] when is_list(users) ->
+          [emoji, users, nil]
+
+        # This case is here to process the Map situation, which will happen
+        # only with the legacy two-value format.
+        {emoji, users} when is_list(users) ->
+          [emoji, users, nil]
+
+        _ ->
+          nil
+      end)
+      |> Enum.reject(&is_nil/1)
+    else
+      []
+    end
+  end
 end

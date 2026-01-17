@@ -205,6 +205,35 @@ defmodule Mix.Tasks.Pleroma.Config do
     end
   end
 
+  # Removes any policies that are not a real module
+  # as they will prevent the server from starting
+  def run(["fix_mrf_policies"]) do
+    check_configdb(fn ->
+      start_pleroma()
+
+      group = :pleroma
+      key = :mrf
+
+      %{value: value} =
+        group
+        |> ConfigDB.get_by_group_and_key(key)
+
+      policies =
+        Keyword.get(value, :policies, [])
+        |> Enum.filter(&is_atom(&1))
+        |> Enum.filter(fn mrf ->
+          case Code.ensure_compiled(mrf) do
+            {:module, _} -> true
+            {:error, _} -> false
+          end
+        end)
+
+      value = Keyword.put(value, :policies, policies)
+
+      ConfigDB.update_or_create(%{group: group, key: key, value: value})
+    end)
+  end
+
   @spec migrate_to_db(Path.t() | nil) :: any()
   def migrate_to_db(file_path \\ nil) do
     with :ok <- Pleroma.Config.DeprecationWarnings.warn() do
@@ -301,7 +330,13 @@ defmodule Mix.Tasks.Pleroma.Config do
     |> Enum.each(&write_and_delete(&1, file, opts[:delete]))
 
     :ok = File.close(file)
-    System.cmd("mix", ["format", path])
+
+    # Ensure `mix format` runs in the same env as the current task and doesn't
+    # emit config-time stderr noise (e.g. dev secret warnings) into `mix test`.
+    System.cmd("mix", ["format", path],
+      env: [{"MIX_ENV", to_string(Mix.env())}],
+      stderr_to_stdout: true
+    )
   end
 
   defp config_header, do: "import Config\r\n\r\n"

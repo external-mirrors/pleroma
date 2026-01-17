@@ -30,7 +30,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidator do
 
   def cast_and_apply(data) do
     data
-    |> cast_data
+    |> cast_data()
     |> apply_action(:insert)
   end
 
@@ -56,20 +56,24 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidator do
   defp fix_tag(%{"tag" => tag} = data) when is_map(tag), do: Map.put(data, "tag", [tag])
   defp fix_tag(data), do: Map.drop(data, ["tag"])
 
+  # legacy internal *oma format
+  defp fix_replies(%{"replies" => replies} = data) when is_list(replies), do: data
+
   defp fix_replies(%{"replies" => %{"first" => %{"items" => replies}}} = data)
+       when is_list(replies),
+       do: Map.put(data, "replies", replies)
+
+  defp fix_replies(%{"replies" => %{"first" => %{"orderedItems" => replies}}} = data)
        when is_list(replies),
        do: Map.put(data, "replies", replies)
 
   defp fix_replies(%{"replies" => %{"items" => replies}} = data) when is_list(replies),
     do: Map.put(data, "replies", replies)
 
-  # TODO: Pleroma does not have any support for Collections at the moment.
-  # If the `replies` field is not something the ObjectID validator can handle,
-  # the activity/object would be rejected, which is bad behavior.
-  defp fix_replies(%{"replies" => replies} = data) when not is_list(replies),
-    do: Map.drop(data, ["replies"])
+  defp fix_replies(%{"replies" => %{"orderedItems" => replies}} = data) when is_list(replies),
+    do: Map.put(data, "replies", replies)
 
-  defp fix_replies(data), do: data
+  defp fix_replies(data), do: Map.delete(data, "replies")
 
   def fix_attachments(%{"attachment" => attachment} = data) when is_map(attachment),
     do: Map.put(data, "attachment", [attachment])
@@ -84,7 +88,10 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidator do
     |> fix_tag()
     |> fix_replies()
     |> fix_attachments()
+    |> CommonFixes.fix_quote_url()
+    |> CommonFixes.fix_likes()
     |> Transmogrifier.fix_emoji()
+    |> CommonFixes.maybe_add_language()
     |> CommonFixes.fix_multilang_field("content", "contentMap", multiline: true)
     |> CommonFixes.fix_multilang_field("summary", "summaryMap", multiline: false)
     |> CommonFixes.fix_multilang_field("name", "nameMap", multiline: false)

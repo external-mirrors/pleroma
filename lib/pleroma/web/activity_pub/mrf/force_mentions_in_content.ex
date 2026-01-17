@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2022 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2023 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContent do
@@ -82,6 +82,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContent do
         } = activity
       )
       when type in ["Create", "Update"] and is_list(to) and is_binary(in_reply_to) do
+    # image-only posts from pleroma apparently reach this MRF without the content field
+
     # Get the replied-to user for sorting
     replied_to_user = get_replied_to_user(object)
 
@@ -121,17 +123,16 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContent do
   end
 
   @impl true
-  def filter(object), do: {:ok, object}
-
-  @impl true
-  def describe, do: {:ok, %{}}
+  def filter(activity), do: {:ok, activity}
 
   defp fix_content(content, mention_users) do
-    explicitly_mentioned_uris = extract_mention_uris_from_content(content)
+    explicitly_mentioned_uris =
+      extract_mention_uris_from_content(content)
+      |> MapSet.new()
 
     added_mentions =
-      Enum.reduce(mention_users, "", fn %User{ap_id: uri} = user, acc ->
-        unless uri in explicitly_mentioned_uris do
+      Enum.reduce(mention_users, "", fn %User{ap_id: ap_id, uri: uri} = user, acc ->
+        if MapSet.disjoint?(MapSet.new([ap_id, uri]), explicitly_mentioned_uris) do
           acc <> Formatter.mention_from_user(user, %{mentions_format: :compact}) <> " "
         else
           acc
@@ -155,4 +156,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContent do
         content
     end
   end
+
+  @impl true
+  def describe, do: {:ok, %{}}
 end

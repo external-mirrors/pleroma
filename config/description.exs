@@ -117,6 +117,19 @@ config :pleroma, :config_description, [
         key: :filename_display_max_length,
         type: :integer,
         description: "Set max length of a filename to display. 0 = no limit. Default: 30"
+      },
+      %{
+        key: :allowed_mime_types,
+        label: "Allowed MIME types",
+        type: {:list, :string},
+        description:
+          "List of MIME (main) types uploads are allowed to identify themselves with. Other types may still be uploaded, but will identify as a generic binary to clients. WARNING: Loosening this over the defaults can lead to security issues. Removing types is safe, but only add to the list if you are sure you know what you are doing.",
+        suggestions: [
+          "image",
+          "audio",
+          "video",
+          "font"
+        ]
       }
     ]
   },
@@ -132,6 +145,31 @@ config :pleroma, :config_description, [
         description: "Path where user's uploads will be saved",
         suggestions: [
           "uploads"
+        ]
+      }
+    ]
+  },
+  %{
+    group: :pleroma,
+    key: Pleroma.Uploaders.IPFS,
+    type: :group,
+    description: "IPFS uploader-related settings",
+    children: [
+      %{
+        key: :get_gateway_url,
+        type: :string,
+        description: "GET Gateway URL",
+        suggestions: [
+          "https://ipfs.mydomain.com/{CID}",
+          "https://{CID}.ipfs.mydomain.com/"
+        ]
+      },
+      %{
+        key: :post_gateway_url,
+        type: :string,
+        description: "POST Gateway URL",
+        suggestions: [
+          "http://localhost:5001/"
         ]
       }
     ]
@@ -567,6 +605,20 @@ config :pleroma, :config_description, [
         ]
       },
       %{
+        key: :status_page,
+        type: :string,
+        description: "A page where people can see the status of the server during an outage",
+        suggestions: [
+          "https://status.pleroma.example.org"
+        ]
+      },
+      %{
+        key: :contact_username,
+        type: :string,
+        description: "Instance owner username",
+        suggestions: ["admin"]
+      },
+      %{
         key: :limit,
         type: :integer,
         description: "Posts character limit (CW/Subject included in the counter)",
@@ -733,6 +785,18 @@ config :pleroma, :config_description, [
         suggestions: [
           {"quarantined.com", "Reason"},
           {"*.quarantined.com", "Reason"}
+        ]
+      },
+      %{
+        key: :rejected_instances,
+        type: {:list, :tuple},
+        key_placeholder: "instance",
+        value_placeholder: "reason",
+        description:
+          "List of ActivityPub instances to reject requests from if authorized_fetch_mode is enabled",
+        suggestions: [
+          {"rejected.com", "Reason"},
+          {"*.rejected.com", "Reason"}
         ]
       },
       %{
@@ -988,6 +1052,12 @@ config :pleroma, :config_description, [
         suggestions: ["/instance/thumbnail.jpeg"]
       },
       %{
+        key: :favicon,
+        type: {:string, :image},
+        description: "Favicon of the instance",
+        suggestions: ["/favicon.png"]
+      },
+      %{
         key: :show_reactions,
         type: :boolean,
         description: "Let favourites and emoji reactions be viewed through the API."
@@ -1052,6 +1122,15 @@ config :pleroma, :config_description, [
         description:
           "Minimum required age (in days) for users to create account. Only used if birthday is required.",
         suggestions: [6570]
+      },
+      %{
+        key: :languages,
+        type: {:list, :string},
+        description:
+          "Languages to be exposed in /api/v1/instance. Should be in the format of BCP47 language codes.",
+        suggestions: [
+          "en"
+        ]
       }
     ]
   },
@@ -1163,79 +1242,6 @@ config :pleroma, :config_description, [
     ]
   },
   %{
-    group: :logger,
-    type: :group,
-    description: "Logger-related settings",
-    children: [
-      %{
-        key: :backends,
-        type: [:atom, :tuple, :module],
-        description:
-          "Where logs will be sent, :console - send logs to stdout, { ExSyslogger, :ex_syslogger } - to syslog, Quack.Logger - to Slack.",
-        suggestions: [:console, {ExSyslogger, :ex_syslogger}, Quack.Logger]
-      }
-    ]
-  },
-  %{
-    group: :logger,
-    type: :group,
-    key: :ex_syslogger,
-    label: "ExSyslogger",
-    description: "ExSyslogger-related settings",
-    children: [
-      %{
-        key: :level,
-        type: {:dropdown, :atom},
-        description: "Log level",
-        suggestions: [:debug, :info, :warn, :error]
-      },
-      %{
-        key: :ident,
-        type: :string,
-        description:
-          "A string that's prepended to every message, and is typically set to the app name",
-        suggestions: ["pleroma"]
-      },
-      %{
-        key: :format,
-        type: :string,
-        description: "Default: \"$date $time [$level] $levelpad$node $metadata $message\"",
-        suggestions: ["$metadata[$level] $message"]
-      },
-      %{
-        key: :metadata,
-        type: {:list, :atom},
-        suggestions: [:request_id]
-      }
-    ]
-  },
-  %{
-    group: :logger,
-    type: :group,
-    key: :console,
-    label: "Console Logger",
-    description: "Console logger settings",
-    children: [
-      %{
-        key: :level,
-        type: {:dropdown, :atom},
-        description: "Log level",
-        suggestions: [:debug, :info, :warn, :error]
-      },
-      %{
-        key: :format,
-        type: :string,
-        description: "Default: \"$date $time [$level] $levelpad$node $metadata $message\"",
-        suggestions: ["$metadata[$level] $message"]
-      },
-      %{
-        key: :metadata,
-        type: {:list, :atom},
-        suggestions: [:request_id]
-      }
-    ]
-  },
-  %{
     group: :pleroma,
     key: :frontend_configurations,
     type: :group,
@@ -1255,6 +1261,7 @@ config :pleroma, :config_description, [
             background: "/static/aurora_borealis.jpg",
             collapseMessageWithSubject: false,
             greentext: false,
+            embeddedToS: true,
             hideFilteredStatuses: false,
             hideMutedPosts: false,
             hidePostStats: false,
@@ -1305,6 +1312,12 @@ config :pleroma, :config_description, [
             label: "Greentext",
             type: :boolean,
             description: "Enables green text on lines prefixed with the > character"
+          },
+          %{
+            key: :embeddedToS,
+            label: "Embedded ToS panel",
+            type: :boolean,
+            description: "Hide Terms of Service panel decorations on About and Registration pages"
           },
           %{
             key: :hideFilteredStatuses,
@@ -1429,7 +1442,7 @@ config :pleroma, :config_description, [
             label: "Subject line behavior",
             type: :string,
             description: "Allows changing the default behaviour of subject lines in replies.
-          `email`: copy and preprend re:, as in email,
+          `email`: copy and prepend re:, as in email,
           `masto`: copy verbatim, as in Mastodon,
           `noop`: don't copy the subject.",
             suggestions: ["email", "masto", "noop"]
@@ -1763,6 +1776,12 @@ config :pleroma, :config_description, [
         description: "Require HTTP signatures for AP fetches"
       },
       %{
+        key: :authorized_fetch_mode_exceptions,
+        type: {:list, :string},
+        description:
+          "List of IPs (CIDR format accepted) to exempt from HTTP Signatures requirement (for example to allow debugging, you shouldn't otherwise need this)"
+      },
+      %{
         key: :note_replies_output_limit,
         type: :integer,
         description:
@@ -1773,6 +1792,28 @@ config :pleroma, :config_description, [
         type: :integer,
         description: "Following handshake timeout",
         suggestions: [500]
+      },
+      %{
+        key: :client_api_enabled,
+        type: :boolean,
+        description: "Allow client to server ActivityPub interactions"
+      },
+      %{
+        key: :anonymize_reporter,
+        type: :boolean,
+        label: "Anonymize local reports",
+        description:
+          "If true, replace local reporters with the designated local user for the copy to be sent to remote servers"
+      },
+      %{
+        key: :anonymize_reporter_local_nickname,
+        type: :string,
+        label: "Anonymized reporter",
+        description:
+          "The nickname of the designated local user that replaces the actual reporter in the copy to be sent to remote servers",
+        suggestions: [
+          "lain"
+        ]
       }
     ]
   },
@@ -1922,7 +1963,7 @@ config :pleroma, :config_description, [
         key: :log,
         type: {:dropdown, :atom},
         description: "Logs verbose mode",
-        suggestions: [false, :error, :warn, :info, :debug]
+        suggestions: [false, :error, :warning, :info, :debug]
       },
       %{
         key: :queues,
@@ -2016,23 +2057,6 @@ config :pleroma, :config_description, [
   },
   %{
     group: :pleroma,
-    key: :workers,
-    type: :group,
-    description: "Includes custom worker options not interpretable directly by `Oban`",
-    children: [
-      %{
-        key: :retries,
-        type: {:keyword, :integer},
-        description: "Max retry attempts for failed jobs, per `Oban` queue",
-        suggestions: [
-          federator_incoming: 5,
-          federator_outgoing: 5
-        ]
-      }
-    ]
-  },
-  %{
-    group: :pleroma,
     key: Pleroma.Web.Metadata,
     type: :group,
     description: "Metadata-related settings",
@@ -2102,11 +2126,16 @@ config :pleroma, :config_description, [
         ]
       },
       %{
-        key: :failure_backoff,
+        key: :timeout,
         type: :integer,
         description:
-          "Amount of milliseconds after request failure, during which the request will not be retried.",
-        suggestions: [60_000]
+          "Amount of milliseconds after which the HTTP request is forcibly terminated.",
+        suggestions: [5_000]
+      },
+      %{
+        key: :user_agent,
+        type: :string,
+        description: "Custom User-Agent header to be used when fetching rich media content."
       }
     ]
   },
@@ -2259,14 +2288,8 @@ config :pleroma, :config_description, [
         label: "SSL options",
         type: :keyword,
         description: "Additional SSL options",
-        suggestions: [cacertfile: "path/to/file/with/PEM/cacerts", verify: :verify_peer],
+        suggestions: [verify: :verify_peer],
         children: [
-          %{
-            key: :cacertfile,
-            type: :string,
-            description: "Path to file with PEM encoded cacerts",
-            suggestions: ["path/to/file/with/PEM/cacerts"]
-          },
           %{
             key: :verify,
             type: :atom,
@@ -2286,14 +2309,8 @@ config :pleroma, :config_description, [
         label: "TLS options",
         type: :keyword,
         description: "Additional TLS options",
-        suggestions: [cacertfile: "path/to/file/with/PEM/cacerts", verify: :verify_peer],
+        suggestions: [verify: :verify_peer],
         children: [
-          %{
-            key: :cacertfile,
-            type: :string,
-            description: "Path to file with PEM encoded cacerts",
-            suggestions: ["path/to/file/with/PEM/cacerts"]
-          },
           %{
             key: :verify,
             type: :atom,
@@ -2310,11 +2327,25 @@ config :pleroma, :config_description, [
       },
       %{
         key: :uid,
-        label: "UID",
+        label: "UID Attribute",
         type: :string,
         description:
           "LDAP attribute name to authenticate the user, e.g. when \"cn\", the filter will be \"cn=username,base\"",
         suggestions: ["cn"]
+      },
+      %{
+        key: :cacertfile,
+        label: "CACertfile",
+        type: :string,
+        description: "Path to CA certificate file"
+      },
+      %{
+        key: :mail,
+        label: "Mail Attribute",
+        type: :string,
+        description:
+          "LDAP attribute name to use as the email address when automatically registering the user on first login",
+        suggestions: ["mail"]
       }
     ]
   },
@@ -2616,45 +2647,6 @@ config :pleroma, :config_description, [
         type: [:tuple, {:list, :tuple}],
         description: "For authentication create / password check / user existence check requests",
         suggestions: [{60_000, 15}]
-      }
-    ]
-  },
-  %{
-    group: :esshd,
-    label: "ESSHD",
-    type: :group,
-    description:
-      "Before enabling this you must add :esshd to mix.exs as one of the extra_applications " <>
-        "and generate host keys in your priv dir with ssh-keygen -m PEM -N \"\" -b 2048 -t rsa -f ssh_host_rsa_key",
-    children: [
-      %{
-        key: :enabled,
-        type: :boolean,
-        description: "Enables SSH"
-      },
-      %{
-        key: :priv_dir,
-        type: :string,
-        description: "Dir with SSH keys",
-        suggestions: ["/some/path/ssh_keys"]
-      },
-      %{
-        key: :handler,
-        type: :string,
-        description: "Handler module",
-        suggestions: ["Pleroma.BBS.Handler"]
-      },
-      %{
-        key: :port,
-        type: :integer,
-        description: "Port to connect",
-        suggestions: [10_022]
-      },
-      %{
-        key: :password_authenticator,
-        type: :string,
-        description: "Authenticator module",
-        suggestions: ["Pleroma.BBS.Authenticator"]
       }
     ]
   },
@@ -3120,7 +3112,7 @@ config :pleroma, :config_description, [
               key: :max_waiting,
               type: :integer,
               description:
-                "Maximum number of requests waiting for other requests to finish. After this number is reached, the pool will start returning errrors when a new request is made",
+                "Maximum number of requests waiting for other requests to finish. After this number is reached, the pool will start returning errors when a new request is made",
               suggestions: [10]
             },
             %{
@@ -3341,6 +3333,12 @@ config :pleroma, :config_description, [
         description:
           "A map containing available frontends and parameters for their installation.",
         children: frontend_options
+      },
+      %{
+        key: :pickable,
+        type: {:list, :string},
+        description:
+          "A list containing all frontends users can pick as their preference, format is :name/:ref, e.g pleroma-fe/stable."
       }
     ]
   },
@@ -3357,8 +3355,7 @@ config :pleroma, :config_description, [
         suggestions: [
           Pleroma.Web.Preload.Providers.Instance,
           Pleroma.Web.Preload.Providers.User,
-          Pleroma.Web.Preload.Providers.Timelines,
-          Pleroma.Web.Preload.Providers.StatusNet
+          Pleroma.Web.Preload.Providers.Timelines
         ]
       }
     ]
@@ -3386,7 +3383,7 @@ config :pleroma, :config_description, [
       %{
         key: :purge_after_days,
         type: :integer,
-        description: "Remove backup achives after N days",
+        description: "Remove backup archives after N days",
         suggestions: [30]
       },
       %{
@@ -3394,6 +3391,20 @@ config :pleroma, :config_description, [
         type: :integer,
         description: "Limit user to export not more often than once per N days",
         suggestions: [7]
+      },
+      %{
+        key: :process_chunk_size,
+        type: :integer,
+        label: "Process Chunk Size",
+        description: "The number of activities to fetch in the backup job for each chunk.",
+        suggestions: [100]
+      },
+      %{
+        key: :timeout,
+        type: :integer,
+        label: "Timeout",
+        description: "The amount of time to wait for backup to complete in seconds.",
+        suggestions: [1_800]
       }
     ]
   },
@@ -3479,6 +3490,131 @@ config :pleroma, :config_description, [
             suggestion: [5]
           }
         ]
+      }
+    ]
+  },
+  %{
+    group: :pleroma,
+    key: Pleroma.Search,
+    type: :group,
+    description: "General search settings.",
+    children: [
+      %{
+        key: :module,
+        type: :keyword,
+        description: "Selected search module.",
+        suggestion: [Pleroma.Search.DatabaseSearch, Pleroma.Search.Meilisearch]
+      }
+    ]
+  },
+  %{
+    group: :pleroma,
+    key: Pleroma.Search.Meilisearch,
+    type: :group,
+    description: "Meilisearch settings.",
+    children: [
+      %{
+        key: :url,
+        type: :string,
+        description: "Meilisearch URL.",
+        suggestion: ["http://127.0.0.1:7700/"]
+      },
+      %{
+        key: :private_key,
+        type: :string,
+        description:
+          "Private key for meilisearch authentication, or `nil` to disable private key authentication.",
+        suggestion: [nil]
+      },
+      %{
+        key: :initial_indexing_chunk_size,
+        type: :integer,
+        description:
+          "Amount of posts in a batch when running the initial indexing operation. Should probably not be more than 100000" <>
+            " since there's a limit on maximum insert size",
+        suggestion: [100_000]
+      }
+    ]
+  },
+  %{
+    group: :pleroma,
+    key: Pleroma.Language.LanguageDetector,
+    type: :group,
+    description: "Language detection providers",
+    children: [
+      %{
+        key: :provider,
+        type: :module,
+        suggestions: {:list_behaviour_implementations, Pleroma.Language.LanguageDetector.Provider}
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.LanguageDetector.Fasttext},
+        key: :model,
+        label: "fastText language detection model",
+        type: :string,
+        suggestions: ["/usr/share/fasttext/lid.176.bin"]
+      }
+    ]
+  },
+  %{
+    group: :pleroma,
+    key: Pleroma.Language.Translation,
+    type: :group,
+    description: "Translation providers",
+    children: [
+      %{
+        key: :provider,
+        type: :module,
+        suggestions: {:list_behaviour_implementations, Pleroma.Language.Translation.Provider}
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.Deepl},
+        key: :base_url,
+        label: "DeepL base URL",
+        type: :string,
+        suggestions: ["https://api-free.deepl.com", "https://api.deepl.com"]
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.Deepl},
+        key: :api_key,
+        label: "DeepL API Key",
+        type: :string,
+        suggestions: ["YOUR_API_KEY"]
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.Libretranslate},
+        key: :base_url,
+        label: "LibreTranslate instance URL",
+        type: :string,
+        suggestions: ["https://libretranslate.com"]
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.Libretranslate},
+        key: :api_key,
+        label: "LibreTranslate API Key",
+        type: :string,
+        suggestions: ["YOUR_API_KEY"]
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.TranslateLocally},
+        key: :intermediary_language,
+        label:
+          "translateLocally intermediary language (used when direct source->target model is not available)",
+        type: :string,
+        suggestions: ["en"]
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.Mozhi},
+        key: :base_url,
+        label: "Mozhi instance URL",
+        type: :string
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.Mozhi},
+        key: :engine,
+        label: "Engine used for Mozhi",
+        type: :string,
+        suggestions: ["libretranslate"]
       }
     ]
   }

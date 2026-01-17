@@ -4,12 +4,16 @@
 
 defmodule Pleroma.Web.Plugs.FrontendStaticPlugTest do
   use Pleroma.Web.ConnCase
+
   import Mock
+  import Mox
+
+  alias Pleroma.UnstubbedConfigMock, as: ConfigMock
 
   @dir "test/tmp/instance_static"
 
   setup do
-    File.mkdir_p!(@dir)
+    Pleroma.Backports.mkdir_p!(@dir)
     on_exit(fn -> File.rm_rf(@dir) end)
   end
 
@@ -34,7 +38,7 @@ defmodule Pleroma.Web.Plugs.FrontendStaticPlugTest do
     clear_config([:frontends, :primary], %{"name" => name, "ref" => ref})
     path = "#{@dir}/frontends/#{name}/#{ref}"
 
-    File.mkdir_p!(path)
+    Pleroma.Backports.mkdir_p!(path)
     File.write!("#{path}/index.html", "from frontend plug")
 
     index = get(conn, "/")
@@ -48,7 +52,7 @@ defmodule Pleroma.Web.Plugs.FrontendStaticPlugTest do
     clear_config([:frontends, :admin], %{"name" => name, "ref" => ref})
     path = "#{@dir}/frontends/#{name}/#{ref}"
 
-    File.mkdir_p!(path)
+    Pleroma.Backports.mkdir_p!(path)
     File.write!("#{path}/index.html", "from frontend plug")
 
     index = get(conn, "/pleroma/admin/")
@@ -63,8 +67,11 @@ defmodule Pleroma.Web.Plugs.FrontendStaticPlugTest do
     clear_config([:frontends, :primary], %{"name" => name, "ref" => ref})
     path = "#{@dir}/frontends/#{name}/#{ref}"
 
-    File.mkdir_p!("#{path}/proxy/rr/ss")
+    Pleroma.Backports.mkdir_p!("#{path}/proxy/rr/ss")
     File.write!("#{path}/proxy/rr/ss/Ek7w8WPVcAApOvN.jpg:large", "FB image")
+
+    ConfigMock
+    |> stub_with(Pleroma.Test.StaticConfig)
 
     url =
       Pleroma.Web.MediaProxy.encode_url("https://pbs.twimg.com/media/Ek7w8WPVcAApOvN.jpg:large")
@@ -82,6 +89,7 @@ defmodule Pleroma.Web.Plugs.FrontendStaticPlugTest do
       "api",
       "main",
       "ostatus_subscribe",
+      "authorize_interaction",
       "oauth",
       "objects",
       "activities",
@@ -89,6 +97,7 @@ defmodule Pleroma.Web.Plugs.FrontendStaticPlugTest do
       "users",
       "tags",
       "mailer",
+      "frontend_switcher",
       "inbox",
       "relay",
       "internal",
@@ -97,12 +106,43 @@ defmodule Pleroma.Web.Plugs.FrontendStaticPlugTest do
       "manifest.json",
       "auth",
       "proxy",
-      "phoenix",
       "test",
       "user_exists",
       "check_password"
     ]
 
     assert expected_routes == Pleroma.Web.Router.get_api_routes()
+  end
+
+  describe "preferred frontend cookie handling" do
+    test "returns preferred frontend file", %{conn: conn} do
+      name = "test-fe"
+      ref = "develop"
+
+      clear_config([:frontends, :pickable], ["#{name}/#{ref}"])
+      path = "#{@dir}/frontends/#{name}/#{ref}"
+
+      Pleroma.Backports.mkdir_p!(path)
+      File.write!("#{path}/index.html", "from frontend plug")
+
+      index =
+        conn
+        |> put_req_cookie("preferred_frontend", "#{name}/#{ref}")
+        |> get("/")
+
+      assert html_response(index, 200) == "from frontend plug"
+    end
+
+    test "only returns content from pickable frontends", %{conn: conn} do
+      clear_config([:instance, :static_dir], "instance/static")
+      clear_config([:frontends, :pickable], ["pleroma-fe/develop", "pl-fe/develop"])
+
+      config_file =
+        conn
+        |> put_req_cookie("preferred_frontend", "../../../config")
+        |> get("/config.exs")
+
+      refute response(config_file, 200) =~ "import Config"
+    end
   end
 end

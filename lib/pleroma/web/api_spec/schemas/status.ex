@@ -59,6 +59,10 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Status do
             format: :uri,
             description: "Preview thumbnail"
           },
+          image_description: %Schema{
+            type: :string,
+            description: "Alternate text that describes what is in the thumbnail"
+          },
           title: %Schema{type: :string, description: "Title of linked resource"},
           description: %Schema{type: :string, description: "Description of preview"}
         }
@@ -159,7 +163,11 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Status do
         properties: %{
           content: %Schema{
             type: :object,
-            additionalProperties: %Schema{type: :string},
+            additionalProperties: %Schema{
+              type: :string,
+              description: "Alternate representation in the MIME type specified",
+              extensions: %{"x-additionalPropertiesName": "MIME type"}
+            },
             description:
               "A map consisting of alternate representations of the `content` property with the key being it's mimetype. Currently the only alternate representation supported is `text/plain`"
           },
@@ -210,13 +218,43 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Status do
             nullable: true,
             description: "The `acct` property of User entity for replied user (if any)"
           },
+          quote: %Schema{
+            allOf: [%OpenApiSpex.Reference{"$ref": "#/components/schemas/Status"}],
+            nullable: true,
+            description: "Quoted status (if any)"
+          },
+          quote_id: %Schema{
+            nullable: true,
+            allOf: [FlakeID],
+            description: "ID of the status being quoted, if any"
+          },
+          quote_url: %Schema{
+            type: :string,
+            format: :uri,
+            nullable: true,
+            description: "URL of the quoted status"
+          },
+          quote_visible: %Schema{
+            type: :boolean,
+            description: "`true` if the quoted post is visible to the user"
+          },
+          quotes_count: %Schema{
+            type: :integer,
+            deprecated: true,
+            description:
+              "How many statuses quoted this status. Deprecated, use `quotes_count` from parent object instead."
+          },
           local: %Schema{
             type: :boolean,
             description: "`true` if the post was made on the local instance"
           },
           spoiler_text: %Schema{
             type: :object,
-            additionalProperties: %Schema{type: :string},
+            additionalProperties: %Schema{
+              type: :string,
+              description: "Alternate representation in the MIME type specified",
+              extensions: %{"x-additionalPropertiesName": "MIME type"}
+            },
             description:
               "A map consisting of alternate representations of the `spoiler_text` property with the key being it's mimetype. Currently the only alternate representation supported is `text/plain`."
           },
@@ -240,10 +278,20 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Status do
             nullable: true,
             description:
               "A datetime (ISO 8601) that states when the post was pinned or `null` if the post is not pinned"
+          },
+          list_id: %Schema{
+            type: :integer,
+            nullable: true,
+            description:
+              "The ID of the list the post is addressed to (if any, only returned to author)"
           }
         }
       },
       poll: %Schema{allOf: [Poll], nullable: true, description: "The poll attached to the status"},
+      quotes_count: %Schema{
+        type: :integer,
+        description: "How many statuses quoted this status."
+      },
       reblog: %Schema{
         allOf: [%OpenApiSpex.Reference{"$ref": "#/components/schemas/Status"}],
         nullable: true,
@@ -388,9 +436,11 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Status do
             "cmn" => ""
           }
         },
-        "thread_muted" => false
+        "thread_muted" => false,
+        "quotes_count" => 0
       },
       "poll" => nil,
+      "quotes_count" => 0,
       "reblog" => nil,
       "reblogged" => false,
       "reblogs_count" => 0,

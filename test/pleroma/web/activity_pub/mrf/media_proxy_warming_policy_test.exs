@@ -7,10 +7,12 @@ defmodule Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicyTest do
   use Pleroma.Tests.Helpers
 
   alias Pleroma.HTTP
+  alias Pleroma.UnstubbedConfigMock, as: ConfigMock
   alias Pleroma.Web.ActivityPub.MRF
   alias Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicy
 
   import Mock
+  import Mox
 
   @message %{
     "type" => "Create",
@@ -42,17 +44,27 @@ defmodule Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicyTest do
     }
   }
 
+  setup do
+    ConfigMock
+    |> stub_with(Pleroma.Test.StaticConfig)
+
+    :ok
+  end
+
   setup do: clear_config([:media_proxy, :enabled], true)
 
   test "it prefetches media proxy URIs" do
-    Tesla.Mock.mock(fn %{method: :get, url: "http://example.com/image.jpg"} ->
-      {:ok, %Tesla.Env{status: 200, body: ""}}
-    end)
-
-    with_mock HTTP, get: fn _, _, _ -> {:ok, []} end do
+    with_mock HTTP,
+      get: fn _, _, opts ->
+        send(self(), {:prefetch_opts, opts})
+        {:ok, []}
+      end do
       MediaProxyWarmingPolicy.filter(@message)
 
       assert called(HTTP.get(:_, :_, :_))
+      assert_receive {:prefetch_opts, opts}
+      refute Keyword.has_key?(opts, :follow_redirect)
+      refute Keyword.has_key?(opts, :force_redirect)
     end
   end
 
@@ -72,10 +84,6 @@ defmodule Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicyTest do
   end
 
   test "history-aware" do
-    Tesla.Mock.mock(fn %{method: :get, url: "http://example.com/image.jpg"} ->
-      {:ok, %Tesla.Env{status: 200, body: ""}}
-    end)
-
     with_mock HTTP, get: fn _, _, _ -> {:ok, []} end do
       MRF.filter_one(MediaProxyWarmingPolicy, @message_with_history)
 
@@ -84,10 +92,6 @@ defmodule Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicyTest do
   end
 
   test "works with Updates" do
-    Tesla.Mock.mock(fn %{method: :get, url: "http://example.com/image.jpg"} ->
-      {:ok, %Tesla.Env{status: 200, body: ""}}
-    end)
-
     with_mock HTTP, get: fn _, _, _ -> {:ok, []} end do
       MRF.filter_one(MediaProxyWarmingPolicy, @message_with_history |> Map.put("type", "Update"))
 

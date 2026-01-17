@@ -4,11 +4,13 @@
 
 defmodule Pleroma.Web.Streamer do
   require Logger
+  require Pleroma.Constants
 
   alias Pleroma.Activity
   alias Pleroma.Chat.MessageReference
   alias Pleroma.Config
   alias Pleroma.Conversation.Participation
+  alias Pleroma.Marker
   alias Pleroma.Notification
   alias Pleroma.Object
   alias Pleroma.User
@@ -18,13 +20,14 @@ defmodule Pleroma.Web.Streamer do
   alias Pleroma.Web.OAuth.Token
   alias Pleroma.Web.Plugs.OAuthScopesPlug
   alias Pleroma.Web.StreamerView
+  require Pleroma.Constants
 
-  @mix_env Mix.env()
   @registry Pleroma.Web.StreamerRegistry
 
   def registry, do: @registry
 
-  @public_streams ["public", "public:local", "public:media", "public:local:media"]
+  @public_streams Pleroma.Constants.public_streams()
+  @local_streams ["public:local", "public:local:media"]
   @user_streams ["user", "user:notification", "direct", "user:pleroma_chat"]
 
   @doc "Expands and authorizes a stream, and registers the process for streaming."
@@ -32,7 +35,7 @@ defmodule Pleroma.Web.Streamer do
           stream :: String.t(),
           User.t() | nil,
           Token.t() | nil,
-          Map.t() | nil
+          map() | nil
         ) ::
           {:ok, topic :: String.t()} | {:error, :bad_topic} | {:error, :unauthorized}
   def get_topic_and_add_socket(stream, user, oauth_token, params \\ %{}) do
@@ -41,14 +44,41 @@ defmodule Pleroma.Web.Streamer do
     end
   end
 
+  defp can_access_stream(user, oauth_token, kind) do
+    with {_, true} <- {:restrict?, Config.restrict_unauthenticated_access?(:timelines, kind)},
+         {_, %User{id: user_id}, %Token{user_id: user_id}} <- {:user, user, oauth_token},
+         {_, true} <-
+           {:scopes,
+            OAuthScopesPlug.filter_descendants(["read:statuses"], oauth_token.scopes) != []} do
+      true
+    else
+      {:restrict?, _} ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
   @doc "Expand and authorizes a stream"
-  @spec get_topic(stream :: String.t(), User.t() | nil, Token.t() | nil, Map.t()) ::
-          {:ok, topic :: String.t()} | {:error, :bad_topic}
+  @spec get_topic(stream :: String.t() | nil, User.t() | nil, Token.t() | nil, map()) ::
+          {:ok, topic :: String.t() | nil} | {:error, :bad_topic}
   def get_topic(stream, user, oauth_token, params \\ %{})
 
-  # Allow all public steams.
-  def get_topic(stream, _user, _oauth_token, _params) when stream in @public_streams do
-    {:ok, stream}
+  def get_topic(nil = _stream, _user, _oauth_token, _params) do
+    {:ok, nil}
+  end
+
+  # Allow all public steams if the instance allows unauthenticated access.
+  # Otherwise, only allow users with valid oauth tokens.
+  def get_topic(stream, user, oauth_token, _params) when stream in @public_streams do
+    kind = if stream in @local_streams, do: :local, else: :federated
+
+    if can_access_stream(user, oauth_token, kind) do
+      {:ok, stream}
+    else
+      {:error, :unauthorized}
+    end
   end
 
   # Allow all hashtags streams.
@@ -57,12 +87,20 @@ defmodule Pleroma.Web.Streamer do
   end
 
   # Allow remote instance streams.
-  def get_topic("public:remote", _user, _oauth_token, %{"instance" => instance} = _params) do
-    {:ok, "public:remote:" <> instance}
+  def get_topic("public:remote", user, oauth_token, %{"instance" => instance} = _params) do
+    if can_access_stream(user, oauth_token, :federated) do
+      {:ok, "public:remote:" <> instance}
+    else
+      {:error, :unauthorized}
+    end
   end
 
-  def get_topic("public:remote:media", _user, _oauth_token, %{"instance" => instance} = _params) do
-    {:ok, "public:remote:media:" <> instance}
+  def get_topic("public:remote:media", user, oauth_token, %{"instance" => instance} = _params) do
+    if can_access_stream(user, oauth_token, :federated) do
+      {:ok, "public:remote:media:" <> instance}
+    else
+      {:error, :unauthorized}
+    end
   end
 
   # Expand user streams.
@@ -136,7 +174,13 @@ defmodule Pleroma.Web.Streamer do
   def stream(topics, items) do
     if should_env_send?() do
       for topic <- List.wrap(topics), item <- List.wrap(items) do
-        spawn(fn -> do_stream(topic, item) end)
+        fun = fn -> do_stream(topic, item) end
+
+        if Config.get([__MODULE__, :sync_streaming], false) do
+          fun.()
+        else
+          spawn(fun)
+        end
       end
     end
   end
@@ -164,7 +208,7 @@ defmodule Pleroma.Web.Streamer do
          false <- Pleroma.Web.ActivityPub.MRF.subdomain_match?(domain_blocks, item_host),
          false <- Pleroma.Web.ActivityPub.MRF.subdomain_match?(domain_blocks, parent_host),
          true <- thread_containment(item, user),
-         false <- CommonAPI.thread_muted?(user, parent) do
+         false <- CommonAPI.thread_muted?(parent, user) do
       false
     else
       _ -> true
@@ -187,8 +231,8 @@ defmodule Pleroma.Web.Streamer do
   end
 
   defp do_stream("follow_relationship", item) do
-    text = StreamerView.render("follow_relationships_update.json", item)
     user_topic = "user:#{item.follower.id}"
+    text = StreamerView.render("follow_relationships_update.json", item, user_topic)
 
     Logger.debug("Trying to push follow relationship update to #{user_topic}\n\n")
 
@@ -209,7 +253,7 @@ defmodule Pleroma.Web.Streamer do
   defp do_stream("list", item) do
     # filter the recipient list if the activity is not public, see #270.
     recipient_lists =
-      case Visibility.is_public?(item) do
+      case Visibility.public?(item) do
         true ->
           Pleroma.List.get_lists_from_activity(item)
 
@@ -234,9 +278,11 @@ defmodule Pleroma.Web.Streamer do
 
   defp do_stream(topic, %Notification{} = item)
        when topic in ["user", "user:notification"] do
-    Registry.dispatch(@registry, "#{topic}:#{item.user_id}", fn list ->
+    user_topic = "#{topic}:#{item.user_id}"
+
+    Registry.dispatch(@registry, user_topic, fn list ->
       Enum.each(list, fn {pid, _auth} ->
-        send(pid, {:render_with_user, StreamerView, "notification.json", item})
+        send(pid, {:render_with_user, StreamerView, "notification.json", item, user_topic})
       end)
     end)
   end
@@ -245,7 +291,7 @@ defmodule Pleroma.Web.Streamer do
        when topic in ["user", "user:pleroma_chat"] do
     topic = "#{topic}:#{user.id}"
 
-    text = StreamerView.render("chat_update.json", %{chat_message_reference: cm_ref})
+    text = StreamerView.render("chat_update.json", %{chat_message_reference: cm_ref}, topic)
 
     Registry.dispatch(@registry, topic, fn list ->
       Enum.each(list, fn {pid, _auth} ->
@@ -254,15 +300,35 @@ defmodule Pleroma.Web.Streamer do
     end)
   end
 
-  defp do_stream("user", item) do
+  defp do_stream("user", %Activity{} = item) do
     Logger.debug("Trying to push to users")
 
     recipient_topics =
       User.get_recipients_from_activity(item)
       |> Enum.map(fn %{id: id} -> "user:#{id}" end)
 
-    Enum.each(recipient_topics, fn topic ->
+    hashtag_recipients =
+      if Pleroma.Constants.as_public() in item.recipients do
+        Pleroma.Hashtag.get_recipients_for_activity(item)
+        |> Enum.map(fn id -> "user:#{id}" end)
+      else
+        []
+      end
+
+    all_recipients = Enum.uniq(recipient_topics ++ hashtag_recipients)
+
+    Enum.each(all_recipients, fn topic ->
       push_to_socket(topic, item)
+    end)
+  end
+
+  defp do_stream(topic, %Marker{} = marker) do
+    Registry.dispatch(@registry, "#{topic}:#{marker.user_id}", fn list ->
+      Enum.each(list, fn {pid, _auth} ->
+        text = StreamerView.render("marker.json", marker)
+
+        send(pid, {:text, text})
+      end)
     end)
   end
 
@@ -273,7 +339,7 @@ defmodule Pleroma.Web.Streamer do
   end
 
   defp push_to_socket(topic, %Participation{} = participation) do
-    rendered = StreamerView.render("conversation.json", participation)
+    rendered = StreamerView.render("conversation.json", participation, topic)
 
     Registry.dispatch(@registry, topic, fn list ->
       Enum.each(list, fn {pid, _} ->
@@ -301,12 +367,15 @@ defmodule Pleroma.Web.Streamer do
       Pleroma.Activity.get_create_by_object_ap_id(item.object.data["id"])
       |> Map.put(:object, item.object)
 
-    anon_render = StreamerView.render("status_update.json", create_activity)
+    anon_render = StreamerView.render("status_update.json", create_activity, topic)
 
     Registry.dispatch(@registry, topic, fn list ->
       Enum.each(list, fn {pid, auth?} ->
         if auth? do
-          send(pid, {:render_with_user, StreamerView, "status_update.json", create_activity})
+          send(
+            pid,
+            {:render_with_user, StreamerView, "status_update.json", create_activity, topic}
+          )
         else
           send(pid, {:text, anon_render})
         end
@@ -315,12 +384,12 @@ defmodule Pleroma.Web.Streamer do
   end
 
   defp push_to_socket(topic, item) do
-    anon_render = StreamerView.render("update.json", item)
+    anon_render = StreamerView.render("update.json", item, topic)
 
     Registry.dispatch(@registry, topic, fn list ->
       Enum.each(list, fn {pid, auth?} ->
         if auth? do
-          send(pid, {:render_with_user, StreamerView, "update.json", item})
+          send(pid, {:render_with_user, StreamerView, "update.json", item, topic})
         else
           send(pid, {:text, anon_render})
         end
@@ -354,25 +423,20 @@ defmodule Pleroma.Web.Streamer do
     end
   end
 
-  # In test environement, only return true if the registry is started.
-  # In benchmark environment, returns false.
-  # In any other environment, always returns true.
-  cond do
-    @mix_env == :test ->
-      def should_env_send? do
-        case Process.whereis(@registry) do
-          nil ->
-            false
+  # In dev/prod the streamer registry is expected to be started, so return true
+  # In test it is possible to have the registry started for a test so it will check
+  # In benchmark it will never find the process alive and return false
+  def should_env_send? do
+    if Application.get_env(:pleroma, Pleroma.Application)[:streamer_registry] do
+      true
+    else
+      case Process.whereis(@registry) do
+        nil ->
+          false
 
-          pid ->
-            Process.alive?(pid)
-        end
+        pid ->
+          Process.alive?(pid)
       end
-
-    @mix_env == :benchmark ->
-      def should_env_send?, do: false
-
-    true ->
-      def should_env_send?, do: true
+    end
   end
 end

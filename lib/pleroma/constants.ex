@@ -19,7 +19,10 @@ defmodule Pleroma.Constants do
       "context_id",
       "deleted_activity_id",
       "pleroma_internal",
-      "generator"
+      "generator",
+      "rules",
+      "language",
+      "voters"
     ]
   )
 
@@ -35,10 +38,24 @@ defmodule Pleroma.Constants do
       "updated",
       "emoji",
       "content",
+      "contentMap",
       "summary",
       "sensitive",
       "attachment",
-      "generator"
+      "generator",
+      "language"
+    ]
+  )
+
+  const(status_object_types,
+    do: [
+      "Note",
+      "Question",
+      "Audio",
+      "Video",
+      "Event",
+      "Article",
+      "Page"
     ]
   )
 
@@ -64,9 +81,79 @@ defmodule Pleroma.Constants do
     ]
   )
 
+  const(allowed_user_actor_types,
+    do: [
+      "Person",
+      "Service",
+      "Group"
+    ]
+  )
+
+  const(activity_types,
+    do: [
+      "Block",
+      "Create",
+      "Update",
+      "Delete",
+      "Follow",
+      "Accept",
+      "Reject",
+      "Add",
+      "Remove",
+      "Like",
+      "Dislike",
+      "Announce",
+      "Undo",
+      "Flag",
+      "EmojiReact",
+      "Listen"
+    ]
+  )
+
+  const(allowed_activity_types_from_strangers,
+    do: [
+      "Block",
+      "Create",
+      "Flag",
+      "Follow",
+      "Like",
+      "Dislike",
+      "EmojiReact",
+      "Announce"
+    ]
+  )
+
+  const(object_types,
+    do: ~w[Event Question Answer Audio Video Image Article Note Page ChatMessage]
+  )
+
   # basic regex, just there to weed out potential mistakes
   # https://datatracker.ietf.org/doc/html/rfc2045#section-5.1
   const(mime_regex,
     do: ~r/^[^[:cntrl:] ()<>@,;:\\"\/\[\]?=]+\/[^[:cntrl:] ()<>@,;:\\"\/\[\]?=]+(; .*)?$/
+  )
+
+  # List of allowed chars in the path segment of a URI
+  # unreserved, sub-delims, ":", "@" and "/" allowed as the separator in path
+  # https://datatracker.ietf.org/doc/html/rfc3986
+  const(uri_path_allowed_reserved_chars,
+    do: ~c"!$&'()*+,;=/:@"
+  )
+
+  const(upload_object_types, do: ["Document", "Image"])
+
+  const(activity_json_canonical_mime_type,
+    do: "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""
+  )
+
+  const(activity_json_mime_types,
+    do: [
+      "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"",
+      "application/activity+json"
+    ]
+  )
+
+  const(public_streams,
+    do: ["public", "public:local", "public:media", "public:local:media"]
   )
 end

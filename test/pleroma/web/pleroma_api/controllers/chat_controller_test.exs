@@ -7,10 +7,13 @@ defmodule Pleroma.Web.PleromaAPI.ChatControllerTest do
   alias Pleroma.Chat
   alias Pleroma.Chat.MessageReference
   alias Pleroma.Object
+  alias Pleroma.Tests.Helpers
+  alias Pleroma.UnstubbedConfigMock, as: ConfigMock
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.CommonAPI
 
+  import Mox
   import Pleroma.Factory
 
   describe "POST /api/v1/pleroma/chats/:id/messages/:message_id/read" do
@@ -112,6 +115,9 @@ defmodule Pleroma.Web.PleromaAPI.ChatControllerTest do
         filename: "an_image.jpg"
       }
 
+      ConfigMock
+      |> stub_with(Pleroma.Test.StaticConfig)
+
       {:ok, upload} = ActivityPub.upload(file, actor: user.ap_id)
 
       other_user = insert(:user)
@@ -207,35 +213,62 @@ defmodule Pleroma.Web.PleromaAPI.ChatControllerTest do
       result = json_response_and_validate_schema(response, 200)
 
       [next, prev] = get_resp_header(response, "link") |> hd() |> String.split(", ")
-      api_endpoint = "/api/v1/pleroma/chats/"
+      api_endpoint = Pleroma.Web.Endpoint.url() <> "/api/v1/pleroma/chats/"
+
+      [next_url, next_rel] = String.split(next, ";")
+      next_url = String.trim_trailing(next_url, ">") |> String.trim_leading("<")
+
+      next_url_sorted = Helpers.uri_query_sort(next_url)
 
       assert String.match?(
-               next,
-               ~r(#{api_endpoint}.*/messages\?limit=\d+&max_id=.*; rel=\"next\"$)
+               next_url_sorted,
+               ~r(#{api_endpoint}.*/messages\?limit=\d+&max_id=.*&offset=\d+$)
              )
 
+      assert next_rel =~ "next"
+
+      [prev_url, prev_rel] = String.split(prev, ";")
+      prev_url = String.trim_trailing(prev_url, ">") |> String.trim_leading("<")
+
+      prev_url_sorted = Helpers.uri_query_sort(prev_url)
+
       assert String.match?(
-               prev,
-               ~r(#{api_endpoint}.*/messages\?limit=\d+&min_id=.*; rel=\"prev\"$)
+               prev_url_sorted,
+               ~r(#{api_endpoint}.*/messages\?limit=\d+&min_id=.*&offset=\d+$)
              )
+
+      assert prev_rel =~ "prev"
 
       assert length(result) == 20
 
-      response =
-        get(conn, "/api/v1/pleroma/chats/#{chat.id}/messages?max_id=#{List.last(result)["id"]}")
+      response = get(conn, "#{api_endpoint}#{chat.id}/messages?max_id=#{List.last(result)["id"]}")
 
       result = json_response_and_validate_schema(response, 200)
       [next, prev] = get_resp_header(response, "link") |> hd() |> String.split(", ")
 
-      assert String.match?(
-               next,
-               ~r(#{api_endpoint}.*/messages\?limit=\d+&max_id=.*; rel=\"next\"$)
-             )
+      [next_url, next_rel] = String.split(next, ";")
+      next_url = String.trim_trailing(next_url, ">") |> String.trim_leading("<")
+
+      next_url_sorted = Helpers.uri_query_sort(next_url)
 
       assert String.match?(
-               prev,
-               ~r(#{api_endpoint}.*/messages\?limit=\d+&max_id=.*&min_id=.*; rel=\"prev\"$)
+               next_url_sorted,
+               ~r(#{api_endpoint}.*/messages\?limit=\d+&max_id=.*&offset=\d+$)
              )
+
+      assert next_rel =~ "next"
+
+      [prev_url, prev_rel] = String.split(prev, ";")
+      prev_url = String.trim_trailing(prev_url, ">") |> String.trim_leading("<")
+
+      prev_url_sorted = Helpers.uri_query_sort(prev_url)
+
+      assert String.match?(
+               prev_url_sorted,
+               ~r(#{api_endpoint}.*/messages\?limit=\d+&max_id=.*&min_id=.*&offset=\d+$)
+             )
+
+      assert prev_rel =~ "prev"
 
       assert length(result) == 10
     end
@@ -301,6 +334,41 @@ defmodule Pleroma.Web.PleromaAPI.ChatControllerTest do
         |> json_response_and_validate_schema(200)
 
       assert result["id"] == to_string(chat.id)
+    end
+  end
+
+  describe "POST /api/v1/pleroma/chats/:id/pin" do
+    setup do: oauth_access(["write:chats"])
+
+    test "it pins a chat", %{conn: conn, user: user} do
+      other_user = insert(:user)
+
+      {:ok, chat} = Chat.get_or_create(user.id, other_user.ap_id)
+
+      result =
+        conn
+        |> post("/api/v1/pleroma/chats/#{chat.id}/pin")
+        |> json_response_and_validate_schema(200)
+
+      assert %{"pinned" => true} = result
+    end
+  end
+
+  describe "POST /api/v1/pleroma/chats/:id/unpin" do
+    setup do: oauth_access(["write:chats"])
+
+    test "it unpins a chat", %{conn: conn, user: user} do
+      other_user = insert(:user)
+
+      {:ok, chat} = Chat.get_or_create(user.id, other_user.ap_id)
+      {:ok, chat} = Chat.pin(chat)
+
+      result =
+        conn
+        |> post("/api/v1/pleroma/chats/#{chat.id}/unpin")
+        |> json_response_and_validate_schema(200)
+
+      assert %{"pinned" => false} = result
     end
   end
 
@@ -372,6 +440,21 @@ defmodule Pleroma.Web.PleromaAPI.ChatControllerTest do
           |> json_response_and_validate_schema(200)
 
         assert length(result) == 1
+      end
+
+      test "it only returns pinned chats", %{conn: conn, user: user} do
+        recipient1 = insert(:user)
+        recipient2 = insert(:user)
+
+        {:ok, %{id: id} = chat} = Chat.get_or_create(user.id, recipient1.ap_id)
+        {:ok, _} = Chat.get_or_create(user.id, recipient2.ap_id)
+
+        Chat.pin(chat)
+
+        [%{"id" => ^id, "pinned" => true}] =
+          conn
+          |> get("#{unquote(tested_endpoint)}?pinned=true")
+          |> json_response_and_validate_schema(200)
       end
 
       if tested_endpoint == "/api/v1/pleroma/chats" do

@@ -20,7 +20,7 @@ defmodule Pleroma.Web.ControllerHelper do
     |> json(json)
   end
 
-  @spec fetch_integer_param(map(), String.t(), integer() | nil) :: integer() | nil
+  @spec fetch_integer_param(map(), String.t() | atom(), integer() | nil) :: integer() | nil
   def fetch_integer_param(params, name, default \\ nil) do
     params
     |> Map.get(name, default)
@@ -53,50 +53,75 @@ defmodule Pleroma.Web.ControllerHelper do
     end
   end
 
+  # TODO: Only fetch the params from open_api_spex when everything is converted
   @id_keys Pagination.page_keys() -- ["limit", "order"]
-  defp build_pagination_fields(conn, min_id, max_id, extra_params) do
+  defp build_pagination_fields(conn, min_id, max_id, extra_params, order) do
     params =
-      conn.params
+      if Map.has_key?(conn.private, :open_api_spex) do
+        get_in(conn, [Access.key(:private), Access.key(:open_api_spex), Access.key(:params)])
+      else
+        conn.params
+      end
       |> Map.drop(Map.keys(conn.path_params) |> Enum.map(&String.to_existing_atom/1))
       |> Map.merge(extra_params)
       |> Map.drop(@id_keys)
 
+    {{next_id, nid}, {prev_id, pid}} =
+      if order == :desc,
+        do: {{:max_id, max_id}, {:min_id, min_id}},
+        else: {{:min_id, min_id}, {:max_id, max_id}}
+
+    id = Phoenix.Controller.current_url(conn)
+    base_id = %{URI.parse(id) | query: nil} |> URI.to_string()
+
     %{
-      "next" => current_url(conn, Map.put(params, :max_id, max_id)),
-      "prev" => current_url(conn, Map.put(params, :min_id, min_id)),
-      "id" => current_url(conn)
+      "next" => current_url(conn, Map.put(params, next_id, nid)),
+      "prev" => current_url(conn, Map.put(params, prev_id, pid)),
+      "id" => id,
+      "partOf" => base_id
     }
   end
 
-  def get_pagination_fields(conn, entries, extra_params \\ %{}) do
+  defp get_first_last_pagination_id(entries) do
     case List.last(entries) do
-      %{pagination_id: max_id} when not is_nil(max_id) ->
-        %{pagination_id: min_id} = List.first(entries)
+      %{pagination_id: last_id} when not is_nil(last_id) ->
+        %{pagination_id: first_id} = List.first(entries)
+        {first_id, last_id}
 
-        build_pagination_fields(conn, min_id, max_id, extra_params)
-
-      %{id: max_id} ->
-        %{id: min_id} = List.first(entries)
-
-        build_pagination_fields(conn, min_id, max_id, extra_params)
+      %{id: last_id} ->
+        %{id: first_id} = List.first(entries)
+        {first_id, last_id}
 
       _ ->
-        %{}
+        nil
     end
   end
 
-  def assign_account_by_id(conn, _) do
-    case Pleroma.User.get_cached_by_id(conn.params.id) do
+  def get_pagination_fields(conn, entries, extra_params \\ %{}, order \\ :desc)
+
+  def get_pagination_fields(conn, entries, extra_params, :desc) do
+    case get_first_last_pagination_id(entries) do
+      nil -> %{}
+      {min_id, max_id} -> build_pagination_fields(conn, min_id, max_id, extra_params, :desc)
+    end
+  end
+
+  def get_pagination_fields(conn, entries, extra_params, :asc) do
+    case get_first_last_pagination_id(entries) do
+      nil -> %{}
+      {max_id, min_id} -> build_pagination_fields(conn, min_id, max_id, extra_params, :asc)
+    end
+  end
+
+  def assign_account_by_id(%{private: %{open_api_spex: %{params: %{id: id}}}} = conn, _) do
+    case Pleroma.User.get_cached_by_id(id) do
       %Pleroma.User{} = account -> assign(conn, :account, account)
       nil -> Pleroma.Web.MastodonAPI.FallbackController.call(conn, {:error, :not_found}) |> halt()
     end
   end
 
   def try_render(conn, target, params) when is_binary(target) do
-    case render(conn, target, params) do
-      nil -> render_error(conn, :not_implemented, "Can't display this activity")
-      res -> res
-    end
+    render(conn, target, params)
   end
 
   def try_render(conn, _, _) do

@@ -17,6 +17,7 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
   alias Pleroma.Web.MastodonAPI.AccountView
   alias Pleroma.Web.MastodonAPI.NotificationView
   alias Pleroma.Web.MastodonAPI.StatusView
+  alias Pleroma.Web.MediaProxy
   alias Pleroma.Web.PleromaAPI.Chat.MessageReferenceView
 
   defp object_id_for(%{data: %{"object" => %{"id" => id}}}) when is_binary(id), do: id
@@ -94,6 +95,7 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
 
     response = %{
       id: to_string(notification.id),
+      group_key: "ungrouped-" <> to_string(notification.id),
       type: notification.type,
       created_at: CommonAPI.Utils.to_masto_date(notification.inserted_at),
       account: account,
@@ -104,23 +106,14 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
     }
 
     case notification.type do
-      "mention" ->
+      type when type in ["mention", "status", "poll"] ->
         put_status(response, activity, reading_user, status_render_opts)
 
-      "favourite" ->
-        put_status(response, parent_activity_fn.(), reading_user, status_render_opts)
-
-      "reblog" ->
-        put_status(response, parent_activity_fn.(), reading_user, status_render_opts)
-
-      "update" ->
+      type when type in ["favourite", "reblog", "update"] ->
         put_status(response, parent_activity_fn.(), reading_user, status_render_opts)
 
       "move" ->
         put_target(response, activity, reading_user, %{})
-
-      "poll" ->
-        put_status(response, activity, reading_user, status_render_opts)
 
       "pleroma:emoji_reaction" ->
         response
@@ -145,7 +138,9 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
   end
 
   defp put_emoji(response, activity) do
-    Map.put(response, :emoji, activity.data["content"])
+    response
+    |> Map.put(:emoji, activity.data["content"])
+    |> Map.put(:emoji_url, MediaProxy.url(Pleroma.Emoji.emoji_url(activity.data)))
   end
 
   defp put_chat_message(response, activity, reading_user, opts) do

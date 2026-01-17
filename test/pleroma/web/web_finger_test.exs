@@ -3,12 +3,13 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.WebFingerTest do
-  use Pleroma.DataCase, async: true
+  use Pleroma.DataCase, async: false
   alias Pleroma.Web.WebFinger
   import Pleroma.Factory
   import Tesla.Mock
 
   setup do
+    Mox.stub_with(Pleroma.CachexMock, Pleroma.NullCache)
     mock(fn env -> apply(HttpRequestMock, :request, [env]) end)
     :ok
   end
@@ -37,6 +38,23 @@ defmodule Pleroma.Web.WebFingerTest do
       {:ok, result} = WebFinger.webfinger(user.ap_id, "XML")
       assert is_binary(result)
     end
+  end
+
+  test "requires exact match for Endpoint host or WebFinger domain" do
+    clear_config([Pleroma.Web.WebFinger, :domain], "pleroma.dev")
+    user = insert(:user)
+
+    assert {:error, "Couldn't find user"} ==
+             WebFinger.webfinger("#{user.nickname}@#{Pleroma.Web.Endpoint.host()}xxxx", "JSON")
+
+    assert {:error, "Couldn't find user"} ==
+             WebFinger.webfinger("#{user.nickname}@pleroma.devxxxx", "JSON")
+
+    assert {:ok, _} =
+             WebFinger.webfinger("#{user.nickname}@#{Pleroma.Web.Endpoint.host()}", "JSON")
+
+    assert {:ok, _} =
+             WebFinger.webfinger("#{user.nickname}@pleroma.dev", "JSON")
   end
 
   describe "fingering" do
@@ -76,16 +94,7 @@ defmodule Pleroma.Web.WebFingerTest do
       {:ok, _data} = WebFinger.finger(user)
     end
 
-    test "returns the ActivityPub actor URI and subscribe address for an ActivityPub user with the ld+json mimetype" do
-      user = "kaniini@gerzilla.de"
-
-      {:ok, data} = WebFinger.finger(user)
-
-      assert data["ap_id"] == "https://gerzilla.de/channel/kaniini"
-      assert data["subscribe_address"] == "https://gerzilla.de/follow?f=&url={uri}"
-    end
-
-    test "it work for AP-only user" do
+    test "it works for AP-only user" do
       user = "kpherox@mstdn.jp"
 
       {:ok, data} = WebFinger.finger(user)
@@ -97,12 +106,6 @@ defmodule Pleroma.Web.WebFingerTest do
       assert data["subject"] == "acct:kPherox@mstdn.jp"
       assert data["ap_id"] == "https://mstdn.jp/users/kPherox"
       assert data["subscribe_address"] == "https://mstdn.jp/authorize_interaction?acct={uri}"
-    end
-
-    test "it works for friendica" do
-      user = "lain@squeet.me"
-
-      {:ok, _data} = WebFinger.finger(user)
     end
 
     test "it gets the xrd endpoint" do
@@ -179,6 +182,127 @@ defmodule Pleroma.Web.WebFingerTest do
       end)
 
       {:ok, _data} = WebFinger.finger("pekorino@pawoo.net")
+    end
+
+    test "refuses to process XML remote entities" do
+      Tesla.Mock.mock(fn
+        %{
+          url: "https://pawoo.net/.well-known/webfinger?resource=acct:pekorino@pawoo.net"
+        } ->
+          {:ok,
+           %Tesla.Env{
+             status: 200,
+             body: File.read!("test/fixtures/xml_external_entities.xml"),
+             headers: [{"content-type", "application/xrd+xml"}]
+           }}
+
+        %{url: "https://pawoo.net/.well-known/host-meta"} ->
+          {:ok,
+           %Tesla.Env{
+             status: 200,
+             body: File.read!("test/fixtures/tesla_mock/pawoo.net_host_meta")
+           }}
+      end)
+
+      assert :error = WebFinger.finger("pekorino@pawoo.net")
+    end
+
+    test "prevents spoofing" do
+      Tesla.Mock.mock(fn
+        %{
+          url: "https://gleasonator.com/.well-known/webfinger?resource=acct:alex@gleasonator.com"
+        } ->
+          {:ok,
+           %Tesla.Env{
+             status: 200,
+             body: File.read!("test/fixtures/tesla_mock/webfinger_spoof.json"),
+             headers: [{"content-type", "application/jrd+json"}]
+           }}
+
+        %{url: "https://gleasonator.com/.well-known/host-meta"} ->
+          {:ok,
+           %Tesla.Env{
+             status: 200,
+             body: File.read!("test/fixtures/tesla_mock/gleasonator.com_host_meta")
+           }}
+
+        %{url: "https://whitehouse.gov/.well-known/webfinger?resource=acct:trump@whitehouse.gov"} ->
+          {:ok, %Tesla.Env{status: 404}}
+      end)
+
+      {:error, _data} = WebFinger.finger("alex@gleasonator.com")
+    end
+
+    test "prevents forgeries" do
+      Tesla.Mock.mock(fn
+        %{
+          url:
+            "https://fba.ryona.agency/.well-known/webfinger?resource=acct:graf@fba.ryona.agency"
+        } ->
+          fake_webfinger =
+            File.read!("test/fixtures/webfinger/graf-imposter-webfinger.json") |> Jason.decode!()
+
+          Tesla.Mock.json(fake_webfinger)
+
+        %{url: url}
+        when url in [
+               "https://poa.st/.well-known/webfinger?resource=acct:graf@poa.st",
+               "https://fba.ryona.agency/.well-known/host-meta"
+             ] ->
+          {:ok, %Tesla.Env{status: 404}}
+      end)
+
+      assert {:error, _} = WebFinger.finger("graf@fba.ryona.agency")
+    end
+
+    test "prevents forgeries even when the spoofed subject exists on the target domain" do
+      Tesla.Mock.mock(fn
+        %{url: url}
+        when url in [
+               "https://attacker.example/.well-known/host-meta",
+               "https://victim.example/.well-known/host-meta"
+             ] ->
+          {:ok, %Tesla.Env{status: 404}}
+
+        %{
+          url:
+            "https://attacker.example/.well-known/webfinger?resource=acct:alice@attacker.example"
+        } ->
+          Tesla.Mock.json(%{
+            "subject" => "acct:alice@victim.example",
+            "links" => [
+              %{
+                "rel" => "self",
+                "type" => "application/activity+json",
+                "href" => "https://attacker.example/users/alice"
+              }
+            ]
+          })
+
+        %{url: "https://victim.example/.well-known/webfinger?resource=acct:alice@victim.example"} ->
+          Tesla.Mock.json(%{
+            "subject" => "acct:alice@victim.example",
+            "links" => [
+              %{
+                "rel" => "self",
+                "type" => "application/activity+json",
+                "href" => "https://victim.example/users/alice"
+              }
+            ]
+          })
+      end)
+
+      assert {:error, _} = WebFinger.finger("alice@attacker.example")
+    end
+
+    test "works for correctly set up split-domain instances implementing host-meta redirect" do
+      {:ok, _data} = WebFinger.finger("a@pleroma.example")
+      {:ok, _data} = WebFinger.finger("a@sub.pleroma.example")
+    end
+
+    test "works for correctly set up split-domain instances without host-meta redirect" do
+      {:ok, _data} = WebFinger.finger("a@mastodon.example")
+      {:ok, _data} = WebFinger.finger("a@sub.mastodon.example")
     end
   end
 end

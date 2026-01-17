@@ -60,7 +60,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.EnsureRePrependedTest do
                Pleroma.MultiLanguage.map_to_str(res["object"]["summaryMap"], multiline: false)
     end
 
-    test "it adds `re:` to summary object when child summary containts re-subject of parent summary " do
+    test "it adds `re:` to summary object when child summary contains re-subject of parent summary " do
       message = %{
         "type" => "Create",
         "object" => %{

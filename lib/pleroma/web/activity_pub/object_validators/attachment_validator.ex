@@ -12,14 +12,16 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AttachmentValidator do
   @primary_key false
   embedded_schema do
     field(:id, :string)
-    field(:type, :string)
+    field(:type, :string, default: "Link")
     field(:mediaType, ObjectValidators.MIME, default: "application/octet-stream")
     field(:name, :string)
     field(:nameMap, ObjectValidators.MapOfString)
+    field(:summary, :string)
+    field(:summaryMap, ObjectValidators.MapOfString)
     field(:blurhash, :string)
 
     embeds_many :url, UrlObjectValidator, primary_key: false do
-      field(:type, :string)
+      field(:type, :string, default: "Link")
       field(:href, ObjectValidators.Uri)
       field(:mediaType, ObjectValidators.MIME, default: "application/octet-stream")
       field(:width, :integer)
@@ -45,7 +47,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AttachmentValidator do
       |> fix_url()
 
     struct
-    |> cast(data, [:id, :type, :mediaType, :name, :nameMap, :blurhash])
+    |> cast(data, [:id, :type, :mediaType, :name, :nameMap, :summary, :summaryMap, :blurhash])
     |> cast_embed(:url, with: &url_changeset/2, required: true)
     |> validate_inclusion(:type, ~w[Link Document Audio Image Video])
     |> validate_required([:type, :mediaType])

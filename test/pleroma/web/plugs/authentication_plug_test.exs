@@ -70,18 +70,14 @@ defmodule Pleroma.Web.Plugs.AuthenticationPlugTest do
     assert "$pbkdf2" <> _ = user.password_hash
   end
 
-  @tag :skip_on_mac
-  test "with a crypt hash, it updates to a pkbdf2 hash", %{conn: conn} do
-    user =
-      insert(:user,
-        password_hash:
-          "$6$9psBWV8gxkGOZWBz$PmfCycChoxeJ3GgGzwvhlgacb9mUoZ.KUXNCssekER4SJ7bOK53uXrHNb2e4i8yPFgSKyzaW9CcmrDXWIEMtD1"
-      )
+  test "with an argon2 hash, it updates to a pkbdf2 hash", %{conn: conn} do
+    user = insert(:user, password_hash: Argon2.hash_pwd_salt("123"))
+    assert "$argon2" <> _ = user.password_hash
 
     conn =
       conn
       |> assign(:auth_user, user)
-      |> assign(:auth_credentials, %{password: "password"})
+      |> assign(:auth_credentials, %{password: "123"})
       |> AuthenticationPlug.call(%{})
 
     assert conn.assigns.user.id == conn.assigns.auth_user.id
@@ -101,16 +97,16 @@ defmodule Pleroma.Web.Plugs.AuthenticationPlugTest do
       refute AuthenticationPlug.checkpw("test-password1", hash)
     end
 
-    @tag :skip_on_mac
-    test "check sha512-crypt hash" do
-      hash =
-        "$6$9psBWV8gxkGOZWBz$PmfCycChoxeJ3GgGzwvhlgacb9mUoZ.KUXNCssekER4SJ7bOK53uXrHNb2e4i8yPFgSKyzaW9CcmrDXWIEMtD1"
-
-      assert AuthenticationPlug.checkpw("password", hash)
-    end
-
     test "check bcrypt hash" do
       hash = "$2a$10$uyhC/R/zoE1ndwwCtMusK.TLVzkQ/Ugsbqp3uXI.CTTz0gBw.24jS"
+
+      assert AuthenticationPlug.checkpw("password", hash)
+      refute AuthenticationPlug.checkpw("password1", hash)
+    end
+
+    test "check argon2 hash" do
+      hash =
+        "$argon2id$v=19$m=65536,t=8,p=2$zEMMsTuK5KkL5AFWbX7jyQ$VyaQD7PF6e9btz0oH1YiAkWwIGZ7WNDZP8l+a/O171g"
 
       assert AuthenticationPlug.checkpw("password", hash)
       refute AuthenticationPlug.checkpw("password1", hash)

@@ -24,21 +24,21 @@ defmodule Pleroma.Web.CommonAPI.Utils do
   require Logger
   require Pleroma.Constants
 
-  def attachments_from_ids(%{media_ids: ids, descriptions: desc}) do
-    attachments_from_ids_descs(ids, desc)
+  def attachments_from_ids(%{media_ids: ids, descriptions: desc}, user) do
+    attachments_from_ids_descs(ids, desc, user)
   end
 
-  def attachments_from_ids(%{media_ids: ids}) do
-    attachments_from_ids_no_descs(ids)
+  def attachments_from_ids(%{media_ids: ids}, user) do
+    attachments_from_ids_no_descs(ids, user)
   end
 
-  def attachments_from_ids(_), do: []
+  def attachments_from_ids(_, _), do: []
 
-  def attachments_from_ids_no_descs([]), do: []
+  def attachments_from_ids_no_descs([], _), do: []
 
-  def attachments_from_ids_no_descs(ids) do
+  def attachments_from_ids_no_descs(ids, user) do
     Enum.map(ids, fn media_id ->
-      case get_attachment(media_id) do
+      case get_attachment(media_id, user) do
         %Object{data: data} -> data
         _ -> nil
       end
@@ -46,21 +46,27 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     |> Enum.reject(&is_nil/1)
   end
 
-  def attachments_from_ids_descs([], _), do: []
+  def attachments_from_ids_descs([], _, _), do: []
 
-  def attachments_from_ids_descs(ids, descs_str) do
+  def attachments_from_ids_descs(ids, descs_str, user) do
     {_, descs} = Jason.decode(descs_str)
 
     Enum.map(ids, fn media_id ->
-      with %Object{data: data} <- get_attachment(media_id) do
+      with %Object{data: data} <- get_attachment(media_id, user) do
         Map.put(data, "name", descs[media_id])
       end
     end)
     |> Enum.reject(&is_nil/1)
   end
 
-  defp get_attachment(media_id) do
-    Repo.get(Object, media_id)
+  defp get_attachment(media_id, user) do
+    with %Object{data: data} = object <- Repo.get(Object, media_id),
+         %{"type" => type} when type in Pleroma.Constants.upload_object_types() <- data,
+         :ok <- Object.authorize_access(object, user) do
+      object
+    else
+      _ -> nil
+    end
   end
 
   @spec get_to_and_cc(ActivityDraft.t()) :: {list(String.t()), list(String.t())}
@@ -104,7 +110,7 @@ defmodule Pleroma.Web.CommonAPI.Utils do
 
   def get_to_and_cc(%{visibility: "direct"} = draft) do
     # If the OP is a DM already, add the implicit actor.
-    if draft.in_reply_to && Visibility.is_direct?(draft.in_reply_to) do
+    if draft.in_reply_to && Visibility.direct?(draft.in_reply_to) do
       {Enum.uniq([draft.in_reply_to.data["actor"] | draft.mentions]), []}
     else
       {draft.mentions, []}
@@ -187,8 +193,11 @@ defmodule Pleroma.Web.CommonAPI.Utils do
   end
 
   def make_poll_data(%{poll: %{options: options}} = data) when is_list(options) do
+    options = options |> Enum.uniq()
+
     new_poll =
       data.poll
+      |> Map.put(:options, options)
       |> Map.put(
         :options_map,
         Enum.map(options, &MultiLanguage.str_to_map(&1, lang: data[:language]))
@@ -222,10 +231,15 @@ defmodule Pleroma.Web.CommonAPI.Utils do
   end
 
   defp validate_poll_options_amount(options, %{max_options: max_options}) do
-    if Enum.count(options) > max_options do
-      {:error, "Poll can't contain more than #{max_options} options"}
-    else
-      :ok
+    cond do
+      Enum.count(options) < 2 ->
+        {:error, "Poll must contain at least 2 options"}
+
+      Enum.count(options) > max_options ->
+        {:error, "Poll can't contain more than #{max_options} options"}
+
+      true ->
+        :ok
     end
   end
 
@@ -387,13 +401,13 @@ defmodule Pleroma.Web.CommonAPI.Utils do
       format_asctime(date)
     else
       _e ->
-        Logger.warn("Date #{date} in wrong format, must be ISO 8601")
+        Logger.warning("Date #{date} in wrong format, must be ISO 8601")
         ""
     end
   end
 
   def date_to_asctime(date) do
-    Logger.warn("Date #{date} in wrong format, must be ISO 8601")
+    Logger.warning("Date #{date} in wrong format, must be ISO 8601")
     ""
   end
 
@@ -468,28 +482,6 @@ defmodule Pleroma.Web.CommonAPI.Utils do
 
   def maybe_notify_mentioned_recipients(recipients, _), do: recipients
 
-  def maybe_notify_subscribers(
-        recipients,
-        %Activity{data: %{"actor" => actor, "type" => "Create"}} = activity
-      ) do
-    # Do not notify subscribers if author is making a reply
-    with %Object{data: object} <- Object.normalize(activity, fetch: false),
-         nil <- object["inReplyTo"],
-         %User{} = user <- User.get_cached_by_ap_id(actor) do
-      subscriber_ids =
-        user
-        |> User.subscriber_users()
-        |> Enum.filter(&Visibility.visible_for_user?(activity, &1))
-        |> Enum.map(& &1.ap_id)
-
-      recipients ++ subscriber_ids
-    else
-      _e -> recipients
-    end
-  end
-
-  def maybe_notify_subscribers(recipients, _), do: recipients
-
   def maybe_notify_followers(recipients, %Activity{data: %{"type" => "Move"}} = activity) do
     with %User{} = user <- User.get_cached_by_ap_id(activity.actor) do
       user
@@ -502,6 +494,27 @@ defmodule Pleroma.Web.CommonAPI.Utils do
   end
 
   def maybe_notify_followers(recipients, _), do: recipients
+
+  def get_notified_subscribers(
+        %Activity{data: %{"actor" => actor, "type" => "Create"}} = activity
+      ) do
+    # Do not notify subscribers if author is making a reply
+    with %Object{data: object} <- Object.normalize(activity, fetch: false),
+         nil <- object["inReplyTo"],
+         %User{} = user <- User.get_cached_by_ap_id(actor) do
+      subscriber_ids =
+        user
+        |> User.subscriber_users()
+        |> Enum.filter(&Visibility.visible_for_user?(activity, &1))
+        |> Enum.map(& &1.ap_id)
+
+      subscriber_ids
+    else
+      _e -> []
+    end
+  end
+
+  def get_notified_subscribers(_), do: []
 
   def maybe_extract_mentions(%{"tag" => tag}) do
     tag

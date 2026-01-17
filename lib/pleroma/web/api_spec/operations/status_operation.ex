@@ -9,6 +9,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
   alias Pleroma.Web.ApiSpec.Helpers
   alias Pleroma.Web.ApiSpec.Schemas.Account
   alias Pleroma.Web.ApiSpec.Schemas.ApiError
+  alias Pleroma.Web.ApiSpec.Schemas.ApiNotFoundError
   alias Pleroma.Web.ApiSpec.Schemas.Attachment
   alias Pleroma.Web.ApiSpec.Schemas.BooleanLike
   alias Pleroma.Web.ApiSpec.Schemas.Emoji
@@ -32,15 +33,21 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       security: [%{"oAuth" => ["read:statuses"]}],
       parameters: [
         Operation.parameter(
-          :ids,
+          :id,
           :query,
           %Schema{type: :array, items: FlakeID},
           "Array of status IDs"
         ),
         Operation.parameter(
+          :ids,
+          :query,
+          %Schema{type: :array, items: FlakeID},
+          "Deprecated, use `id` instead"
+        ),
+        Operation.parameter(
           :with_muted,
           :query,
-          BooleanLike,
+          BooleanLike.schema(),
           "Include reactions from muted acccounts."
         )
       ],
@@ -83,7 +90,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
         Operation.parameter(
           :with_muted,
           :query,
-          BooleanLike,
+          BooleanLike.schema(),
           "Include reactions from muted acccounts."
         )
       ],
@@ -172,6 +179,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       parameters: [id_param()],
       responses: %{
         200 => status_response(),
+        400 => Operation.response("Error", "application/json", ApiError),
         404 => Operation.response("Not Found", "application/json", ApiError)
       }
     }
@@ -237,14 +245,19 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
               "error" => "You have already pinned the maximum number of statuses"
             }
           }),
-        404 =>
-          Operation.response("Not found", "application/json", %Schema{
-            allOf: [ApiError],
-            title: "Unprocessable Entity",
-            example: %{
-              "error" => "Record not found"
+        404 => Operation.response("Not found", "application/json", ApiNotFoundError),
+        422 =>
+          Operation.response(
+            "Unprocessable Entity",
+            "application/json",
+            %Schema{
+              allOf: [ApiError],
+              title: "Unprocessable Entity",
+              example: %{
+                "error" => "Someone else's status cannot be unpinned"
+              }
             }
-          })
+          )
       }
     }
   end
@@ -257,8 +270,21 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       description: "Privately bookmark a status",
       operationId: "StatusController.bookmark",
       parameters: [id_param()],
+      requestBody:
+        request_body("Parameters", %Schema{
+          title: "StatusUpdateRequest",
+          type: :object,
+          properties: %{
+            folder_id: %Schema{
+              nullable: true,
+              allOf: [FlakeID],
+              description: "ID of bookmarks folder, if any"
+            }
+          }
+        }),
       responses: %{
-        200 => status_response()
+        200 => status_response(),
+        404 => Operation.response("Not found", "application/json", ApiNotFoundError)
       }
     }
   end
@@ -272,7 +298,8 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       operationId: "StatusController.unbookmark",
       parameters: [id_param()],
       responses: %{
-        200 => status_response()
+        200 => status_response(),
+        404 => Operation.response("Not found", "application/json", ApiNotFoundError)
       }
     }
   end
@@ -307,7 +334,8 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       ],
       responses: %{
         200 => status_response(),
-        400 => Operation.response("Error", "application/json", ApiError)
+        400 => Operation.response("Error", "application/json", ApiError),
+        404 => Operation.response("Not found", "application/json", ApiNotFoundError)
       }
     }
   end
@@ -323,7 +351,8 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       parameters: [id_param()],
       responses: %{
         200 => status_response(),
-        400 => Operation.response("Error", "application/json", ApiError)
+        400 => Operation.response("Error", "application/json", ApiError),
+        404 => Operation.response("Not Found", "application/json", ApiNotFoundError)
       }
     }
   end
@@ -410,6 +439,38 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
     }
   end
 
+  def translate_operation do
+    %Operation{
+      tags: ["Retrieve status information"],
+      summary: "Translate status",
+      description: "Translate status with an external API",
+      operationId: "StatusController.translate",
+      security: [%{"oAuth" => ["read:statuses"]}],
+      parameters: [id_param()],
+      requestBody:
+        request_body(
+          "Parameters",
+          %Schema{
+            type: :object,
+            properties: %{
+              lang: %Schema{
+                type: :string,
+                nullable: true,
+                description: "Translation target language."
+              }
+            }
+          },
+          required: false
+        ),
+      responses: %{
+        200 => Operation.response("Translation", "application/json", translation()),
+        400 => Operation.response("Error", "application/json", ApiError),
+        404 => Operation.response("Error", "application/json", ApiError),
+        503 => Operation.response("Error", "application/json", ApiError)
+      }
+    }
+  end
+
   def favourites_operation do
     %Operation{
       tags: ["Timelines"],
@@ -431,7 +492,15 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       summary: "Bookmarked statuses",
       description: "Statuses the user has bookmarked",
       operationId: "StatusController.bookmarks",
-      parameters: pagination_params(),
+      parameters: [
+        Operation.parameter(
+          :folder_id,
+          :query,
+          FlakeID.schema(),
+          "If provided, only display bookmarks from given folder"
+        )
+        | pagination_params()
+      ],
       security: [%{"oAuth" => ["read:bookmarks"]}],
       responses: %{
         200 => Operation.response("Array of Statuses", "application/json", array_of_statuses())
@@ -441,7 +510,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
 
   def show_history_operation do
     %Operation{
-      tags: ["Retrieve status history"],
+      tags: ["Retrieve status information"],
       summary: "Status history",
       description: "View history of a status",
       operationId: "StatusController.show_history",
@@ -458,7 +527,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
 
   def show_source_operation do
     %Operation{
-      tags: ["Retrieve status source"],
+      tags: ["Retrieve status information"],
       summary: "Status source",
       description: "View source of a status",
       operationId: "StatusController.show_source",
@@ -475,7 +544,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
 
   def update_operation do
     %Operation{
-      tags: ["Update status"],
+      tags: ["Status actions"],
       summary: "Update status",
       description: "Change the content of a status",
       operationId: "StatusController.update",
@@ -486,6 +555,27 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       requestBody: request_body("Parameters", update_request(), required: true),
       responses: %{
         200 => status_response(),
+        403 => Operation.response("Forbidden", "application/json", ApiError),
+        404 => Operation.response("Not Found", "application/json", ApiError)
+      }
+    }
+  end
+
+  def quotes_operation do
+    %Operation{
+      tags: ["Retrieve status information"],
+      summary: "Quoted by",
+      description: "View quotes for a given status",
+      operationId: "StatusController.quotes",
+      parameters: [id_param() | pagination_params()],
+      security: [%{"oAuth" => ["read:statuses"]}],
+      responses: %{
+        200 =>
+          Operation.response(
+            "Array of Status",
+            "application/json",
+            array_of_statuses()
+          ),
         403 => Operation.response("Forbidden", "application/json", ApiError),
         404 => Operation.response("Not Found", "application/json", ApiError)
       }
@@ -547,7 +637,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
           format: :"date-time",
           nullable: true,
           description:
-            "ISO 8601 Datetime at which to schedule a status. Providing this paramter will cause ScheduledStatus to be returned instead of Status. Must be at least 5 minutes in the future."
+            "ISO 8601 Datetime at which to schedule a status. Providing this parameter will cause ScheduledStatus to be returned instead of Status. Must be at least 5 minutes in the future."
         },
         language: %Schema{
           oneOf: [
@@ -565,12 +655,26 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
             }
           ]
         },
+        visibility: %Schema{
+          nullable: true,
+          anyOf: [
+            VisibilityScope,
+            %Schema{type: :string, description: "`list:LIST_ID`", example: "LIST:123"}
+          ],
+          description:
+            "Visibility of the posted status. Besides standard MastoAPI values (`direct`, `private`, `unlisted` or `public`) it can be used to address a List by setting it to `list:LIST_ID`"
+        },
+        quoted_status_id: %Schema{
+          nullable: true,
+          allOf: [FlakeID],
+          description: "ID of the status being quoted, if any"
+        },
         # Pleroma-specific properties:
         preview: %Schema{
           allOf: [BooleanLike],
           nullable: true,
           description:
-            "If set to `true` the post won't be actually posted, but the status entitiy would still be rendered back. This could be useful for previewing rich text/custom emoji, for example"
+            "If set to `true` the post won't be actually posted, but the status entity would still be rendered back. This could be useful for previewing rich text/custom emoji, for example"
         },
         content_type: %Schema{
           type: :string,
@@ -585,15 +689,6 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
           description:
             "A list of nicknames (like `lain@soykaf.club` or `lain` on the local server) that will be used to determine who is going to be addressed by this post. Using this will disable the implicit addressing by mentioned names in the `status` body, only the people in the `to` list will be addressed. The normal rules for for post visibility are not affected by this and will still apply"
         },
-        visibility: %Schema{
-          nullable: true,
-          anyOf: [
-            VisibilityScope,
-            %Schema{type: :string, description: "`list:LIST_ID`", example: "LIST:123"}
-          ],
-          description:
-            "Visibility of the posted status. Besides standard MastoAPI values (`direct`, `private`, `unlisted` or `public`) it can be used to address a List by setting it to `list:LIST_ID`"
-        },
         expires_in: %Schema{
           nullable: true,
           type: :integer,
@@ -605,6 +700,12 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
           type: :string,
           description:
             "Will reply to a given conversation, addressing only the people who are part of the recipient set of that conversation. Sets the visibility to `direct`."
+        },
+        quote_id: %Schema{
+          nullable: true,
+          allOf: [FlakeID],
+          description: "Deprecated in favor of `quoted_status_id`",
+          deprecated: true
         }
       },
       example: %{
@@ -709,7 +810,7 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
   end
 
   def id_param do
-    Operation.parameter(:id, :path, FlakeID, "Status ID",
+    Operation.parameter(:id, :path, FlakeID.schema(), "Status ID",
       example: "9umDrYheeY451cQnEe",
       required: true
     )
@@ -837,6 +938,34 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
       example: %{
         "ancestors" => [Status.schema().example],
         "descendants" => [Status.schema().example]
+      }
+    }
+  end
+
+  defp translation do
+    %Schema{
+      title: "StatusTranslation",
+      description: "Represents status translation with related information.",
+      type: :object,
+      required: [:content, :detected_source_language, :provider],
+      properties: %{
+        content: %Schema{
+          type: :string,
+          description: "Translated status content"
+        },
+        detected_source_language: %Schema{
+          type: :string,
+          description: "Detected source language"
+        },
+        provider: %Schema{
+          type: :string,
+          description: "Translation provider service name"
+        }
+      },
+      example: %{
+        "content" => "Software für die nächste Generation der sozialen Medien.",
+        "detected_source_language" => "en",
+        "provider" => "Deepl"
       }
     }
   end

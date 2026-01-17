@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.CommonAPI.ActivityDraftTest do
+  alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.CommonAPI.ActivityDraft
 
   use Pleroma.DataCase
@@ -31,5 +32,33 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraftTest do
       assert is_binary(content)
       assert is_binary(summary)
     end
+  end
+
+  test "create/2 with a quote post" do
+    user = insert(:user)
+    another_user = insert(:user)
+
+    {:ok, direct} = CommonAPI.post(user, %{status: ".", visibility: "direct"})
+    {:ok, private} = CommonAPI.post(user, %{status: ".", visibility: "private"})
+    {:ok, unlisted} = CommonAPI.post(user, %{status: ".", visibility: "unlisted"})
+    {:ok, local} = CommonAPI.post(user, %{status: ".", visibility: "local"})
+    {:ok, public} = CommonAPI.post(user, %{status: ".", visibility: "public"})
+
+    {:error, _} = ActivityDraft.create(user, %{status: "nice", quoted_status_id: direct.id})
+    {:ok, _} = ActivityDraft.create(user, %{status: "nice", quoted_status_id: private.id})
+
+    {:error, _} =
+      ActivityDraft.create(another_user, %{status: "nice", quoted_status_id: private.id})
+
+    {:ok, _} = ActivityDraft.create(user, %{status: "nice", quoted_status_id: unlisted.id})
+
+    {:ok, _} =
+      ActivityDraft.create(another_user, %{status: "nice", quoted_status_id: unlisted.id})
+
+    {:ok, _} = ActivityDraft.create(user, %{status: "nice", quoted_status_id: local.id})
+    {:ok, _} = ActivityDraft.create(another_user, %{status: "nice", quoted_status_id: local.id})
+    {:ok, _} = ActivityDraft.create(user, %{status: "nice", quoted_status_id: public.id})
+    {:ok, _} = ActivityDraft.create(another_user, %{status: "nice", quoted_status_id: public.id})
+>>>>>>> origin/develop
   end
 end

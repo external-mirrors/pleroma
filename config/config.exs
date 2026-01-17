@@ -48,7 +48,7 @@ config :pleroma, ecto_repos: [Pleroma.Repo]
 
 config :pleroma, Pleroma.Repo,
   telemetry_event: [Pleroma.Repo.Instrumenter],
-  migration_lock: nil
+  migration_lock: :pg_advisory_lock
 
 config :pleroma, Pleroma.Captcha,
   enabled: true,
@@ -65,7 +65,8 @@ config :pleroma, Pleroma.Upload,
   proxy_remote: false,
   filename_display_max_length: 30,
   default_description: nil,
-  base_url: nil
+  base_url: nil,
+  allowed_mime_types: ["image", "audio", "video"]
 
 config :pleroma, Pleroma.Uploaders.Local, uploads: "uploads"
 
@@ -81,6 +82,10 @@ config :ex_aws, :s3,
   secret_access_key: nil,
   # region: "us-east-1", # may be required for Amazon AWS
   scheme: "https://"
+
+config :pleroma, Pleroma.Uploaders.IPFS,
+  post_gateway_url: "http://localhost:5001",
+  get_gateway_url: "http://localhost:8080"
 
 config :pleroma, :emoji,
   shortcode_globs: ["/emoji/custom/**/*.png"],
@@ -110,32 +115,11 @@ config :pleroma, :uri_schemes,
     "xmpp"
   ]
 
-websocket_config = [
-  path: "/websocket",
-  serializer: [
-    {Phoenix.Socket.V1.JSONSerializer, "~> 1.0.0"},
-    {Phoenix.Socket.V2.JSONSerializer, "~> 2.0.0"}
-  ],
-  timeout: 60_000,
-  transport_log: false,
-  compress: false
-]
-
 # Configures the endpoint
 config :pleroma, Pleroma.Web.Endpoint,
   url: [host: "localhost"],
   http: [
-    ip: {127, 0, 0, 1},
-    dispatch: [
-      {:_,
-       [
-         {"/api/v1/streaming", Pleroma.Web.MastodonAPI.WebsocketHandler, []},
-         {"/websocket", Phoenix.Endpoint.CowboyWebSocket,
-          {Phoenix.Transports.WebSocket,
-           {Pleroma.Web.Endpoint, Pleroma.Web.UserSocket, websocket_config}}},
-         {:_, Phoenix.Endpoint.Cowboy2Handler, {Pleroma.Web.Endpoint, []}}
-       ]}
-    ]
+    ip: {127, 0, 0, 1}
   ],
   protocol: "https",
   secret_key_base: "aK4Abxf29xU9TTDKre9coZPUgevcVCFQJe/5xP/7Lt4BEif6idBIbjupVbOrbKxl",
@@ -149,23 +133,28 @@ config :pleroma, Pleroma.Web.Endpoint,
   ]
 
 # Configures Elixir's Logger
+config :logger, backends: [:console]
+
 config :logger, :console,
   level: :debug,
   format: "\n$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [:actor, :path, :type, :user]
 
 config :logger, :ex_syslogger,
   level: :debug,
   ident: "pleroma",
   format: "$metadata[$level] $message",
-  metadata: [:request_id]
+  metadata: [:actor, :path, :type, :user]
 
 config :mime, :types, %{
   "application/xml" => ["xml"],
   "application/xrd+xml" => ["xrd+xml"],
   "application/jrd+json" => ["jrd+json"],
   "application/activity+json" => ["activity+json"],
-  "application/ld+json" => ["activity+json"]
+  "application/ld+json" => ["activity+json"],
+  # Can be removed when bumping MIME past 2.0.5
+  # see https://akkoma.dev/AkkomaGang/akkoma/issues/657
+  "image/apng" => ["apng"]
 }
 
 config :tesla, adapter: Tesla.Adapter.Hackney
@@ -185,6 +174,7 @@ config :pleroma, :instance,
   short_description: "",
   background_image: "/images/city.jpg",
   instance_thumbnail: "/instance/thumbnail.jpeg",
+  favicon: "/favicon.png",
   limit: 5_000,
   description_limit: 5_000,
   remote_limit: 100_000,
@@ -204,13 +194,10 @@ config :pleroma, :instance,
   account_approval_required: false,
   federating: true,
   federation_incoming_replies_max_depth: 100,
-  federation_reachability_timeout_days: 7,
-  federation_publisher_modules: [
-    Pleroma.Web.ActivityPub.Publisher
-  ],
   allow_relay: true,
   public: true,
   quarantined_instances: [],
+  rejected_instances: [],
   static_dir: "instance/static/",
   allowed_post_formats: [
     "text/plain",
@@ -319,6 +306,7 @@ config :pleroma, :frontend_configurations,
     collapseMessageWithSubject: false,
     disableChat: false,
     greentext: false,
+    embeddedToS: true,
     hideFilteredStatuses: false,
     hideMutedPosts: false,
     hidePostStats: false,
@@ -360,6 +348,8 @@ config :pleroma, :manifest,
   icons: [
     %{
       src: "/static/logo.svg",
+      sizes: "512x512",
+      purpose: "any",
       type: "image/svg+xml"
     }
   ],
@@ -373,7 +363,10 @@ config :pleroma, :activitypub,
   follow_handshake_timeout: 500,
   note_replies_output_limit: 5,
   sign_object_fetches: true,
-  authorized_fetch_mode: false
+  authorized_fetch_mode: false,
+  client_api_enabled: false,
+  anonymize_reporter: false,
+  anonymize_reporter_local_nickname: ""
 
 config :pleroma, :streamer,
   workers: 3,
@@ -408,6 +401,12 @@ config :pleroma, :mrf_keyword,
   federated_timeline_removal: [],
   replace: []
 
+config :pleroma, :mrf_emoji,
+  remove_url: [],
+  remove_shortcode: [],
+  federated_timeline_removal_url: [],
+  federated_timeline_removal_shortcode: []
+
 config :pleroma, :mrf_hashtag,
   sensitive: ["nsfw"],
   reject: [],
@@ -426,7 +425,27 @@ config :pleroma, :mrf_object_age,
   threshold: 604_800,
   actions: [:delist, :strip_followers]
 
+config :pleroma, :mrf_nsfw_api,
+  url: "http://127.0.0.1:5000/",
+  threshold: 0.7,
+  mark_sensitive: true,
+  unlist: false,
+  reject: false
+
 config :pleroma, :mrf_follow_bot, follower_nickname: nil
+
+config :pleroma, :mrf_inline_quote, template: "<bdi>RT:</bdi> {url}"
+
+config :pleroma, :mrf_remote_report,
+  reject_all: false,
+  reject_anonymous: true,
+  reject_empty_message: true
+
+config :pleroma, :mrf_force_mention,
+  mention_parent: true,
+  mention_quoted: true
+
+config :pleroma, :mrf_antimentionspam, user_age_limit: 30_000
 
 config :pleroma, :rich_media,
   enabled: true,
@@ -436,8 +455,12 @@ config :pleroma, :rich_media,
     Pleroma.Web.RichMedia.Parsers.TwitterCard,
     Pleroma.Web.RichMedia.Parsers.OEmbed
   ],
-  failure_backoff: 60_000,
-  ttl_setters: [Pleroma.Web.RichMedia.Parser.TTL.AwsSignedUrl]
+  timeout: 5_000,
+  ttl_setters: [
+    Pleroma.Web.RichMedia.Parser.TTL.AwsSignedUrl,
+    Pleroma.Web.RichMedia.Parser.TTL.Opengraph
+  ],
+  max_body: 5_000_000
 
 config :pleroma, :media_proxy,
   enabled: false,
@@ -506,7 +529,8 @@ config :pleroma, :http_security,
   sts: false,
   sts_max_age: 31_536_000,
   ct_max_age: 2_592_000,
-  referrer_policy: "same-origin"
+  referrer_policy: "same-origin",
+  allow_unsafe_eval: false
 
 config :cors_plug,
   max_age: 86_400,
@@ -563,38 +587,26 @@ config :pleroma, Pleroma.User,
   ],
   email_blacklist: []
 
+# The Pruner :max_age must be longer than Worker :unique
+# value or it cannot enforce uniqueness.
 config :pleroma, Oban,
   repo: Pleroma.Repo,
+  notifier: Oban.Notifiers.PG,
   log: false,
   queues: [
     activity_expiration: 10,
-    token_expiration: 5,
-    filter_expiration: 1,
-    backup: 1,
     federator_incoming: 5,
-    federator_outgoing: 5,
-    ingestion_queue: 50,
+    federator_outgoing: 25,
     web_push: 50,
-    mailer: 10,
-    transmogrifier: 20,
-    scheduled_activities: 10,
-    poll_notifications: 10,
-    background: 5,
-    remote_fetcher: 2,
-    attachments_cleanup: 1,
-    new_users_digest: 1,
-    mute_expire: 5
+    background: 20,
+    search_indexing: [limit: 10, paused: true],
+    slow: 5
   ],
-  plugins: [Oban.Plugins.Pruner],
+  plugins: [Oban.Plugins.Lazarus, {Oban.Plugins.Pruner, max_age: 900}],
   crontab: [
     {"0 0 * * 0", Pleroma.Workers.Cron.DigestEmailsWorker},
-    {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker}
-  ]
-
-config :pleroma, :workers,
-  retries: [
-    federator_incoming: 5,
-    federator_outgoing: 5
+    {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker},
+    {"*/10 * * * *", Pleroma.Workers.Cron.AppCleanupWorker}
   ]
 
 config :pleroma, Pleroma.Formatter,
@@ -608,17 +620,17 @@ config :pleroma, Pleroma.Formatter,
 
 config :pleroma, :ldap,
   enabled: System.get_env("LDAP_ENABLED") == "true",
-  host: System.get_env("LDAP_HOST") || "localhost",
-  port: String.to_integer(System.get_env("LDAP_PORT") || "389"),
+  host: System.get_env("LDAP_HOST", "localhost"),
+  port: String.to_integer(System.get_env("LDAP_PORT", "389")),
   ssl: System.get_env("LDAP_SSL") == "true",
   sslopts: [],
   tls: System.get_env("LDAP_TLS") == "true",
   tlsopts: [],
-  base: System.get_env("LDAP_BASE") || "dc=example,dc=com",
-  uid: System.get_env("LDAP_UID") || "cn"
-
-config :esshd,
-  enabled: false
+  base: System.get_env("LDAP_BASE", "dc=example,dc=com"),
+  uid: System.get_env("LDAP_UID", "cn"),
+  # defaults to CAStore's Mozilla roots
+  cacertfile: System.get_env("LDAP_CACERTFILE", nil),
+  mail: System.get_env("LDAP_MAIL", "mail")
 
 oauth_consumer_strategies =
   System.get_env("OAUTH_CONSUMER_STRATEGIES")
@@ -655,12 +667,26 @@ config :pleroma, Pleroma.Emails.UserEmail,
 
 config :pleroma, Pleroma.Emails.NewUsersDigestEmail, enabled: false
 
-config :prometheus, Pleroma.Web.Endpoint.MetricsExporter,
-  enabled: false,
-  auth: false,
-  ip_whitelist: [],
-  path: "/api/pleroma/app_metrics",
-  format: :text
+config :pleroma, Pleroma.PromEx,
+  disabled: false,
+  manual_metrics_start_delay: :no_delay,
+  drop_metrics_groups: [],
+  grafana: [
+    host: System.get_env("GRAFANA_HOST", "http://localhost:3000"),
+    auth_token: System.get_env("GRAFANA_TOKEN"),
+    upload_dashboards_on_start: false,
+    folder_name: "BEAM",
+    annotate_app_lifecycle: true
+  ],
+  metrics_server: [
+    port: 4021,
+    path: "/metrics",
+    protocol: :http,
+    pool_size: 5,
+    cowboy_opts: [],
+    auth_strategy: :none
+  ],
+  datasource: "Prometheus"
 
 config :pleroma, Pleroma.ScheduledActivity,
   daily_user_limit: 25,
@@ -697,6 +723,7 @@ config :pleroma, :rate_limit,
   timeline: {500, 3},
   search: [{1000, 10}, {1000, 30}],
   app_account_creation: {1_800_000, 25},
+  oauth_app_creation: {900_000, 5},
   relations_actions: {10_000, 10},
   relation_id_action: {60_000, 2},
   statuses_actions: {10_000, 15},
@@ -783,6 +810,13 @@ config :pleroma, :frontends,
         "https://lily-is.land/infra/glitch-lily/-/jobs/artifacts/${ref}/download?job=build",
       "ref" => "servant",
       "build_dir" => "public"
+    },
+    "pl-fe" => %{
+      "name" => "pl-fe",
+      "git" => "https://github.com/mkljczk/pl-fe",
+      "build_url" => "https://pl.mkljczk.pl/pl-fe.zip",
+      "ref" => "develop",
+      "build_dir" => "."
     }
   }
 
@@ -795,7 +829,7 @@ config :pleroma, :modules, runtime_dir: "instance/modules"
 config :pleroma, configurable_from_database: false
 
 config :pleroma, Pleroma.Repo,
-  parameters: [gin_fuzzy_search_limit: "500"],
+  parameters: [gin_fuzzy_search_limit: "500", jit: "off"],
   prepare: :unnamed
 
 config :pleroma, :connections_pool,
@@ -809,22 +843,27 @@ config :pleroma, :connections_pool,
 
 config :pleroma, :pools,
   federation: [
-    size: 50,
-    max_waiting: 10,
+    size: 75,
+    max_waiting: 20,
     recv_timeout: 10_000
   ],
   media: [
-    size: 50,
+    size: 75,
+    max_waiting: 20,
+    recv_timeout: 15_000
+  ],
+  rich_media: [
+    size: 25,
     max_waiting: 20,
     recv_timeout: 15_000
   ],
   upload: [
     size: 25,
-    max_waiting: 5,
+    max_waiting: 20,
     recv_timeout: 15_000
   ],
   default: [
-    size: 10,
+    size: 50,
     max_waiting: 2,
     recv_timeout: 5_000
   ]
@@ -832,15 +871,19 @@ config :pleroma, :pools,
 config :pleroma, :hackney_pools,
   federation: [
     max_connections: 50,
-    timeout: 150_000
+    timeout: 10_000
   ],
   media: [
     max_connections: 50,
-    timeout: 150_000
+    timeout: 15_000
+  ],
+  rich_media: [
+    max_connections: 50,
+    timeout: 15_000
   ],
   upload: [
     max_connections: 25,
-    timeout: 300_000
+    timeout: 15_000
   ]
 
 config :pleroma, :majic_pool, size: 2
@@ -855,7 +898,11 @@ config :pleroma, :restrict_unauthenticated,
 config :pleroma, Pleroma.Web.ApiSpec.CastAndValidate, strict: false
 
 config :pleroma, :mrf,
-  policies: [Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy, Pleroma.Web.ActivityPub.MRF.TagPolicy],
+  policies: [
+    Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy,
+    Pleroma.Web.ActivityPub.MRF.TagPolicy,
+    Pleroma.Web.ActivityPub.MRF.InlineQuotePolicy
+  ],
   transparency: true,
   transparency_exclusions: []
 
@@ -874,11 +921,12 @@ config :pleroma, Pleroma.Web.Auth.Authenticator, Pleroma.Web.Auth.PleromaAuthent
 config :pleroma, Pleroma.User.Backup,
   purge_after_days: 30,
   limit_days: 7,
-  dir: nil
+  dir: nil,
+  process_chunk_size: 100,
+  timeout: :timer.minutes(30)
 
 config :pleroma, ConcurrentLimiter, [
-  {Pleroma.Web.RichMedia.Helpers, [max_running: 5, max_waiting: 5]},
-  {Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicy, [max_running: 5, max_waiting: 5]}
+  {Pleroma.Search, [max_running: 30, max_waiting: 50]}
 ]
 
 config :pleroma, Pleroma.Web.WebFinger, domain: nil, update_nickname_on_user_fetch: true
@@ -888,6 +936,35 @@ config :pleroma, Pleroma.MultiLanguage,
   separator: "<br><hr><br>",
   single_line_template: "[{code}] {content}",
   single_line_separator: " | "
+
+config :pleroma, Pleroma.Search, module: Pleroma.Search.DatabaseSearch
+
+config :pleroma, Pleroma.Search.Meilisearch,
+  url: "http://127.0.0.1:7700/",
+  private_key: nil,
+  initial_indexing_chunk_size: 100_000
+
+config :pleroma, Pleroma.Application,
+  background_migrators: true,
+  internal_fetch: true,
+  load_custom_modules: true,
+  max_restarts: 3,
+  streamer_registry: true
+
+config :pleroma, Pleroma.Uploaders.Uploader, timeout: 30_000
+
+config :pleroma, Pleroma.Search.QdrantSearch,
+  qdrant_url: "http://127.0.0.1:6333/",
+  qdrant_api_key: "",
+  openai_url: "http://127.0.0.1:11345",
+  # The healthcheck url has to be set to nil when used with the real openai
+  # API, as it doesn't have a healthcheck endpoint.
+  openai_healthcheck_url: "http://127.0.0.1:11345/health",
+  openai_model: "snowflake/snowflake-arctic-embed-xs",
+  openai_api_key: "",
+  qdrant_index_configuration: %{
+    vectors: %{size: 384, distance: "Cosine"}
+  }
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

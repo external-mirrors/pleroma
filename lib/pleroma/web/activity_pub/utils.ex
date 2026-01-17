@@ -7,6 +7,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   alias Ecto.UUID
   alias Pleroma.Activity
   alias Pleroma.Config
+  alias Pleroma.EctoType.ActivityPub.ObjectValidators.ObjectID
   alias Pleroma.Maps
   alias Pleroma.Notification
   alias Pleroma.Object
@@ -19,6 +20,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   alias Pleroma.Web.Router.Helpers
 
   import Ecto.Query
+  import Pleroma.Web.Utils.Guards, only: [not_empty_string: 1]
 
   require Logger
   require Pleroma.Constants
@@ -31,7 +33,8 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     "Page",
     "Question",
     "Answer",
-    "Audio"
+    "Audio",
+    "Image"
   ]
   @strip_status_report_states ~w(closed resolved)
   @supported_report_states ~w(open closed resolved)
@@ -79,7 +82,11 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   def unaddressed_message?(params),
     do:
       [params["to"], params["cc"], params["bto"], params["bcc"]]
-      |> Enum.all?(&is_nil(&1))
+      |> Enum.all?(fn
+        nil -> true
+        [] -> true
+        _ -> false
+      end)
 
   @spec recipient_in_message(User.t(), User.t(), map()) :: boolean()
   def recipient_in_message(%User{ap_id: ap_id} = recipient, %User{} = actor, params),
@@ -107,17 +114,23 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     end
   end
 
-  def make_json_ld_header do
+  def make_json_ld_header(data \\ %{}) do
     %{
       "@context" => [
         "https://www.w3.org/ns/activitystreams",
         "#{Endpoint.url()}/schemas/litepub-0.1.jsonld",
         %{
-          "@language" => "und"
+          "@language" => get_language(data)
         }
       ]
     }
   end
+
+  defp get_language(%{"language" => language}) when not_empty_string(language) do
+    language
+  end
+
+  defp get_language(_), do: "und"
 
   def make_date do
     DateTime.utc_now() |> DateTime.to_iso8601()
@@ -165,7 +178,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
     with true <- Config.get!([:instance, :federating]),
          true <- type != "Block" || outgoing_blocks,
-         false <- Visibility.is_local_public?(activity) do
+         false <- Visibility.local_public?(activity) do
       Pleroma.Web.Federator.publish(activity)
     end
 
@@ -275,7 +288,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     object_actor = User.get_cached_by_ap_id(object_actor_id)
 
     to =
-      if Visibility.is_public?(object) do
+      if Visibility.public?(object) do
         [actor.follower_address, object.data["actor"]]
       else
         [object.data["actor"]]
@@ -325,21 +338,29 @@ defmodule Pleroma.Web.ActivityPub.Utils do
           {:ok, Object.t()} | {:error, Ecto.Changeset.t()}
 
   def add_emoji_reaction_to_object(
-        %Activity{data: %{"content" => emoji, "actor" => actor}},
+        %Activity{data: %{"content" => emoji, "actor" => actor}} = activity,
         object
       ) do
     reactions = get_cached_emoji_reactions(object)
+    emoji = Pleroma.Emoji.maybe_strip_name(emoji)
+    url = maybe_emoji_url(emoji, activity)
 
     new_reactions =
-      case Enum.find_index(reactions, fn [candidate, _] -> emoji == candidate end) do
+      case Enum.find_index(reactions, fn [candidate, _, candidate_url] ->
+             if is_nil(candidate_url) do
+               emoji == candidate
+             else
+               url == candidate_url
+             end
+           end) do
         nil ->
-          reactions ++ [[emoji, [actor]]]
+          reactions ++ [[emoji, [actor], url]]
 
         index ->
           List.update_at(
             reactions,
             index,
-            fn [emoji, users] -> [emoji, Enum.uniq([actor | users])] end
+            fn [emoji, users, url] -> [emoji, Enum.uniq([actor | users]), url] end
           )
       end
 
@@ -348,18 +369,40 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     update_element_in_object("reaction", new_reactions, object, count)
   end
 
+  defp maybe_emoji_url(
+         name,
+         %Activity{
+           data: %{
+             "tag" => [
+               %{"type" => "Emoji", "name" => name, "icon" => %{"url" => url}}
+             ]
+           }
+         }
+       ),
+       do: url
+
+  defp maybe_emoji_url(_, _), do: nil
+
   def emoji_count(reactions_list) do
-    Enum.reduce(reactions_list, 0, fn [_, users], acc -> acc + length(users) end)
+    Enum.reduce(reactions_list, 0, fn [_, users, _], acc -> acc + length(users) end)
   end
 
   def remove_emoji_reaction_from_object(
-        %Activity{data: %{"content" => emoji, "actor" => actor}},
+        %Activity{data: %{"content" => emoji, "actor" => actor}} = activity,
         object
       ) do
+    emoji = Pleroma.Emoji.maybe_strip_name(emoji)
     reactions = get_cached_emoji_reactions(object)
+    url = maybe_emoji_url(emoji, activity)
 
     new_reactions =
-      case Enum.find_index(reactions, fn [candidate, _] -> emoji == candidate end) do
+      case Enum.find_index(reactions, fn [candidate, _, candidate_url] ->
+             if is_nil(candidate_url) do
+               emoji == candidate
+             else
+               url == candidate_url
+             end
+           end) do
         nil ->
           reactions
 
@@ -367,9 +410,9 @@ defmodule Pleroma.Web.ActivityPub.Utils do
           List.update_at(
             reactions,
             index,
-            fn [emoji, users] -> [emoji, List.delete(users, actor)] end
+            fn [emoji, users, url] -> [emoji, List.delete(users, actor), url] end
           )
-          |> Enum.reject(fn [_, users] -> Enum.empty?(users) end)
+          |> Enum.reject(fn [_, users, _] -> Enum.empty?(users) end)
       end
 
     count = emoji_count(new_reactions)
@@ -377,11 +420,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   end
 
   def get_cached_emoji_reactions(object) do
-    if is_list(object.data["reactions"]) do
-      object.data["reactions"]
-    else
-      []
-    end
+    Object.get_emoji_reactions(object)
   end
 
   @spec add_like_to_object(Activity.t(), Object.t()) ::
@@ -489,15 +528,35 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
   def get_latest_reaction(internal_activity_id, %{ap_id: ap_id}, emoji) do
     %{data: %{"object" => object_ap_id}} = Activity.get_by_id(internal_activity_id)
+    emoji = Pleroma.Emoji.maybe_quote(emoji)
 
     "EmojiReact"
     |> Activity.Queries.by_type()
     |> where(actor: ^ap_id)
-    |> where([activity], fragment("?->>'content' = ?", activity.data, ^emoji))
+    |> custom_emoji_discriminator(emoji)
     |> Activity.Queries.by_object_id(object_ap_id)
     |> order_by([activity], fragment("? desc nulls last", activity.id))
     |> limit(1)
     |> Repo.one()
+  end
+
+  defp custom_emoji_discriminator(query, emoji) do
+    if String.contains?(emoji, "@") do
+      stripped = Pleroma.Emoji.maybe_strip_name(emoji)
+      [name, domain] = String.split(stripped, "@")
+      domain_pattern = "%/" <> domain <> "/%"
+      emoji_pattern = Pleroma.Emoji.maybe_quote(name)
+
+      query
+      |> where([activity], fragment("?->>'content' = ?
+        AND EXISTS (
+          SELECT FROM jsonb_array_elements(?->'tag') elem
+          WHERE elem->>'id' ILIKE ?
+        )", activity.data, ^emoji_pattern, activity.data, ^domain_pattern))
+    else
+      query
+      |> where([activity], fragment("?->>'content' = ?", activity.data, ^emoji))
+    end
   end
 
   #### Announce-related helpers
@@ -673,14 +732,18 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
   #### Flag-related helpers
   @spec make_flag_data(map(), map()) :: map()
-  def make_flag_data(%{actor: actor, context: context, content: content} = params, additional) do
+  def make_flag_data(
+        %{actor: actor, context: context, content: content} = params,
+        additional
+      ) do
     %{
       "type" => "Flag",
       "actor" => actor.ap_id,
       "content" => content,
       "object" => build_flag_object(params),
       "context" => context,
-      "state" => "open"
+      "state" => "open",
+      "rules" => Map.get(params, :rules, nil)
     }
     |> Map.merge(additional)
   end
@@ -728,10 +791,9 @@ defmodule Pleroma.Web.ActivityPub.Utils do
         build_flag_object(object)
 
       nil ->
-        if %Object{} = object = Object.get_by_ap_id(id) do
-          build_flag_object(object)
-        else
-          %{"id" => id, "deleted" => true}
+        case Object.get_by_ap_id(id) do
+          %Object{} = object -> build_flag_object(object)
+          _ -> %{"id" => id, "deleted" => true}
         end
     end
   end
@@ -801,18 +863,53 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
   def update_report_state(_, _), do: {:error, "Unsupported state"}
 
-  def strip_report_status_data(activity) do
-    [actor | reported_activities] = activity.data["object"]
+  def strip_report_status_data(%Activity{} = activity) do
+    with {:ok, new_data} <- strip_report_status_data(activity.data) do
+      {:ok, %{activity | data: new_data}}
+    end
+  end
+
+  def strip_report_status_data(data) do
+    [actor | reported_activities] = data["object"]
 
     stripped_activities =
-      Enum.map(reported_activities, fn
-        act when is_map(act) -> act["id"]
-        act when is_binary(act) -> act
+      Enum.reduce(reported_activities, [], fn act, acc ->
+        case ObjectID.cast(act) do
+          {:ok, act} -> [act | acc]
+          _ -> acc
+        end
       end)
 
-    new_data = put_in(activity.data, ["object"], [actor | stripped_activities])
+    new_data = put_in(data, ["object"], [actor | stripped_activities])
 
-    {:ok, %{activity | data: new_data}}
+    {:ok, new_data}
+  end
+
+  def get_anonymized_reporter do
+    with true <- Pleroma.Config.get([:activitypub, :anonymize_reporter]),
+         nickname when is_binary(nickname) <-
+           Pleroma.Config.get([:activitypub, :anonymize_reporter_local_nickname]),
+         %User{ap_id: ap_id, local: true} <- User.get_cached_by_nickname(nickname) do
+      ap_id
+    else
+      _ -> nil
+    end
+  end
+
+  def maybe_anonymize_reporter(%Activity{data: data} = activity) do
+    new_data = maybe_anonymize_reporter(data)
+    %Activity{activity | actor: new_data["actor"], data: new_data}
+  end
+
+  def maybe_anonymize_reporter(activity) do
+    ap_id = get_anonymized_reporter()
+
+    if is_binary(ap_id) do
+      activity
+      |> Map.put("actor", ap_id)
+    else
+      activity
+    end
   end
 
   def update_activity_visibility(activity, visibility) when visibility in @valid_visibilities do
@@ -884,5 +981,16 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     |> where([a, object: o], fragment("(?)->>'inReplyTo' = ?", o.data, ^to_string(id)))
     |> where([a, object: o], fragment("(?)->>'type' = 'Answer'", o.data))
     |> Repo.all()
+  end
+
+  @spec maybe_handle_group_posts(Activity.t()) :: :ok
+  @doc "Automatically repeats posts for local group actor recipients"
+  def maybe_handle_group_posts(activity) do
+    poster = User.get_cached_by_ap_id(activity.actor)
+
+    User.get_recipients_from_activity(activity)
+    |> Enum.filter(&match?("Group", &1.actor_type))
+    |> Enum.reject(&User.blocks?(&1, poster))
+    |> Enum.each(&Pleroma.Web.CommonAPI.repeat(activity.id, &1))
   end
 end

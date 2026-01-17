@@ -11,11 +11,6 @@ defmodule Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicy do
 
   require Logger
 
-  @adapter_options [
-    pool: :media,
-    recv_timeout: 10_000
-  ]
-
   @impl true
   def history_awareness, do: :auto
 
@@ -27,19 +22,23 @@ defmodule Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicy do
 
       Logger.debug("Prefetching #{inspect(url)} as #{inspect(prefetch_url)}")
 
-      if Pleroma.Config.get(:env) == :test do
-        fetch(prefetch_url)
-      else
-        ConcurrentLimiter.limit(__MODULE__, fn ->
-          Task.start(fn -> fetch(prefetch_url) end)
-        end)
-      end
+      fetch(prefetch_url)
     end
   end
 
-  defp fetch(url), do: HTTP.get(url, [], @adapter_options)
+  defp fetch(url) do
+    # This module uses Tesla (Pleroma.HTTP) to fetch the MediaProxy URL.
+    # Redirect following is handled by Tesla middleware, so we must not enable
+    # adapter-level redirect logic (Hackney can crash on relative redirects when proxied).
+    http_client_opts =
+      [:media_proxy, :proxy_opts, :http]
+      |> Pleroma.Config.get(pool: :media)
+      |> Keyword.drop([:follow_redirect, :force_redirect])
 
-  defp preload(%{"object" => %{"attachment" => attachments}} = _message) do
+    HTTP.get(url, [], http_client_opts)
+  end
+
+  defp preload(%{"object" => %{"attachment" => attachments}} = _activity) do
     Enum.each(attachments, fn
       %{"url" => url} when is_list(url) ->
         url
@@ -57,15 +56,15 @@ defmodule Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicy do
   end
 
   @impl true
-  def filter(%{"type" => type, "object" => %{"attachment" => attachments} = _object} = message)
+  def filter(%{"type" => type, "object" => %{"attachment" => attachments} = _object} = activity)
       when type in ["Create", "Update"] and is_list(attachments) and length(attachments) > 0 do
-    preload(message)
+    preload(activity)
 
-    {:ok, message}
+    {:ok, activity}
   end
 
   @impl true
-  def filter(message), do: {:ok, message}
+  def filter(activity), do: {:ok, activity}
 
   @impl true
   def describe, do: {:ok, %{}}

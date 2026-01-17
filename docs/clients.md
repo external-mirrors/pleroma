@@ -3,12 +3,6 @@ Note: Additional clients may be working but theses are officially supporting Ple
 Feel free to contact us to be added to this list!
 
 ## Desktop
-### Roma for Desktop
-- Homepage: <https://www.pleroma.com/#desktopApp>
-- Source Code: <https://github.com/roma-apps/roma-desktop>
-- Platforms: Windows, Mac, Linux
-- Features: MastoAPI, Streaming Ready
-
 ### Social
 - Source Code: <https://gitlab.gnome.org/World/Social>
 - Contact: [@brainblasted@social.libre.fi](https://social.libre.fi/users/brainblasted)
@@ -19,7 +13,14 @@ Feel free to contact us to be added to this list!
 ### Whalebird
 - Homepage: <https://whalebird.social/>
 - Source Code: <https://github.com/h3poteto/whalebird-desktop>
-- Contact: [@h3poteto@pleroma.io](https://pleroma.io/users/h3poteto)
+- Contact: [@whalebird@pleroma.io](https://pleroma.io/users/whalebird)
+- Platforms: Windows, Mac, Linux
+- Features: MastoAPI, Streaming Ready
+
+### Fedistar
+- Homepage: <https://fedistar.net>
+- Source Code: <https://github.com/h3poteto/fedistar>
+- Contact: [@fedistar@pleroma.io](https://pleroma.io/users/fedistar)
 - Platforms: Windows, Mac, Linux
 - Features: MastoAPI, Streaming Ready
 
@@ -27,6 +28,7 @@ Feel free to contact us to be added to this list!
 ### AndStatus
 - Homepage: <http://andstatus.org/>
 - Source Code: <https://github.com/andstatus/andstatus/>
+- Contact: [@AndStatus@mastodon.social](https://mastodon.social/@AndStatus)
 - Platforms: Android
 - Features: MastoAPI, ActivityPub (Client-to-Server)
 
@@ -39,8 +41,8 @@ Feel free to contact us to be added to this list!
 
 ### Fedilab
 - Homepage: <https://fedilab.app/>
-- Source Code: <https://framagit.org/tom79/fedilab/>
-- Contact: [@fedilab@framapiaf.org](https://framapiaf.org/users/fedilab)
+- Source Code: <https://codeberg.org/tom79/Fedilab>
+- Contact: [@apps@toot.fedilab.app](https://toot.fedilab.app/@apps)
 - Platforms: Android
 - Features: MastoAPI, Streaming Ready, Moderation, Text Formatting
 
@@ -50,8 +52,8 @@ Feel free to contact us to be added to this list!
 - Features: MastoAPI, No Streaming
 
 ### Husky
-- Source code: <https://git.mentality.rip/FWGS/Husky>
-- Contact: [@Husky@enigmatic.observer](https://enigmatic.observer/users/Husky)
+- Source code: <https://github.com/captainepoch/husky>
+- Contact: [@husky@stereophonic.space](https://stereophonic.space/users/husky)
 - Platforms: Android
 - Features: MastoAPI, No Streaming, Emoji Reactions, Text Formatting, FE Stickers
 
@@ -64,7 +66,7 @@ Feel free to contact us to be added to this list!
 ### Tusky
 - Homepage: <https://tuskyapp.github.io/>
 - Source Code: <https://github.com/tuskyapp/Tusky>
-- Contact: [@ConnyDuck@mastodon.social](https://mastodon.social/users/ConnyDuck)
+- Contact: [@Tusky@mastodon.social](https://mastodon.social/@Tusky)
 - Platforms: Android
 - Features: MastoAPI, No Streaming
 
@@ -75,10 +77,10 @@ Feel free to contact us to be added to this list!
 - Platform: Android
 - Features: MastoAPI, No Streaming
 
-### Indigenous
-- Homepage: <https://indigenous.realize.be/>
-- Source Code: <https://github.com/swentel/indigenous-android/>
-- Contact: [@swentel@realize.be](https://realize.be)
+### IndiePass
+- Homepage: <https://indiepass.app/>
+- Source Code: <https://github.com/IndiePass/indiepass-android>
+- Contact: [@marksuth@mastodon.social](https://mastodon.social/@marksuth)
 - Platforms: Android
 - Features: MastoAPI, No Streaming
 
