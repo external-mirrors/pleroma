@@ -345,7 +345,10 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
         add_error(draft, dgettext("errors", "valid language is required when using status_map"))
 
       true ->
-        %__MODULE__{draft | language: LanguageDetector.detect(draft.content_html <> " " <> draft.summary || "")}
+        %__MODULE__{
+          draft
+          | language: LanguageDetector.detect(draft.content_html <> " " <> draft.summary || "")
+        }
     end
   end
 
@@ -436,9 +439,9 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   defp differentiate_string_map(%{} = map), do: {nil, map}
   defp differentiate_string_map(str) when is_binary(str), do: {str, nil}
 
-  defp get_source_map(%{status_map: %{} = status_map} = _draft) do
+  defp get_source_map(%{status_map: %{} = status_map} = draft) do
     %{
-      "content" => Pleroma.MultiLanguage.map_to_str(status_map, mutiline: true),
+      "content" => Map.get(status_map, draft.language),
       "contentMap" => status_map
     }
   end

@@ -59,6 +59,5 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraftTest do
     {:ok, _} = ActivityDraft.create(another_user, %{status: "nice", quoted_status_id: local.id})
     {:ok, _} = ActivityDraft.create(user, %{status: "nice", quoted_status_id: public.id})
     {:ok, _} = ActivityDraft.create(another_user, %{status: "nice", quoted_status_id: public.id})
->>>>>>> origin/develop
   end
 end

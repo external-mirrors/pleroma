@@ -931,12 +931,6 @@ config :pleroma, ConcurrentLimiter, [
 
 config :pleroma, Pleroma.Web.WebFinger, domain: nil, update_nickname_on_user_fetch: true
 
-config :pleroma, Pleroma.MultiLanguage,
-  template: "<div lang=\"{code}\">{content}</div>",
-  separator: "<br><hr><br>",
-  single_line_template: "[{code}] {content}",
-  single_line_separator: " | "
-
 config :pleroma, Pleroma.Search, module: Pleroma.Search.DatabaseSearch
 
 config :pleroma, Pleroma.Search.Meilisearch,

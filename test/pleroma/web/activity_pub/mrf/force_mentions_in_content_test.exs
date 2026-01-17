@@ -16,7 +16,11 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContentTest do
 
   test "adds mentions to post content" do
     [lain, coolboymew, dielan, hakui, fence] = [
-      insert(:user, ap_id: "https://lain.com/users/lain", nickname: "lain@lain.com", local: false),
+      insert(:user,
+        ap_id: "https://lain.com/users/lain",
+        nickname: "lain@lain.com",
+        local: false
+      ),
       insert(:user,
         ap_id: "https://shitposter.club/users/coolboymew",
         nickname: "coolboymew@shitposter.club",
@@ -123,11 +127,10 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContentTest do
      %{
        "object" => %{
          "content" => content,
-         "contentMap" =>
-           %{
-             "a" => content_a,
-             "b" => content_b
-           } = content_map
+         "contentMap" => %{
+           "a" => content_a,
+           "b" => content_b
+         }
        }
      }} = ForceMentionsInContent.filter(activity)
 
@@ -136,7 +139,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContentTest do
 
     assert content_a == mentions_part <> "mew mew"
     assert content_b == mentions_part <> "lol lol"
-    assert content == Pleroma.MultiLanguage.map_to_str(content_map, multiline: true)
+    assert content == mentions_part <> "WHA-HA!"
   end
 
   test "don't mention self" do
