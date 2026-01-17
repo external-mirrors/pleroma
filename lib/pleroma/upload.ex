@@ -39,8 +39,7 @@ defmodule Pleroma.Upload do
   alias Pleroma.Web.ActivityPub.Utils
   require Logger
 
-  import Pleroma.EctoType.ActivityPub.ObjectValidators.LanguageCode,
-    only: [good_locale_code?: 1]
+  import Pleroma.MultiLanguage, only: [good_locale_code?: 1]
 
   @type source ::
           Plug.Upload.t()

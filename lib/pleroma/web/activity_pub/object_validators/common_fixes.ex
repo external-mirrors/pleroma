@@ -12,8 +12,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes do
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.ActivityPub.Utils
 
-  import Pleroma.EctoType.ActivityPub.ObjectValidators.LanguageCode,
-    only: [good_locale_code?: 1]
+  import Pleroma.MultiLanguage, only: [good_locale_code?: 1]
 
   import Pleroma.Web.Utils.Guards, only: [not_empty_string: 1]
 

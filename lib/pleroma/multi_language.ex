@@ -3,9 +3,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.MultiLanguage do
-  import Pleroma.EctoType.ActivityPub.ObjectValidators.LanguageCode,
-    only: [good_locale_code?: 1]
-
   def validate_map(%{} = object) do
     {status, data} =
       object
@@ -39,4 +36,8 @@ defmodule Pleroma.MultiLanguage do
         %{"und" => data}
     end
   end
+
+  def good_locale_code?(code) when is_binary(code), do: code =~ ~r<^[a-zA-Z0-9\-]+\z$>
+
+  def good_locale_code?(_code), do: false
 end

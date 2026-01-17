@@ -3,8 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Language.LanguageDetector do
-  import Pleroma.EctoType.ActivityPub.ObjectValidators.LanguageCode,
-    only: [good_locale_code?: 1]
+  import Pleroma.MultiLanguage, only: [good_locale_code?: 1]
 
   @words_threshold 4
   @config_impl Application.compile_env(:pleroma, [__MODULE__, :config_impl], Pleroma.Config)
