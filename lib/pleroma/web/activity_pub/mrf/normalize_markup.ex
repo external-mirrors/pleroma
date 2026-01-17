@@ -25,7 +25,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.NormalizeMarkup do
 
         activity
         |> put_in(["object", "contentMap"], fixed_content_map)
-        |> put_in(["object", "content"], HTML.filter_tags(child_object["content"], scrub_policy))
+        |> put_in(["object", "content"], HTML.filter_tags(object["content"], scrub_policy))
       else
         _ ->
           content =

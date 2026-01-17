@@ -39,6 +39,9 @@ defmodule Pleroma.Upload do
   alias Pleroma.Web.ActivityPub.Utils
   require Logger
 
+  import Pleroma.EctoType.ActivityPub.ObjectValidators.LanguageCode,
+    only: [good_locale_code?: 1]
+
   @type source ::
           Plug.Upload.t()
           | (data_uri_string :: String.t())
@@ -123,8 +126,7 @@ defmodule Pleroma.Upload do
          description = get_description(upload),
          {_, true} <- {:description_limit, validate_description_limit(description)},
          {_, true} <-
-           {:valid_locale,
-            opts[:language] == nil or Pleroma.MultiLanguage.good_locale_code?(opts[:language])},
+           {:valid_locale, opts[:language] == nil or good_locale_code?(opts[:language])},
          {:ok, url_spec} <- Pleroma.Uploaders.Uploader.put_file(opts.uploader, upload) do
       {:ok,
        %{
