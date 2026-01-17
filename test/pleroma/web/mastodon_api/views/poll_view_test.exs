@@ -175,8 +175,7 @@ defmodule Pleroma.Web.MastodonAPI.PollViewTest do
           "oneOf" => [
             %{
               "name" => "mew",
-              "nameMap" => %{"en" => "mew", "cmn" => "喵"},
-              "nameRendered" => "mew | 喵"
+              "nameMap" => %{"en" => "mew", "cmn" => "喵"}
             },
             %{"name" => "mew mew", "nameMap" => %{"en" => "mew mew", "cmn" => "喵喵"}}
           ]
