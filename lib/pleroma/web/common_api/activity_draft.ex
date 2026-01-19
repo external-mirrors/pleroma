@@ -334,6 +334,8 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
       with language <- draft.params[:language],
            true <- good_locale_code?(language) do
         language
+      else
+        _ -> nil
       end
 
     cond do
