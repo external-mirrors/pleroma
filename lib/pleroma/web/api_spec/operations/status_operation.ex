@@ -639,12 +639,11 @@ defmodule Pleroma.Web.ApiSpec.StatusOperation do
           description:
             "ISO 8601 Datetime at which to schedule a status. Providing this parameter will cause ScheduledStatus to be returned instead of Status. Must be at least 5 minutes in the future."
         },
-        language:
-          %Schema{
-            type: :string,
-            nullable: true,
-            description: "ISO 639 language code for this status."
-          },
+        language: %Schema{
+          type: :string,
+          nullable: true,
+          description: "ISO 639 language code for this status."
+        },
         visibility: %Schema{
           nullable: true,
           anyOf: [

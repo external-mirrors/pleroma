@@ -56,19 +56,17 @@ defmodule Pleroma.Web.ActivityPub.BuilderTest do
         tags: [],
         summary_map: %{"a" => "mew", "b" => "lol"},
         cc: [],
-        extra: %{}
+        extra: %{},
+        language: "a"
       }
 
       assert {:ok,
               %{
                 "contentMap" => %{"a" => "mew", "b" => "lol"},
-                "content" => content,
+                "content" => "mew",
                 "summaryMap" => %{"a" => "mew", "b" => "lol"},
-                "summary" => summary
+                "summary" => "mew"
               }, []} = Builder.note(draft)
-
-      assert is_binary(content)
-      assert is_binary(summary)
     end
 
     test "quote post" do

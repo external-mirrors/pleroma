@@ -184,7 +184,7 @@ defmodule Pleroma.Web.MastodonAPI.PollViewTest do
 
       assert %{
                options: [
-                 %{title: "mew | 喵", title_map: %{"en" => "mew", "cmn" => "喵"}},
+                 %{title: "mew", title_map: %{"en" => "mew", "cmn" => "喵"}},
                  %{title: "mew mew", title_map: %{"en" => "mew mew", "cmn" => "喵喵"}}
                ]
              } = PollView.render("show.json", %{object: object})

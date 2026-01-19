@@ -19,18 +19,16 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraftTest do
       {:ok, draft} =
         ActivityDraft.create(user, %{
           status_map: %{"a" => "mew mew", "b" => "lol lol"},
-          spoiler_text_map: %{"a" => "mew", "b" => "lol"}
+          spoiler_text_map: %{"a" => "mew", "b" => "lol"},
+          language: "a"
         })
 
       assert %{
                "contentMap" => %{"a" => "mew mew", "b" => "lol lol"},
-               "content" => content,
+               "content" => "mew mew",
                "summaryMap" => %{"a" => "mew", "b" => "lol"},
-               "summary" => summary
+               "summary" => "mew"
              } = draft.object
-
-      assert is_binary(content)
-      assert is_binary(summary)
     end
   end
 
