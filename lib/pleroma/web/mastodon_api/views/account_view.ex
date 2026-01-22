@@ -124,6 +124,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
           target,
           &User.blocks_user?(&1, &2)
         ),
+      block_expires_at: maybe_put_block_expires_at(user_relationships, target, reading_user),
       blocked_by:
         UserRelationship.exists?(
           user_relationships,
@@ -140,6 +141,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
           target,
           &User.mutes?(&1, &2)
         ),
+      mute_expires_at: maybe_put_mute_expires_at(user_relationships, target, reading_user),
       muting_notifications:
         UserRelationship.exists?(
           user_relationships,
@@ -343,8 +345,6 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     |> maybe_put_unread_conversation_count(user, opts[:for])
     |> maybe_put_unread_notification_count(user, opts[:for])
     |> maybe_put_email_address(user, opts[:for])
-    |> maybe_put_mute_expires_at(user, opts[:for], opts)
-    |> maybe_put_block_expires_at(user, opts[:for], opts)
     |> maybe_show_birthday(user, opts[:for])
   end
 
@@ -472,25 +472,31 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
 
   defp maybe_put_email_address(data, _, _), do: data
 
-  defp maybe_put_mute_expires_at(data, %User{} = user, target, %{mutes: true}) do
-    Map.put(
-      data,
-      :mute_expires_at,
-      UserRelationship.get_mute_expire_date(target, user)
-    )
+  defp maybe_put_mute_expires_at(user_relationships, %User{} = target, %User{} = user) do
+    cond do
+      UserRelationship.exists?(user_relationships, :mute, user, target, &User.mutes_user?(&1, &2)) ->
+        UserRelationship.get_mute_expire_date(user, target)
+
+      true ->
+        nil
+    end
   end
 
-  defp maybe_put_mute_expires_at(data, _, _, _), do: data
+  defp maybe_put_block_expires_at(user_relationships, %User{} = target, %User{} = user) do
+    cond do
+      UserRelationship.exists?(
+        user_relationships,
+        :block,
+        user,
+        target,
+        &User.blocks_user?(&1, &2)
+      ) ->
+        UserRelationship.get_block_expire_date(user, target)
 
-  defp maybe_put_block_expires_at(data, %User{} = user, target, %{blocks: true}) do
-    Map.put(
-      data,
-      :block_expires_at,
-      UserRelationship.get_block_expire_date(target, user)
-    )
+      true ->
+        nil
+    end
   end
-
-  defp maybe_put_block_expires_at(data, _, _, _), do: data
 
   defp maybe_show_birthday(data, %User{id: user_id} = user, %User{id: user_id}) do
     data
