@@ -861,6 +861,11 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
           type: :string,
           nullable: true,
           description: "Header image description."
+        },
+        indexable: %Schema{
+          allOf: [BooleanLike],
+          nullable: true,
+          description: "Whether public posts should be searchable to anyone (used by software like Mastodon)."
         }
       },
       example: %{
@@ -883,7 +888,8 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
         discoverable: false,
         actor_type: "Person",
         show_birthday: false,
-        birthday: "2001-02-12"
+        birthday: "2001-02-12",
+        indexable: true
       }
     }
   end

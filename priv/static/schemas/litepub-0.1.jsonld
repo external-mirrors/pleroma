@@ -13,6 +13,7 @@
                 "@type": "@id"
             },
             "discoverable": "toot:discoverable",
+            "indexable": "toot:indexable",
             "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
             "capabilities": "litepub:capabilities",
             "ostatus": "http://ostatus.org#",

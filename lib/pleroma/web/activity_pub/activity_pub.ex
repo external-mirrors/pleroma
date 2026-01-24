@@ -1692,7 +1692,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       birthday: birthday,
       show_birthday: show_birthday,
       pinned_objects: pinned_objects,
-      nickname: nickname
+      nickname: nickname,
+      indexable: Map.get(data, "indexable", true)
     }
   end
 

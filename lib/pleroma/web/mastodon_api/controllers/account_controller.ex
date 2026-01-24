@@ -202,7 +202,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountController do
         :allow_following_move,
         :also_known_as,
         :accepts_chat_messages,
-        :show_birthday
+        :show_birthday,
+        :indexable
       ]
       |> Enum.reduce(%{}, fn key, acc ->
         Maps.put_if_present(acc, key, params[key], &{:ok, Params.truthy_param?(&1)})

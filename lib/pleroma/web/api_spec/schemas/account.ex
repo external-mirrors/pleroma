@@ -37,6 +37,7 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Account do
       statuses_count: %Schema{type: :integer},
       url: %Schema{type: :string, format: :uri},
       username: %Schema{type: :string},
+      indexable: %Schema{type: :boolean},
       pleroma: %Schema{
         type: :object,
         properties: %{

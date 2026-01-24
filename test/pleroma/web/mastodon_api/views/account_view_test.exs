@@ -78,6 +78,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
       },
       fqn: "shp@shitposter.club",
       last_status_at: user.last_status_at |> NaiveDateTime.to_date() |> Date.to_iso8601(),
+      indexable: true,
       pleroma: %{
         ap_id: user.ap_id,
         also_known_as: ["https://shitposter.zone/users/shp"],
@@ -343,6 +344,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
       },
       fqn: "shp@shitposter.club",
       last_status_at: nil,
+      indexable: true,
       pleroma: %{
         ap_id: user.ap_id,
         also_known_as: [],

@@ -308,6 +308,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         }
       },
       last_status_at: last_status_at,
+      indexable: user.indexable,
 
       # Pleroma extensions
       # Note: it's insecure to output :email but fully-qualified nickname may serve as safe stub

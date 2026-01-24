@@ -59,7 +59,8 @@ defmodule Pleroma.Web.ActivityPub.UserView do
         "publicKeyPem" => public_key
       },
       "endpoints" => endpoints,
-      "invisible" => User.invisible?(user)
+      "invisible" => User.invisible?(user),
+      "indexable" => user.indexable
     }
     |> Map.merge(Utils.make_json_ld_header())
   end
@@ -129,7 +130,8 @@ defmodule Pleroma.Web.ActivityPub.UserView do
       "alsoKnownAs" => user.also_known_as,
       "vcard:bday" => birthday,
       "webfinger" => "acct:#{User.full_nickname(user)}",
-      "published" => Pleroma.Web.CommonAPI.Utils.to_masto_date(user.inserted_at)
+      "published" => Pleroma.Web.CommonAPI.Utils.to_masto_date(user.inserted_at),
+      "indexable" => user.indexable
     }
     |> Map.merge(
       maybe_make_image(
