@@ -345,6 +345,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     |> maybe_put_unread_conversation_count(user, opts[:for])
     |> maybe_put_unread_notification_count(user, opts[:for])
     |> maybe_put_email_address(user, opts[:for])
+    |> maybe_put_mute_expires_at(user, opts[:for], relationship)
+    |> maybe_put_block_expires_at(user, opts[:for], relationship)
     |> maybe_show_birthday(user, opts[:for])
   end
 
@@ -482,6 +484,21 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     end
   end
 
+  defp maybe_put_mute_expires_at(data, %User{} = target, %User{} = user, relationship) do
+    cond do
+      Map.has_key?(relationship, :mute_expires_at) ->
+        Map.put(data, :mute_expires_at, relationship.mute_expires_at)
+
+      User.mutes_user?(user, target) ->
+        Map.put(data, :mute_expires_at, UserRelationship.get_mute_expire_date(user, target))
+
+      true ->
+        Map.put(data, :mute_expires_at, nil)
+    end
+  end
+
+  defp maybe_put_mute_expires_at(data, _, _, _), do: data
+
   defp maybe_put_block_expires_at(user_relationships, %User{} = target, %User{} = user) do
     cond do
       UserRelationship.exists?(
@@ -497,6 +514,21 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         nil
     end
   end
+
+  defp maybe_put_block_expires_at(data, %User{} = target, %User{} = user, relationship) do
+    cond do
+      Map.has_key?(relationship, :block_expires_at) ->
+        Map.put(data, :block_expires_at, relationship.block_expires_at)
+
+      User.blocks_user?(user, target) ->
+        Map.put(data, :block_expires_at, UserRelationship.get_block_expire_date(user, target))
+
+      true ->
+        Map.put(data, :block_expires_at, nil)
+    end
+  end
+
+  defp maybe_put_block_expires_at(data, _, _, _), do: data
 
   defp maybe_show_birthday(data, %User{id: user_id} = user, %User{id: user_id}) do
     data
