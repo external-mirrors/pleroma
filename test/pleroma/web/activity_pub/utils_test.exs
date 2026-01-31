@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.UtilsTest do
-  use Pleroma.DataCase, async: true
+  use Pleroma.DataCase, async: false
   alias Pleroma.Activity
   alias Pleroma.Object
   alias Pleroma.Repo
@@ -715,6 +715,19 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
 
       assert updated_object.data["participations"] == [user2.ap_id]
       assert updated_object.data["participation_count"] == 1
+    end
+  end
+
+  describe "assign_report_to_account/2" do
+    test "assigns report to an account" do
+      reporter = insert(:user)
+      target_account = insert(:user)
+      %{id: assigned_id} = insert(:user)
+
+      {:ok, report} = CommonAPI.report(reporter, %{account_id: target_account.id})
+      {:ok, report} = Utils.assign_report_to_account(report, assigned_id)
+
+      assert %{data: %{"assigned_account" => ^assigned_id}} = report
     end
   end
 

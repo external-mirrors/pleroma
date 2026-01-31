@@ -25,7 +25,9 @@ defmodule Pleroma.Constants do
       "participations",
       "participation_count",
       "participation_request_count",
-      "location_id"
+      "location_id",
+      "voters",
+      "assigned_account"
     ]
   )
 
