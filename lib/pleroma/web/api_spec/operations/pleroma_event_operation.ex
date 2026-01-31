@@ -176,7 +176,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaEventOperation do
   def export_ics_operation do
     %Operation{
       tags: ["Event actions"],
-      summary: "Export status",
+      summary: "Export event",
       description: "Export event to .ics",
       operationId: "PleromaAPI.EventController.export_ics",
       security: [%{"oAuth" => ["read:statuses"]}],

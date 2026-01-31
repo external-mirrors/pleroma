@@ -645,6 +645,8 @@ defmodule Pleroma.Web.Router do
       get("/events/:id/ics", EventController, :export_ics)
 
       get("/search/location", SearchController, :location)
+
+      get("/accounts/:id/events_ics", AccountController, :events_ics)
     end
 
     scope [] do

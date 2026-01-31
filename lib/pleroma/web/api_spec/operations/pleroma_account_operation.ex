@@ -126,6 +126,31 @@ defmodule Pleroma.Web.ApiSpec.PleromaAccountOperation do
     }
   end
 
+  def events_ics_operation do
+    %Operation{
+      tags: ["Retrieve account information"],
+      summary: "Export events",
+      description: "Export events posted by given account in .ics format",
+      operationId: "PleromaAPI.AccountController.events_ics",
+      parameters:
+        [
+          id_param(),
+          Operation.parameter(
+            :exclude_visibilities,
+            :query,
+            %Schema{type: :array, items: VisibilityScope},
+            "Exclude visibilities"
+          )
+        ] ++ pagination_params(),
+      responses: %{
+        200 =>
+          Operation.response("Events", "text/calendar; charset=utf-8", %Schema{type: :string}),
+        401 => Operation.response("Error", "application/json", ApiError),
+        404 => Operation.response("Error", "application/json", ApiError)
+      }
+    }
+  end
+
   defp id_param do
     Operation.parameter(:id, :path, FlakeID.schema(), "Account ID",
       example: "9umDrYheeY451cQnEe",

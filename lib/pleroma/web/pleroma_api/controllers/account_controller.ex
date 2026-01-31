@@ -46,6 +46,12 @@ defmodule Pleroma.Web.PleromaAPI.AccountController do
 
   plug(
     OAuthScopesPlug,
+    %{scopes: ["read:statuses"], fallback: :proceed_unauthenticated}
+    when action == :events_ics
+  )
+
+  plug(
+    OAuthScopesPlug,
     %{scopes: ["read:accounts"]} when action == :birthdays
   )
 
@@ -53,7 +59,7 @@ defmodule Pleroma.Web.PleromaAPI.AccountController do
 
   plug(
     :assign_account_by_id
-    when action in [:favourites, :subscribe, :unsubscribe]
+    when action in [:favourites, :subscribe, :unsubscribe, :events_ics]
   )
 
   defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.PleromaAccountOperation
@@ -132,5 +138,27 @@ defmodule Pleroma.Web.PleromaAPI.AccountController do
       users: birthdays,
       as: :user
     )
+  end
+
+  def events_ics(%{assigns: %{user: reading_user, account: user}} = conn, params) do
+    with :visible <- User.visible_for(user, reading_user) do
+      params =
+        params
+        |> Map.delete(:tagged)
+        |> Map.put(:tag, params[:tagged])
+        |> Map.put(:only_events, true)
+
+      activities = ActivityPub.fetch_user_activities(user, reading_user, params)
+
+      conn
+      |> put_view(Pleroma.Web.PleromaAPI.EventView)
+      |> render("index.ics", activities: activities)
+    else
+      :restrict_unauthenticated ->
+        render_error(conn, :unauthorized, "This API requires an authenticated user")
+
+      _ ->
+        render_error(conn, :not_found, "Can't find user")
+    end
   end
 end

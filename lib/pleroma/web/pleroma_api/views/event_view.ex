@@ -33,10 +33,18 @@ defmodule Pleroma.Web.PleromaAPI.EventView do
     }
   end
 
-  def render("show.ics", %{activity: %Activity{actor: actor_ap_id} = activity}) do
+  def render("index.json", %{activities: activities}) do
+    %ICalendar{events: [activities |> Enum.map(&activity_to_ics/1)]}
+  end
+
+  def render("show.ics", %{activity: %Activity{} = activity}) do
+    %ICalendar{events: [activity_to_ics(activity)]}
+  end
+
+  defp activity_to_ics(%Activity{actor: actor_ap_id} = activity) do
     with %Object{} = object <- Object.normalize(activity, fetch: false),
          %User{} = user <- User.get_cached_by_ap_id(actor_ap_id) do
-      event = %ICalendar.Event{
+      %ICalendar.Event{
         summary: object.data["name"],
         dtstart: object.data["startTime"] |> get_date,
         dtend: object.data["endTime"] |> get_date,
@@ -47,8 +55,6 @@ defmodule Pleroma.Web.PleromaAPI.EventView do
         location: get_location(object),
         organizer: Pleroma.HTML.strip_tags(user.name || user.nickname)
       }
-
-      %ICalendar{events: [event]}
     end
   end
 

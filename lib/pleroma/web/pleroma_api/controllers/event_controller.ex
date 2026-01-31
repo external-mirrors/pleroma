@@ -65,8 +65,8 @@ defmodule Pleroma.Web.PleromaAPI.EventController do
 
   plug(
     OAuthScopesPlug,
-    %{fallback: :proceed_unauthenticated, scopes: ["read:statuses"]}
-    when action in [:export_ics]
+    %{scopes: ["read:statuses"], fallback: :proceed_unauthenticated}
+    when action == :export_ics
   )
 
   @rate_limited_event_actions ~w(create update join leave)a
