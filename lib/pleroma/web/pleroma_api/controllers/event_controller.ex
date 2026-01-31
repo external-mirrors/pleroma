@@ -18,6 +18,7 @@ defmodule Pleroma.Web.PleromaAPI.EventController do
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.MastodonAPI.AccountView
+  alias Pleroma.Web.MastodonAPI.FallbackController
   alias Pleroma.Web.MastodonAPI.StatusView
   alias Pleroma.Web.PleromaAPI.EventView
   alias Pleroma.Web.Plugs.OAuthScopesPlug
@@ -80,7 +81,7 @@ defmodule Pleroma.Web.PleromaAPI.EventController do
 
   plug(Pleroma.Web.Plugs.SetApplicationPlug, [] when action in [:create, :update])
 
-  action_fallback(Pleroma.Web.MastodonAPI.FallbackController)
+  action_fallback(FallbackController)
 
   defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.PleromaEventOperation
 
@@ -282,16 +283,19 @@ defmodule Pleroma.Web.PleromaAPI.EventController do
   defp assign_participant(%{params: %{participant_id: id}} = conn, _) do
     case User.get_cached_by_id(id) do
       %User{} = participant -> assign(conn, :participant, participant)
-      nil -> Pleroma.Web.MastodonAPI.FallbackController.call(conn, {:error, :not_found}) |> halt()
+      nil -> FallbackController.call(conn, {:error, :not_found}) |> halt()
     end
   end
 
   defp assign_event_activity(%{assigns: %{user: user}, params: %{id: event_id}} = conn, _) do
-    with %Activity{} = activity <- Activity.get_by_id(event_id),
-         {:visible, true} <- {:visible, Visibility.visible_for_user?(activity, user)} do
+    with %Activity{object: object} = activity <- Activity.get_by_id_with_object(event_id),
+         {:visible, true} <- {:visible, Visibility.visible_for_user?(activity, user)},
+         {:is_event, true} <- {:is_event, object.data["type"] == "Event"} do
       assign(conn, :event_activity, activity)
     else
-      nil -> Pleroma.Web.MastodonAPI.FallbackController.call(conn, {:error, :not_found}) |> halt()
+      {:visible, false} -> FallbackController.call(conn, {:error, :not_found}) |> halt()
+      {:is_event, false} -> FallbackController.call(conn, {:error, :not_an_event}) |> halt()
+      nil -> FallbackController.call(conn, {:error, :not_found}) |> halt()
     end
   end
 
