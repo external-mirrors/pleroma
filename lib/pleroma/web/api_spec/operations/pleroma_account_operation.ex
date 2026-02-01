@@ -9,6 +9,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaAccountOperation do
   alias Pleroma.Web.ApiSpec.Schemas.AccountRelationship
   alias Pleroma.Web.ApiSpec.Schemas.ApiError
   alias Pleroma.Web.ApiSpec.Schemas.FlakeID
+  alias Pleroma.Web.ApiSpec.Schemas.VisibilityScope
   alias Pleroma.Web.ApiSpec.StatusOperation
 
   import Pleroma.Web.ApiSpec.Helpers

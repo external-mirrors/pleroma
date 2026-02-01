@@ -334,4 +334,50 @@ defmodule Pleroma.Web.PleromaAPI.AccountControllerTest do
         |> json_response_and_validate_schema(:ok)
     end
   end
+
+  describe "account events ics feed" do
+    test "returns ics of given user's visible events" do
+      %{user: user, conn: conn} = oauth_access(["read:statuses"])
+      other_user = insert(:user)
+
+      {:ok, _activity} =
+        CommonAPI.event(other_user, %{
+          name: "test event 1",
+          status: "",
+          start_time: DateTime.from_iso8601("2023-01-01T01:00:00.000Z") |> elem(1)
+        })
+
+      {:ok, _activity} =
+        CommonAPI.event(user, %{
+          name: "test event 2",
+          status: "",
+          start_time: DateTime.from_iso8601("2023-01-01T01:00:00.000Z") |> elem(1)
+        })
+
+      {:ok, _activity} =
+        CommonAPI.event(other_user, %{
+          name: "test event 3",
+          status: "",
+          start_time: DateTime.from_iso8601("2023-01-01T01:00:00.000Z") |> elem(1)
+        })
+
+      {:ok, _activity} =
+        CommonAPI.event(other_user, %{
+          name: "test event 4",
+          status: "",
+          start_time: DateTime.from_iso8601("2023-01-01T01:00:00.000Z") |> elem(1),
+          visibility: "private"
+        })
+
+      conn = get(conn, "/api/v1/pleroma/accounts/#{other_user.id}/events_ics")
+
+      assert conn.status == 200
+
+      assert conn.resp_body =~ "BEGIN:VCALENDAR"
+      assert conn.resp_body =~ "SUMMARY:test event 1"
+      assert conn.resp_body =~ "SUMMARY:test event 3"
+      refute conn.resp_body =~ "SUMMARY:test event 2"
+      refute conn.resp_body =~ "SUMMARY:test event 4"
+    end
+  end
 end

@@ -33,7 +33,7 @@ defmodule Pleroma.Web.PleromaAPI.EventView do
     }
   end
 
-  def render("index.json", %{activities: activities}) do
+  def render("index.ics", %{activities: activities}) do
     %ICalendar{events: [activities |> Enum.map(&activity_to_ics/1)]}
   end
 
