@@ -1,0 +1,1 @@
+Added federation-in-a-box (fedbox) Docker smoke tests and the mix task pleroma.fedbox for Pleroma↔Pleroma and Pleroma↔Mastodon federation
