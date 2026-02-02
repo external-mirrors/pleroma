@@ -18,6 +18,12 @@ docker compose -f docker/federation/compose.yml up -d --build
 docker compose -f docker/federation/compose.yml --profile fedtest run --rm fedtest
 ```
 
+Or via Mix:
+
+```bash
+mix pleroma.fedbox
+```
+
 Cleanup:
 
 ```bash
