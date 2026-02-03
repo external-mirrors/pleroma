@@ -15,6 +15,8 @@ COPY mix.exs mix.lock ./
 RUN mix deps.get --only test
 RUN mix deps.compile
 
+COPY lib lib
+
 COPY test test
 
 CMD ["mix", "test", "--color", "--trace"]
