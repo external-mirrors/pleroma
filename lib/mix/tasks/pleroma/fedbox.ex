@@ -21,6 +21,14 @@ defmodule Mix.Tasks.Pleroma.Fedbox do
     project_root = Mix.Project.project_file() |> Path.dirname() |> Path.expand()
     compose_file = Path.join(project_root, "docker/federation/compose.yml")
 
+    compose_project =
+      System.get_env("FEDTEST_COMPOSE_PROJECT", "pleroma-fedbox")
+      |> String.trim()
+      |> case do
+        "" -> "pleroma-fedbox"
+        name -> name
+      end
+
     unless File.exists?(compose_file) do
       Mix.raise("fedbox compose file not found: #{compose_file}")
     end
@@ -30,14 +38,34 @@ defmodule Mix.Tasks.Pleroma.Fedbox do
     status =
       try do
         case docker_compose_quiet(
-               ["-f", compose_file, "up", "-d", "--build", "--quiet-build", "--quiet-pull"],
+               [
+                 "-p",
+                 compose_project,
+                 "-f",
+                 compose_file,
+                 "up",
+                 "-d",
+                 "--build",
+                 "--quiet-build",
+                 "--quiet-pull"
+               ],
                verbose?: verbose?
              ) do
           0 ->
             Mix.shell().info("Building fedbox test runner...")
 
             case docker_compose_quiet(
-                   ["-f", compose_file, "--profile", "fedtest", "build", "-q", "fedtest"],
+                   [
+                     "-p",
+                     compose_project,
+                     "-f",
+                     compose_file,
+                     "--profile",
+                     "fedtest",
+                     "build",
+                     "-q",
+                     "fedtest"
+                   ],
                    verbose?: verbose?
                  ) do
               0 ->
@@ -51,7 +79,17 @@ defmodule Mix.Tasks.Pleroma.Fedbox do
                   end
 
                 docker_compose_stream(
-                  ["-f", compose_file, "--profile", "fedtest", "run", "--rm", "fedtest"],
+                  [
+                    "-p",
+                    compose_project,
+                    "-f",
+                    compose_file,
+                    "--profile",
+                    "fedtest",
+                    "run",
+                    "--rm",
+                    "fedtest"
+                  ],
                   stream_opts
                 )
 
@@ -65,7 +103,12 @@ defmodule Mix.Tasks.Pleroma.Fedbox do
       after
         unless opts[:keep] do
           Mix.shell().info("Cleaning up fedbox containers...")
-          _ = docker_compose_quiet(["-f", compose_file, "down", "-v"], verbose?: verbose?)
+
+          _ =
+            docker_compose_quiet(
+              ["-p", compose_project, "-f", compose_file, "down", "-v"],
+              verbose?: verbose?
+            )
         end
       end
 
