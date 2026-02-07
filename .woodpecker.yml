@@ -16,7 +16,18 @@ steps:
       - mix local.hex --force
       - mix local.rebar --force
       - mix deps.get
-      - until PGPASSWORD=postgres pg_isready -h postgres -U postgres >/dev/null 2>&1; do sleep 1; done
+      - |
+        for i in $(seq 1 120); do
+          if PGPASSWORD=postgres pg_isready -h postgres -U postgres >/dev/null 2>&1; then
+            echo "postgres is ready after ${i}s"
+            break
+          fi
+          if [ "$i" -eq 120 ]; then
+            echo "ERROR: postgres did not become ready within 120s" >&2
+            exit 1
+          fi
+          sleep 1
+        done
       - mix ecto.create
       - mix ecto.migrate
       - mix pleroma.test_runner --cover --preload-modules
@@ -29,10 +40,4 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     commands:
-      - postgres
-      - -c
-      - fsync=off
-      - -c
-      - synchronous_commit=off
-      - -c
-      - full_page_writes=off
+      - docker-entrypoint.sh postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
