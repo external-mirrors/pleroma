@@ -12,7 +12,7 @@ steps:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     commands:
-      - apk add --no-cache build-base cmake file-dev git openssl postgresql-client
+      - apk add --no-cache build-base cmake file-dev git openssl postgresql-client ffmpeg perl-image-exiftool
       - mix local.hex --force
       - mix local.rebar --force
       - mix deps.get
