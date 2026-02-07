@@ -1,0 +1,30 @@
+when:
+  - event: [push, pull_request]
+
+steps:
+  test:
+    image: hexpm/elixir:1.18.3-erlang-27.2.4-alpine-3.21.3
+    environment:
+      MIX_ENV: test
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      POSTGRES_DB: pleroma_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    commands:
+      - apk add --no-cache build-base cmake file-dev git openssl postgresql-client
+      - mix local.hex --force
+      - mix local.rebar --force
+      - mix deps.get
+      - until PGPASSWORD=postgres pg_isready -h postgres -U postgres >/dev/null 2>&1; do sleep 1; done
+      - mix ecto.create
+      - mix ecto.migrate
+      - mix pleroma.test_runner --cover --preload-modules
+
+services:
+  postgres:
+    image: postgres:13-alpine
+    environment:
+      POSTGRES_DB: pleroma_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
