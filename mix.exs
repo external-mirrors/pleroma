@@ -18,10 +18,10 @@ defmodule Pleroma.Mixfile do
       # Docs
       name: "Pleroma",
       homepage_url: "https://pleroma.social/",
-      source_url: "https://git.pleroma.social/pleroma/pleroma",
+      source_url: "https://git.pleroma.com/pleroma/pleroma",
       docs: [
         source_url_pattern:
-          "https://git.pleroma.social/pleroma/pleroma/blob/develop/%{path}#L%{line}",
+          "https://git.pleroma.com/pleroma/pleroma/blob/develop/%{path}#L%{line}",
         logo: "priv/static/images/logo.png",
         extras: ["README.md", "CHANGELOG.md"] ++ Path.wildcard("docs/**/*.md"),
         groups_for_extras: [
@@ -138,7 +138,7 @@ defmodule Pleroma.Mixfile do
       {:plug_cowboy, "~> 2.7"},
       {:oban, "~> 2.19.0"},
       {:oban_plugins_lazarus,
-       git: "https://git.pleroma.social/pleroma/elixir-libraries/oban_plugins_lazarus.git",
+       git: "https://git.pleroma.com/pleroma/elixir-libraries/oban_plugins_lazarus.git",
        ref: "e49fc355baaf0e435208bf5f534d31e26e897711"},
       {:oban_web, "~> 2.11"},
       {:gettext, "~> 0.20"},
@@ -184,10 +184,10 @@ defmodule Pleroma.Mixfile do
       {:flake_id, "~> 0.1.0"},
       {:concurrent_limiter, "~> 0.1.1"},
       {:remote_ip,
-       git: "https://git.pleroma.social/pleroma/remote_ip.git",
+       git: "https://git.pleroma.com/pleroma/remote_ip.git",
        ref: "b647d0deecaa3acb140854fe4bda5b7e1dc6d1c8"},
       {:captcha,
-       git: "https://git.pleroma.social/pleroma/elixir-libraries/elixir-captcha.git",
+       git: "https://git.pleroma.com/pleroma/elixir-libraries/elixir-captcha.git",
        ref: "e7b7cc34cc16b383461b966484c297e4ec9aeef6"},
       {:restarter, path: "./restarter"},
       {:majic, "~> 1.0"},
