@@ -86,7 +86,19 @@ defmodule Pleroma.Activity.Queries do
     )
   end
 
-  def exclude_authors(query \\ Activity, actors) do
-    from(activity in query, where: activity.actor not in ^actors)
+  def exclude_authors(query \\ Activity, actors)
+
+  def exclude_authors(query, []), do: query
+
+  # Use NOT EXISTS with unnest for consistent results with large blocked user lists
+  def exclude_authors(query, actors) do
+    from(activity in query,
+      where:
+        fragment(
+          "NOT EXISTS (SELECT 1 FROM unnest(?::varchar[]) as blocked WHERE blocked = ?)",
+          ^actors,
+          activity.actor
+        )
+    )
   end
 end
