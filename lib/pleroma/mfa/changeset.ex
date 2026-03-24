@@ -8,7 +8,7 @@ defmodule Pleroma.MFA.Changeset do
   alias Pleroma.User
 
   def disable(%Ecto.Changeset{} = changeset, force \\ false) do
-    settings =
+    %Settings{} = settings =
       changeset
       |> Ecto.Changeset.apply_changes()
       |> MFA.fetch_settings()
@@ -20,12 +20,12 @@ defmodule Pleroma.MFA.Changeset do
     end
   end
 
-  def disable_totp(%User{multi_factor_authentication_settings: settings} = user) do
+  def disable_totp(%User{multi_factor_authentication_settings: %Settings{} = settings} = user) do
     user
     |> put_change(%Settings{settings | totp: %Settings.TOTP{}})
   end
 
-  def confirm_totp(%User{multi_factor_authentication_settings: settings} = user) do
+  def confirm_totp(%User{multi_factor_authentication_settings: %Settings{totp: %Settings.TOTP{}} = settings} = user) do
     totp_settings = %Settings.TOTP{settings.totp | confirmed: true}
 
     user
@@ -33,7 +33,7 @@ defmodule Pleroma.MFA.Changeset do
   end
 
   def setup_totp(%User{} = user, attrs) do
-    mfa_settings = MFA.fetch_settings(user)
+    %Settings{} = mfa_settings = MFA.fetch_settings(user)
 
     totp_settings =
       %Settings.TOTP{}
@@ -44,9 +44,10 @@ defmodule Pleroma.MFA.Changeset do
   end
 
   def cast_backup_codes(%User{} = user, codes) do
+    %Settings{} = mfa_settings = user.multi_factor_authentication_settings
     user
     |> put_change(%Settings{
-      user.multi_factor_authentication_settings
+      mfa_settings
       | backup_codes: codes
     })
   end

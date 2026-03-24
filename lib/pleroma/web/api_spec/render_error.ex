@@ -18,10 +18,10 @@ defmodule Pleroma.Web.ApiSpec.RenderError do
     errors =
       Enum.map(errors, fn
         %{name: nil, reason: :invalid_enum} = err ->
-          %OpenApiSpex.Cast.Error{err | name: err.value}
+          %{%OpenApiSpex.Cast.Error{} = err | name: err.value}
 
         %{name: nil} = err ->
-          %OpenApiSpex.Cast.Error{err | name: List.last(err.path)}
+          %{%OpenApiSpex.Cast.Error{} = err | name: List.last(err.path)}
 
         err ->
           err

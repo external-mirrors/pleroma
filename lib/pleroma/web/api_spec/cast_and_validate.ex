@@ -130,7 +130,7 @@ defmodule Pleroma.Web.ApiSpec.CastAndValidate do
               params
           end)
 
-        conn = %Conn{conn | query_params: query_params}
+        %Conn{} = conn = %{conn | query_params: query_params}
         OpenApiSpex.cast_and_validate(spec, operation, conn, content_type, cast_opts)
     end
   end
