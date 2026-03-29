@@ -61,8 +61,16 @@ defmodule Pleroma.Web.MastodonAPI.MastodonAPI do
   def get_friends(user, params \\ %{}) do
     user
     |> User.get_friends_query(nil, params)
-    |> Pagination.fetch_paginated(params)
+    |> Pagination.fetch_paginated(friends_pagination_params(params))
   end
+
+  defp friends_pagination_params(%{"order" => "active"} = params) do
+    params
+    |> Map.drop(["max_id", "min_id", "since_id"])
+    |> Map.put("skip_order", true)
+  end
+
+  defp friends_pagination_params(params), do: params
 
   def get_notifications(user, params \\ %{}) do
     user

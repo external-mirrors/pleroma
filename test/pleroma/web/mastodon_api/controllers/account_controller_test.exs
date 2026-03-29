@@ -860,9 +860,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       {:ok, _, _} = User.follow(user, following2)
       {:ok, _, _} = User.follow(user, following3)
 
-      User.update_last_status_at(following1)
-      :timer.sleep(1500)
-      User.update_last_status_at(following3)
+      set_last_status_at(following1, ~N[2026-01-01 21:37:00])
+      set_last_status_at(following3, ~N[2026-01-01 21:38:00])
 
       res_conn = get(conn, "/api/v1/accounts/#{user.id}/following?order=active")
 
@@ -872,6 +871,45 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       assert id1 == following1.id
       assert id3 == following3.id
       assert id2 == following2.id
+    end
+
+    test "getting following ordered by user recent activity, pagination" do
+      user = insert(:user)
+      %{conn: conn} = oauth_access(["read:accounts"])
+
+      following1 = insert(:user)
+      following2 = insert(:user)
+      following3 = insert(:user)
+
+      {:ok, _, _} = User.follow(user, following1)
+      {:ok, _, _} = User.follow(user, following2)
+      {:ok, _, _} = User.follow(user, following3)
+
+      set_last_status_at(following1, ~N[2026-01-01 21:37:00])
+      set_last_status_at(following3, ~N[2026-01-01 21:38:00])
+
+      res_conn = get(conn, "/api/v1/accounts/#{user.id}/following?order=active&limit=2")
+
+      assert [%{"id" => id3}, %{"id" => id1}] = json_response_and_validate_schema(res_conn, 200)
+
+      assert id3 == following3.id
+      assert id1 == following1.id
+
+      assert [link_header] = get_resp_header(res_conn, "link")
+      assert link_header =~ ~r/min_id=#{following3.id}/
+      assert link_header =~ ~r/max_id=#{following1.id}/
+
+      res_conn =
+        get(conn, "/api/v1/accounts/#{user.id}/following?order=active&max_id=#{following1.id}")
+
+      assert [%{"id" => id2}] = json_response_and_validate_schema(res_conn, 200)
+      assert id2 == following2.id
+
+      res_conn =
+        get(conn, "/api/v1/accounts/#{user.id}/following?order=active&min_id=#{following1.id}")
+
+      assert [%{"id" => id}] = json_response_and_validate_schema(res_conn, 200)
+      assert id == following3.id
     end
   end
 
@@ -2455,5 +2493,11 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       conn_res = post(conn, "/api/v1/accounts/doesntexist/remove_from_followers")
       assert %{"error" => "Record not found"} = json_response_and_validate_schema(conn_res, 404)
     end
+  end
+
+  defp set_last_status_at(%User{} = user, datetime) do
+    user
+    |> Ecto.Changeset.change(last_status_at: datetime)
+    |> Repo.update!()
   end
 end

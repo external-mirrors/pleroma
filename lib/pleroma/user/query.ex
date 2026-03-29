@@ -267,7 +267,7 @@ defmodule Pleroma.User.Query do
   end
 
   defp compose_query({:order_by_recent_activity, true}, query) do
-    order_by(query, [u], desc_nulls_last: u.last_status_at)
+    order_by(query, [u], [desc_nulls_last: u.last_status_at, desc: u.id])
   end
 
   defp compose_query({:select, keys}, query) do

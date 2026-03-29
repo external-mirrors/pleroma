@@ -1438,12 +1438,20 @@ defmodule Pleroma.User do
   @spec get_friends_query(User.t(), pos_integer() | nil, map()) :: Ecto.Query.t()
   def get_friends_query(user, page, params \\ %{})
 
-  def get_friends_query(%User{} = user, nil, params) do
-    User.Query.build(%{
-      friends: user,
-      deactivated: false,
-      order_by_recent_activity: params["order"] == "active"
-    })
+  def get_friends_query(%User{} = user, nil, %{"order" => "active"} = params) do
+    user
+    |> build_friends_query(true)
+    |> apply_active_friends_cursor(params)
+  end
+
+  def get_friends_query(%User{} = user, nil, %{order: "active"} = params) do
+    user
+    |> build_friends_query(true)
+    |> apply_active_friends_cursor(params)
+  end
+
+  def get_friends_query(%User{} = user, nil, _params) do
+    build_friends_query(user, false)
   end
 
   def get_friends_query(%User{} = user, page, params) do
@@ -1451,6 +1459,86 @@ defmodule Pleroma.User do
     |> get_friends_query(nil, params)
     |> User.Query.paginate(page, 20)
   end
+
+  defp build_friends_query(%User{} = user, order_by_recent_activity) do
+    User.Query.build(%{
+      friends: user,
+      deactivated: false,
+      order_by_recent_activity: order_by_recent_activity
+    })
+  end
+
+  defp apply_active_friends_cursor(query, params) do
+    query
+    |> maybe_restrict_active_friends_cursor(
+      Map.get(params, "since_id") || Map.get(params, :since_id),
+      :after
+    )
+    |> maybe_restrict_active_friends_cursor(
+      Map.get(params, "min_id") || Map.get(params, :min_id),
+      :after
+    )
+    |> maybe_restrict_active_friends_cursor(
+      Map.get(params, "max_id") || Map.get(params, :max_id),
+      :before
+    )
+  end
+
+  defp maybe_restrict_active_friends_cursor(query, nil, _direction), do: query
+
+  defp maybe_restrict_active_friends_cursor(query, cursor, direction) do
+    restrict_active_friends_cursor(query, cursor, direction)
+  end
+
+  defp restrict_active_friends_cursor(query, cursor, direction) do
+    case active_friends_cursor(cursor) do
+      %User{id: cursor_id, last_status_at: cursor_last_status_at} ->
+        restrict_active_friends_with_cursor(query, cursor_id, cursor_last_status_at, direction)
+
+      _ ->
+        restrict_active_friends_by_id(query, cursor, direction)
+    end
+  end
+
+  defp restrict_active_friends_with_cursor(query, cursor_id, nil, :before) do
+    where(query, [u], is_nil(u.last_status_at) and u.id < ^cursor_id)
+  end
+
+  defp restrict_active_friends_with_cursor(query, cursor_id, nil, :after) do
+    where(query, [u], not is_nil(u.last_status_at) or u.id > ^cursor_id)
+  end
+
+  defp restrict_active_friends_with_cursor(query, cursor_id, cursor_last_status_at, :before) do
+    where(
+      query,
+      [u],
+      is_nil(u.last_status_at) or u.last_status_at < ^cursor_last_status_at or
+        (u.last_status_at == ^cursor_last_status_at and u.id < ^cursor_id)
+    )
+  end
+
+  defp restrict_active_friends_with_cursor(query, cursor_id, cursor_last_status_at, :after) do
+    where(
+      query,
+      [u],
+      u.last_status_at > ^cursor_last_status_at or
+        (u.last_status_at == ^cursor_last_status_at and u.id > ^cursor_id)
+    )
+  end
+
+  defp restrict_active_friends_by_id(query, cursor, :before) do
+    where(query, [u], u.id < ^cursor)
+  end
+
+  defp restrict_active_friends_by_id(query, cursor, :after) do
+    where(query, [u], u.id > ^cursor)
+  end
+
+  defp active_friends_cursor(value) when is_binary(value) or is_integer(value) do
+    User.get_cached_by_id(value)
+  end
+
+  defp active_friends_cursor(_), do: nil
 
   @spec get_friends_query(User.t()) :: Ecto.Query.t()
   def get_friends_query(%User{} = user), do: get_friends_query(user, nil)
@@ -2902,11 +2990,9 @@ defmodule Pleroma.User do
   end
 
   def update_last_status_at(user) do
-    date_now = NaiveDateTime.utc_now()
-
     User
     |> where(id: ^user.id)
-    |> update([u], set: [last_status_at: ^date_now])
+    |> update([u], set: [last_status_at: fragment("NOW()")])
     |> select([u], u)
     |> Repo.update_all([])
     |> case do
