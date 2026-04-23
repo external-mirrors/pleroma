@@ -11,7 +11,13 @@ defmodule Pleroma.Stats do
   alias Pleroma.Repo
   alias Pleroma.User
 
-  @interval :timer.seconds(60)
+  @default_interval :timer.seconds(60)
+
+  # The peer list query can be expensive on instances with many remote users.
+  # Operators may increase this interval via config :pleroma, :stats, interval.
+  defp interval do
+    Pleroma.Config.get([:stats, :interval], @default_interval)
+  end
 
   def start_link(_) do
     GenServer.start_link(
@@ -111,7 +117,7 @@ defmodule Pleroma.Stats do
     stats = calculate_stat_data()
 
     unless Pleroma.Config.get(:env) == :test do
-      Process.send_after(self(), :run_update, @interval)
+      Process.send_after(self(), :run_update, interval())
     end
 
     {:noreply, stats}
@@ -131,7 +137,7 @@ defmodule Pleroma.Stats do
   @impl true
   def handle_info(:run_update, _) do
     new_stats = calculate_stat_data()
-    Process.send_after(self(), :run_update, @interval)
+    Process.send_after(self(), :run_update, interval())
     {:noreply, new_stats}
   end
 end

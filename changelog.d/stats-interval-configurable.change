@@ -1,0 +1,1 @@
+Make the stats refresh interval configurable via `:stats, :interval` (default 60s). Large instances can increase this to reduce steady-state load from the peer list aggregation query.
