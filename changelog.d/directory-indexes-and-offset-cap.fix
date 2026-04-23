@@ -1,0 +1,10 @@
+Add partial composite indexes and offset cap for the profile directory query.
+
+The directory endpoint filters on `is_discoverable = true` and `invisible = false`,
+then orders by `last_status_at DESC NULLS LAST` (or `id DESC`). Existing single-column
+indexes did not match this filter+sort pattern, causing parallel seq scans plus sorts
+on large instances.
+
+- Adds `users_directory_last_status_at_index` for the default `order=active` path
+- Adds `users_directory_id_index` for the `order=new` path
+- Caps directory offset at 1000 to prevent expensive deep-offset scans

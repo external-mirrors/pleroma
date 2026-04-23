@@ -47,4 +47,15 @@ defmodule Pleroma.Web.MastodonAPI.DirectoryControllerTest do
 
     assert [%{"id" => ^user_id} | _tail] = result
   end
+
+  test "GET /api/v1/directory caps offset to prevent deep pagination scans", %{conn: conn} do
+    Enum.each(1..5, fn _ -> insert(:user, is_discoverable: true) end)
+
+    result =
+      conn
+      |> get("/api/v1/directory?offset=99999")
+      |> json_response_and_validate_schema(200)
+
+    assert result == []
+  end
 end

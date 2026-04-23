@@ -20,9 +20,13 @@ defmodule Pleroma.Web.MastodonAPI.DirectoryController do
   defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.DirectoryOperation
 
   @doc "GET /api/v1/directory"
+  @max_directory_offset 1000
+
   def index(%{assigns: %{user: user}} = conn, params) do
     with true <- Pleroma.Config.get([:instance, :profile_directory]) do
       limit = Map.get(params, :limit, 20) |> min(80)
+      offset = Map.get(params, :offset, 0) |> min(@max_directory_offset)
+      params = Map.put(params, :offset, offset)
 
       users =
         User.Query.build(%{is_discoverable: true, invisible: false, limit: limit})
