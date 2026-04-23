@@ -2322,10 +2322,14 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       User.endorse(user1, user2)
       User.endorse(user1, user3)
 
-      [%{"id" => ^id2}, %{"id" => ^id3}] =
+      result =
         conn
         |> get("/api/v1/accounts/#{id1}/endorsements")
         |> json_response_and_validate_schema(200)
+
+      assert length(result) == 2
+      assert Enum.any?(result, &(&1["id"] == id2))
+      assert Enum.any?(result, &(&1["id"] == id3))
     end
 
     test "returns 404 error when specified user is not exist", %{conn: conn} do

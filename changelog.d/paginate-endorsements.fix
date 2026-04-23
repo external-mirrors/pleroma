@@ -1,0 +1,7 @@
+Paginate endorsements endpoints instead of using unbounded Repo.all.
+
+Both `GET /api/v1/accounts/:id/endorsements` and `GET /api/v1/endorsements`
+previously used `Repo.all()`, which could return unbounded result sets.
+They now use `Pagination.fetch_paginated/2` with Mastodon-compatible link
+headers, matching the existing pattern for mutes, blocks, and other
+paginated list endpoints.
