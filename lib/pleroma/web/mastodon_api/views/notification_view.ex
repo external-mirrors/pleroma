@@ -100,7 +100,14 @@ defmodule Pleroma.Web.MastodonAPI.NotificationView do
       created_at: CommonAPI.Utils.to_masto_date(notification.inserted_at),
       account: account,
       pleroma: %{
-        is_muted: User.mutes?(reading_user, actor),
+        is_muted:
+          UserRelationship.exists?(
+            get_in(opts, [:relationships, :user_relationships]),
+            :mute,
+            reading_user,
+            actor,
+            &User.mutes?/2
+          ),
         is_seen: notification.seen
       }
     }

@@ -5,6 +5,8 @@
 defmodule Pleroma.Web.MastodonAPI.ConversationView do
   use Pleroma.Web, :view
 
+  import Ecto.Query
+
   alias Pleroma.Activity
   alias Pleroma.Repo
   alias Pleroma.Web.ActivityPub.ActivityPub
@@ -12,14 +14,39 @@ defmodule Pleroma.Web.MastodonAPI.ConversationView do
   alias Pleroma.Web.MastodonAPI.StatusView
 
   def render("participations.json", %{participations: participations, for: user}) do
+    participations = Repo.preload(participations, conversation: [], recipients: [])
+
+    last_activity_ids =
+      participations
+      |> Enum.map(& &1.last_activity_id)
+      |> Enum.reject(&is_nil/1)
+
+    activities =
+      if last_activity_ids != [] do
+        Activity
+        |> where([a], a.id in ^last_activity_ids)
+        |> Activity.with_preloaded_object()
+        |> Repo.all()
+        |> Map.new(&{&1.id, &1})
+      else
+        %{}
+      end
+
     safe_render_many(participations, __MODULE__, "participation.json", %{
       as: :participation,
-      for: user
+      for: user,
+      activities: activities
     })
   end
 
-  def render("participation.json", %{participation: participation, for: user}) do
-    participation = Repo.preload(participation, conversation: [], recipients: [])
+  def render("participation.json", %{participation: participation, for: user} = opts) do
+    participation =
+      if Ecto.assoc_loaded?(participation.conversation) and
+           Ecto.assoc_loaded?(participation.recipients) do
+        participation
+      else
+        Repo.preload(participation, conversation: [], recipients: [])
+      end
 
     last_activity_id =
       with nil <- participation.last_activity_id do
@@ -32,7 +59,11 @@ defmodule Pleroma.Web.MastodonAPI.ConversationView do
         )
       end
 
-    activity = Activity.get_by_id_with_object(last_activity_id)
+    activity =
+      if last_activity_id do
+        get_in(opts, [:activities, last_activity_id]) ||
+          Activity.get_by_id_with_object(last_activity_id)
+      end
 
     # Conversations return all users except the current user,
     # except when the current user is the only participant

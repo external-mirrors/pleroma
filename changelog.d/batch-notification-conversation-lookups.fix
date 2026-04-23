@@ -1,0 +1,7 @@
+Batch notification and conversation view lookups to avoid N+1 queries.
+
+- NotificationView now reuses the precomputed relationship dictionary for
+  the `is_muted` flag instead of calling `User.mutes?/2` per notification.
+- ConversationView preloads conversations and recipients for the whole list
+  before rendering, and batch-fetches last activities with objects in a
+  single query instead of per participation.
