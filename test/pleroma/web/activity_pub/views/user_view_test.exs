@@ -181,6 +181,34 @@ defmodule Pleroma.Web.ActivityPub.UserViewTest do
       assert %{"first" => %{"orderedItems" => [^follower_ap_id]}} =
                UserView.render("followers.json", %{user: user})
     end
+
+    test "paginates followers using DB-side limit and offset" do
+      user = insert(:user)
+
+      followers = Enum.map(1..15, fn _ -> insert(:user) end)
+
+      Enum.each(followers, fn follower ->
+        {:ok, _user, _follower, _activity} = CommonAPI.follow(user, follower)
+      end)
+
+      user = User.get_cached_by_id(user.id)
+
+      assert %{
+               "totalItems" => 15,
+               "orderedItems" => page_one_items,
+               "next" => _
+             } = UserView.render("followers.json", %{user: user, page: 1})
+
+      assert length(page_one_items) == 10
+
+      assert %{
+               "totalItems" => 15,
+               "orderedItems" => page_two_items
+             } = UserView.render("followers.json", %{user: user, page: 2})
+
+      assert length(page_two_items) == 5
+      refute UserView.render("followers.json", %{user: user, page: 2}) |> Map.has_key?("next")
+    end
   end
 
   describe "following" do
@@ -200,6 +228,34 @@ defmodule Pleroma.Web.ActivityPub.UserViewTest do
       assert %{"totalItems" => 1} = UserView.render("following.json", %{user: user})
       user = Map.merge(user, %{hide_follows_count: false, hide_follows: true})
       assert %{"totalItems" => 1} = UserView.render("following.json", %{user: user})
+    end
+
+    test "paginates following using DB-side limit and offset" do
+      user = insert(:user)
+
+      followed = Enum.map(1..15, fn _ -> insert(:user) end)
+
+      Enum.each(followed, fn target ->
+        {:ok, _target, _user, _activity} = CommonAPI.follow(target, user)
+      end)
+
+      user = User.get_cached_by_id(user.id)
+
+      assert %{
+               "totalItems" => 15,
+               "orderedItems" => page_one_items,
+               "next" => _
+             } = UserView.render("following.json", %{user: user, page: 1})
+
+      assert length(page_one_items) == 10
+
+      assert %{
+               "totalItems" => 15,
+               "orderedItems" => page_two_items
+             } = UserView.render("following.json", %{user: user, page: 2})
+
+      assert length(page_two_items) == 5
+      refute UserView.render("following.json", %{user: user, page: 2}) |> Map.has_key?("next")
     end
   end
 

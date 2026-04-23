@@ -154,19 +154,27 @@ defmodule Pleroma.Web.ActivityPub.UserView do
     showing_items = (opts[:for] && opts[:for] == user) || !user.hide_follows
     showing_count = showing_items || !user.hide_follows_count
 
-    query = User.get_friends_query(user)
-    query = from(user in query, select: [:ap_id])
-    following = Repo.all(query)
+    {following_page, total} =
+      cond do
+        showing_items ->
+          page_items =
+            user
+            |> User.get_friends_query()
+            |> select([u], [:ap_id])
+            |> User.Query.paginate(page, 10)
+            |> Repo.all()
 
-    total =
-      if showing_count do
-        length(following)
-      else
-        0
+          {page_items, if(showing_count, do: user.following_count, else: 0)}
+
+        showing_count ->
+          {[], user.following_count}
+
+        true ->
+          {[], 0}
       end
 
     CollectionViewHelper.collection_page_offset(
-      following,
+      following_page,
       "#{user.ap_id}/following",
       page,
       showing_items,
@@ -179,15 +187,17 @@ defmodule Pleroma.Web.ActivityPub.UserView do
     showing_items = (opts[:for] && opts[:for] == user) || !user.hide_follows
     showing_count = showing_items || !user.hide_follows_count
 
-    query = User.get_friends_query(user)
-    query = from(user in query, select: [:ap_id])
-    following = Repo.all(query)
+    total = if showing_count, do: user.following_count, else: 0
 
-    total =
-      if showing_count do
-        length(following)
+    first_page =
+      if showing_items do
+        user
+        |> User.get_friends_query()
+        |> select([u], [:ap_id])
+        |> User.Query.paginate(1, 10)
+        |> Repo.all()
       else
-        0
+        []
       end
 
     %{
@@ -197,10 +207,11 @@ defmodule Pleroma.Web.ActivityPub.UserView do
       "first" =>
         if showing_items do
           CollectionViewHelper.collection_page_offset(
-            following,
+            first_page,
             "#{user.ap_id}/following",
             1,
-            !user.hide_follows
+            !user.hide_follows,
+            total
           )
         else
           "#{user.ap_id}/following?page=1"
@@ -213,19 +224,27 @@ defmodule Pleroma.Web.ActivityPub.UserView do
     showing_items = (opts[:for] && opts[:for] == user) || !user.hide_followers
     showing_count = showing_items || !user.hide_followers_count
 
-    query = User.get_followers_query(user)
-    query = from(user in query, select: [:ap_id])
-    followers = Repo.all(query)
+    {followers_page, total} =
+      cond do
+        showing_items ->
+          page_items =
+            user
+            |> User.get_followers_query()
+            |> select([u], [:ap_id])
+            |> User.Query.paginate(page, 10)
+            |> Repo.all()
 
-    total =
-      if showing_count do
-        length(followers)
-      else
-        0
+          {page_items, if(showing_count, do: user.follower_count, else: 0)}
+
+        showing_count ->
+          {[], user.follower_count}
+
+        true ->
+          {[], 0}
       end
 
     CollectionViewHelper.collection_page_offset(
-      followers,
+      followers_page,
       "#{user.ap_id}/followers",
       page,
       showing_items,
@@ -238,15 +257,17 @@ defmodule Pleroma.Web.ActivityPub.UserView do
     showing_items = (opts[:for] && opts[:for] == user) || !user.hide_followers
     showing_count = showing_items || !user.hide_followers_count
 
-    query = User.get_followers_query(user)
-    query = from(user in query, select: [:ap_id])
-    followers = Repo.all(query)
+    total = if showing_count, do: user.follower_count, else: 0
 
-    total =
-      if showing_count do
-        length(followers)
+    first_page =
+      if showing_items do
+        user
+        |> User.get_followers_query()
+        |> select([u], [:ap_id])
+        |> User.Query.paginate(1, 10)
+        |> Repo.all()
       else
-        0
+        []
       end
 
     %{
@@ -255,10 +276,11 @@ defmodule Pleroma.Web.ActivityPub.UserView do
       "first" =>
         if showing_items do
           CollectionViewHelper.collection_page_offset(
-            followers,
+            first_page,
             "#{user.ap_id}/followers",
             1,
-            showing_items
+            showing_items,
+            total
           )
         else
           "#{user.ap_id}/followers?page=1"

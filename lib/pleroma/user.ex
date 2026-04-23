@@ -1393,7 +1393,7 @@ defmodule Pleroma.User do
 
   @spec get_followers_query(User.t(), pos_integer() | nil) :: Ecto.Query.t()
   def get_followers_query(%User{} = user, nil) do
-    User.Query.build(%{followers: user, is_active: true})
+    User.Query.build(%{followers: user, deactivated: false})
   end
 
   def get_followers_query(%User{} = user, page) do

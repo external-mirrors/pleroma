@@ -1,0 +1,1 @@
+Paginate ActivityPub follower/following collections in SQL instead of materializing full result sets in memory. Also makes `User.get_followers_query/1` consistent with `get_friends_query/1` by filtering out deactivated users.
