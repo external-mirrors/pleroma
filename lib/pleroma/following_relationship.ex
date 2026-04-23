@@ -10,7 +10,6 @@ defmodule Pleroma.FollowingRelationship do
 
   alias Ecto.Changeset
   alias FlakeId.Ecto.CompatType
-  alias Pleroma.Config
   alias Pleroma.FollowingRelationship.State
   alias Pleroma.Repo
   alias Pleroma.User
@@ -122,10 +121,10 @@ defmodule Pleroma.FollowingRelationship do
     end
   end
 
-  defp after_update_state_change(_new, :follow_accept, follower, following) do
+  defp after_update_state_change(new, :follow_accept, follower, following) do
     with {:ok, following} <- update_follower_count(following, :decrement),
          {:ok, follower} <- update_following_count(follower, :decrement) do
-      stream_follow_relationship(_new, follower, following)
+      stream_follow_relationship(new, follower, following)
     end
   end
 

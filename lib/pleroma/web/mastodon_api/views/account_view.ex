@@ -223,6 +223,13 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
   defp do_render("show.json", %{user: user} = opts) do
     self = opts[:for] == user
 
+    opts =
+      if self do
+        Map.put_new_lazy(opts, :self_counts, fn -> fetch_self_counts(user) end)
+      else
+        opts
+      end
+
     user = User.sanitize_html(user, User.html_filter_policy(opts[:for]))
     display_name = user.name || user.nickname
 
@@ -348,10 +355,10 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     |> maybe_put_settings_store(user, opts[:for], opts)
     |> maybe_put_chat_token(user, opts[:for], opts)
     |> maybe_put_activation_status(user, opts[:for])
-    |> maybe_put_follow_requests_count(user, opts[:for])
+    |> maybe_put_follow_requests_count(user, opts)
     |> maybe_put_allow_following_move(user, opts[:for])
-    |> maybe_put_unread_conversation_count(user, opts[:for])
-    |> maybe_put_unread_notification_count(user, opts[:for])
+    |> maybe_put_unread_conversation_count(user, opts)
+    |> maybe_put_unread_notification_count(user, opts)
     |> maybe_put_email_address(user, opts[:for])
     |> maybe_put_mute_expires_at(user, opts[:for], opts, relationship)
     |> maybe_put_block_expires_at(user, opts[:for], opts, relationship)
@@ -366,16 +373,23 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
 
   defp maybe_put_follow_requests_count(
          data,
+         %User{id: user_id},
+         %{for: %User{id: user_id}, self_counts: counts}
+       ) do
+    Kernel.put_in(data, [:follow_requests_count], Map.get(counts, :follow_requests_count, 0))
+  end
+
+  defp maybe_put_follow_requests_count(
+         data,
          %User{id: user_id} = user,
-         %User{id: user_id}
+         %{for: %User{id: user_id}}
        ) do
     count =
       user
       |> User.get_follow_requests_query()
       |> Pleroma.Repo.aggregate(:count)
 
-    data
-    |> Kernel.put_in([:follow_requests_count], count)
+    Kernel.put_in(data, [:follow_requests_count], count)
   end
 
   defp maybe_put_follow_requests_count(data, _, _), do: data
@@ -452,7 +466,23 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
       else: data
   end
 
-  defp maybe_put_unread_conversation_count(data, %User{id: user_id} = user, %User{id: user_id}) do
+  defp maybe_put_unread_conversation_count(
+         data,
+         %User{id: user_id},
+         %{for: %User{id: user_id}, self_counts: counts}
+       ) do
+    Kernel.put_in(
+      data,
+      [:pleroma, :unread_conversation_count],
+      Map.get(counts, :unread_conversation_count, 0)
+    )
+  end
+
+  defp maybe_put_unread_conversation_count(
+         data,
+         %User{id: user_id} = user,
+         %{for: %User{id: user_id}}
+       ) do
     data
     |> Kernel.put_in(
       [:pleroma, :unread_conversation_count],
@@ -462,7 +492,23 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
 
   defp maybe_put_unread_conversation_count(data, _, _), do: data
 
-  defp maybe_put_unread_notification_count(data, %User{id: user_id}, %User{id: user_id} = user) do
+  defp maybe_put_unread_notification_count(
+         data,
+         %User{id: user_id},
+         %{for: %User{id: user_id}, self_counts: counts}
+       ) do
+    Kernel.put_in(
+      data,
+      [:pleroma, :unread_notifications_count],
+      Map.get(counts, :unread_notifications_count, 0)
+    )
+  end
+
+  defp maybe_put_unread_notification_count(
+         data,
+         %User{id: user_id},
+         %{for: %User{id: user_id} = user}
+       ) do
     Kernel.put_in(
       data,
       [:pleroma, :unread_notifications_count],
@@ -481,6 +527,29 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
   end
 
   defp maybe_put_email_address(data, _, _), do: data
+
+  defp fetch_self_counts(%User{} = user) do
+    [
+      follow_requests_count_task,
+      unread_conversation_count_task,
+      unread_notifications_count_task
+    ] =
+      [
+        Task.async(fn ->
+          user
+          |> User.get_follow_requests_query()
+          |> Pleroma.Repo.aggregate(:count)
+        end),
+        Task.async(fn -> Pleroma.Conversation.Participation.unread_count(user) end),
+        Task.async(fn -> Pleroma.Notification.unread_notifications_count(user) end)
+      ]
+
+    %{
+      follow_requests_count: Task.await(follow_requests_count_task),
+      unread_conversation_count: Task.await(unread_conversation_count_task),
+      unread_notifications_count: Task.await(unread_notifications_count_task)
+    }
+  end
 
   defp maybe_put_mute_expires_at(data, target, user, opts, relationship \\ nil)
 

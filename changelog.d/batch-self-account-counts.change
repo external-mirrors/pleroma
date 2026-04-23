@@ -1,0 +1,6 @@
+Batch self-account count queries in AccountView to avoid three sequential DB round-trips.
+
+Rendering the current user's own account (e.g. verify_credentials) previously
+fired separate aggregate queries for follow requests, unread conversations, and
+unread notifications. These are now computed concurrently via `Task.async` and
+reused across the three `maybe_put_*` helpers.
