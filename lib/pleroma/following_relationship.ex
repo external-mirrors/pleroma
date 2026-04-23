@@ -10,6 +10,7 @@ defmodule Pleroma.FollowingRelationship do
 
   alias Ecto.Changeset
   alias FlakeId.Ecto.CompatType
+  alias Pleroma.Config
   alias Pleroma.FollowingRelationship.State
   alias Pleroma.Repo
   alias Pleroma.User
@@ -62,30 +63,36 @@ defmodule Pleroma.FollowingRelationship do
         follow(follower, following, state)
 
       following_relationship ->
+        previous_state = following_relationship.state
+
         with {:ok, _following_relationship} <-
                following_relationship
                |> cast(%{state: state}, [:state])
                |> validate_required([:state])
                |> Repo.update() do
-          after_update(state, follower, following)
+          after_update_state_change(state, previous_state, follower, following)
         end
     end
   end
 
   def follow(%User{} = follower, %User{} = following, state \\ :follow_accept) do
-    with {:ok, _following_relationship} <-
+    with {:ok, following_relationship} <-
            %__MODULE__{}
            |> changeset(%{follower: follower, following: following, state: state})
            |> Repo.insert(on_conflict: :nothing) do
-      after_update(state, follower, following)
+      if following_relationship.id do
+        after_update_insert(state, follower, following)
+      else
+        {:ok, follower, following}
+      end
     end
   end
 
   def unfollow(%User{} = follower, %User{} = following) do
     case get(follower, following) do
-      %__MODULE__{} = following_relationship ->
+      %__MODULE__{state: state} = following_relationship ->
         with {:ok, _following_relationship} <- Repo.delete(following_relationship) do
-          after_update(:unfollow, follower, following)
+          after_update_delete(state, follower, following)
         end
 
       _ ->
@@ -93,17 +100,75 @@ defmodule Pleroma.FollowingRelationship do
     end
   end
 
-  defp after_update(state, %User{} = follower, %User{} = following) do
-    with {:ok, following} <- User.update_follower_count(following),
-         {:ok, follower} <- User.update_following_count(follower) do
-      Pleroma.Web.Streamer.stream("follow_relationship", %{
-        state: state,
-        following: following,
-        follower: follower
-      })
-
-      {:ok, follower, following}
+  defp after_update_insert(:follow_accept, follower, following) do
+    with {:ok, following} <- update_follower_count(following, :increment),
+         {:ok, follower} <- update_following_count(follower, :increment) do
+      stream_follow_relationship(:follow_accept, follower, following)
     end
+  end
+
+  defp after_update_insert(state, follower, following) do
+    stream_follow_relationship(state, follower, following)
+  end
+
+  defp after_update_state_change(:follow_accept, :follow_accept, follower, following) do
+    stream_follow_relationship(:follow_accept, follower, following)
+  end
+
+  defp after_update_state_change(:follow_accept, _previous, follower, following) do
+    with {:ok, following} <- update_follower_count(following, :increment),
+         {:ok, follower} <- update_following_count(follower, :increment) do
+      stream_follow_relationship(:follow_accept, follower, following)
+    end
+  end
+
+  defp after_update_state_change(_new, :follow_accept, follower, following) do
+    with {:ok, following} <- update_follower_count(following, :decrement),
+         {:ok, follower} <- update_following_count(follower, :decrement) do
+      stream_follow_relationship(_new, follower, following)
+    end
+  end
+
+  defp after_update_state_change(new, _previous, follower, following) do
+    stream_follow_relationship(new, follower, following)
+  end
+
+  defp after_update_delete(:follow_accept, follower, following) do
+    with {:ok, following} <- update_follower_count(following, :decrement),
+         {:ok, follower} <- update_following_count(follower, :decrement) do
+      stream_follow_relationship(:unfollow, follower, following)
+    end
+  end
+
+  defp after_update_delete(_state, follower, following) do
+    stream_follow_relationship(:unfollow, follower, following)
+  end
+
+  defp update_follower_count(%User{local: false} = user, _operation) do
+    User.update_follower_count(user)
+  end
+
+  defp update_follower_count(%User{} = user, :increment), do: User.increment_follower_count(user)
+  defp update_follower_count(%User{} = user, :decrement), do: User.decrement_follower_count(user)
+
+  defp update_following_count(%User{local: false} = user, _operation) do
+    User.update_following_count(user)
+  end
+
+  defp update_following_count(%User{} = user, :increment),
+    do: User.increment_following_count(user)
+
+  defp update_following_count(%User{} = user, :decrement),
+    do: User.decrement_following_count(user)
+
+  defp stream_follow_relationship(state, follower, following) do
+    Pleroma.Web.Streamer.stream("follow_relationship", %{
+      state: state,
+      following: following,
+      follower: follower
+    })
+
+    {:ok, follower, following}
   end
 
   def follower_count(%User{} = user) do

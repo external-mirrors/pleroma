@@ -1600,6 +1600,38 @@ defmodule Pleroma.User do
     |> update_and_set_cache()
   end
 
+  @spec increment_follower_count(User.t()) :: {:ok, User.t()}
+  def increment_follower_count(%User{} = user) do
+    user
+    |> follow_information_changeset(%{follower_count: user.follower_count + 1})
+    |> update_and_set_cache()
+  end
+
+  @spec decrement_follower_count(User.t()) :: {:ok, User.t()}
+  def decrement_follower_count(%User{} = user) do
+    count = max(user.follower_count - 1, 0)
+
+    user
+    |> follow_information_changeset(%{follower_count: count})
+    |> update_and_set_cache()
+  end
+
+  @spec increment_following_count(User.t()) :: {:ok, User.t()}
+  def increment_following_count(%User{} = user) do
+    user
+    |> follow_information_changeset(%{following_count: user.following_count + 1})
+    |> update_and_set_cache()
+  end
+
+  @spec decrement_following_count(User.t()) :: {:ok, User.t()}
+  def decrement_following_count(%User{} = user) do
+    count = max(user.following_count - 1, 0)
+
+    user
+    |> follow_information_changeset(%{following_count: count})
+    |> update_and_set_cache()
+  end
+
   @spec get_users_from_set([String.t()], keyword()) :: [User.t()]
   def get_users_from_set(ap_ids, opts \\ []) do
     local_only = Keyword.get(opts, :local_only, true)

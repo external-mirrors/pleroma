@@ -1,0 +1,10 @@
+Use incremental counter updates for local users on follow/unfollow.
+
+The follow/unfollow write path previously recomputed follower and following
+counts with aggregate queries after every relationship change. On large
+accounts this adds unnecessary write-path latency.
+
+- Local users now get increment/decrement counter updates on the hot path
+- Remote users preserve the existing behavior (recount or remote fetch)
+- `User.update_follower_count/1` and `update_following_count/1` are kept
+  as repair functions for drift correction
