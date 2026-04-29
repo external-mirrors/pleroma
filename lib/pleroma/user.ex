@@ -1601,35 +1601,32 @@ defmodule Pleroma.User do
   end
 
   @spec increment_follower_count(User.t()) :: {:ok, User.t()}
-  def increment_follower_count(%User{} = user) do
-    user
-    |> follow_information_changeset(%{follower_count: user.follower_count + 1})
-    |> update_and_set_cache()
-  end
+  def increment_follower_count(%User{} = user), do: update_follow_count(user, :follower_count, 1)
 
   @spec decrement_follower_count(User.t()) :: {:ok, User.t()}
-  def decrement_follower_count(%User{} = user) do
-    count = max(user.follower_count - 1, 0)
-
-    user
-    |> follow_information_changeset(%{follower_count: count})
-    |> update_and_set_cache()
-  end
+  def decrement_follower_count(%User{} = user), do: update_follow_count(user, :follower_count, -1)
 
   @spec increment_following_count(User.t()) :: {:ok, User.t()}
-  def increment_following_count(%User{} = user) do
-    user
-    |> follow_information_changeset(%{following_count: user.following_count + 1})
-    |> update_and_set_cache()
-  end
+  def increment_following_count(%User{} = user),
+    do: update_follow_count(user, :following_count, 1)
 
   @spec decrement_following_count(User.t()) :: {:ok, User.t()}
-  def decrement_following_count(%User{} = user) do
-    count = max(user.following_count - 1, 0)
+  def decrement_following_count(%User{} = user),
+    do: update_follow_count(user, :following_count, -1)
 
-    user
-    |> follow_information_changeset(%{following_count: count})
-    |> update_and_set_cache()
+  defp update_follow_count(%User{id: id}, field, delta) do
+    query =
+      if delta < 0 do
+        from(u in User, where: u.id == ^id and field(u, ^field) > 0)
+      else
+        from(u in User, where: u.id == ^id)
+      end
+
+    Repo.update_all(query, inc: [{field, delta}])
+
+    id
+    |> get_by_id()
+    |> set_cache()
   end
 
   @spec get_users_from_set([String.t()], keyword()) :: [User.t()]
@@ -2896,10 +2893,14 @@ defmodule Pleroma.User do
     URI.parse(ap_id).host
   end
 
-  def update_last_active_at(%__MODULE__{local: true} = user) do
-    user
-    |> cast(%{last_active_at: NaiveDateTime.utc_now()}, [:last_active_at])
-    |> update_and_set_cache()
+  def update_last_active_at(%__MODULE__{local: true, id: id}) do
+    __MODULE__
+    |> where([u], u.id == ^id)
+    |> Repo.update_all(set: [last_active_at: NaiveDateTime.utc_now()])
+
+    id
+    |> get_by_id()
+    |> set_cache()
   end
 
   def update_last_active_at(user), do: user
