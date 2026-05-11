@@ -1788,6 +1788,48 @@ config :pleroma, :config_description, [
           "The number of Note replies' URIs to be included with outgoing federation (`5` to match Mastodon hardcoded value, `0` to disable the output)"
       },
       %{
+        key: :remote_replies_collection_refresh,
+        type: :keyword,
+        description:
+          "Settings for delayed refreshes of remote public posts' advertised replies collections.",
+        children: [
+          %{
+            key: :enabled,
+            type: :boolean,
+            description:
+              "Enable delayed fetching of advertised replies collections for remote public posts."
+          },
+          %{
+            key: :schedule,
+            type: {:list, :integer},
+            description:
+              "Seconds after an incoming remote post when its replies collection should be refreshed."
+          },
+          %{
+            key: :triggered_refresh_delay,
+            type: :integer,
+            description:
+              "Seconds to debounce refreshes triggered by incoming remote replies to a known post."
+          },
+          %{
+            key: :triggered_refresh_ancestor_depth,
+            type: :integer,
+            description:
+              "Maximum number of known replied-to ancestors to refresh when an incoming remote reply arrives (`0` to disable triggered ancestor refreshes)."
+          },
+          %{
+            key: :max_pages,
+            type: :integer,
+            description: "Maximum number of collection/page documents to fetch per refresh."
+          },
+          %{
+            key: :max_items,
+            type: :integer,
+            description: "Maximum number of reply object fetches to enqueue per refresh."
+          }
+        ]
+      },
+      %{
         key: :follow_handshake_timeout,
         type: :integer,
         description: "Following handshake timeout",

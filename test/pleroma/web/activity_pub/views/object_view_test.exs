@@ -22,6 +22,17 @@ defmodule Pleroma.Web.ActivityPub.ObjectViewTest do
     assert result["@context"]
   end
 
+  test "does not expose internal replies collection tracking" do
+    note =
+      insert(:note,
+        data: %{"replies_collection" => "https://remote.example/objects/1/replies"}
+      )
+
+    result = ObjectView.render("object.json", %{object: note})
+
+    refute Map.has_key?(result, "replies_collection")
+  end
+
   test "renders a note activity" do
     note = insert(:note_activity)
     object = Object.normalize(note, fetch: false)

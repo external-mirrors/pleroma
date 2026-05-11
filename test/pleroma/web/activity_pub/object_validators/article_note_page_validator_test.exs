@@ -58,6 +58,97 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidatorTest 
       note = insert(:note)
       %{valid?: true} = ArticleNotePageValidator.cast_and_validate(note.data)
     end
+
+    test "keeps an advertised replies collection URL", %{note: note} do
+      replies_collection = note["id"] <> "/replies"
+
+      note = Map.put(note, "replies", replies_collection)
+
+      assert {:ok, validated_note} = ArticleNotePageValidator.cast_and_apply(note)
+      assert validated_note.replies == []
+      assert validated_note.replies_collection == replies_collection
+    end
+
+    test "keeps the collection URL while normalizing inline reply IDs", %{note: note} do
+      replies_collection = note["id"] <> "/replies"
+      reply = "https://remote.example/objects/reply"
+
+      note =
+        Map.put(note, "replies", %{
+          "id" => replies_collection,
+          "type" => "OrderedCollection",
+          "first" => %{"type" => "OrderedCollectionPage", "orderedItems" => [reply]}
+        })
+
+      assert {:ok, validated_note} = ArticleNotePageValidator.cast_and_apply(note)
+      assert validated_note.replies == [reply]
+      assert validated_note.replies_collection == replies_collection
+    end
+
+    test "drops a replies collection URL from another origin", %{note: note} do
+      note = Map.put(note, "replies", "https://other.example/objects/1/replies")
+
+      assert {:ok, validated_note} = ArticleNotePageValidator.cast_and_apply(note)
+      assert validated_note.replies == []
+      assert validated_note.replies_collection == nil
+    end
+
+    test "drops a same-host replies collection URL from another origin", %{note: note} do
+      note = Map.put(note, "id", "https://remote.example/objects/1")
+
+      for collection_id <- [
+            "http://remote.example/objects/1/replies",
+            "https://remote.example:8443/objects/1/replies"
+          ] do
+        note = Map.put(note, "replies", collection_id)
+
+        assert {:ok, validated_note} = ArticleNotePageValidator.cast_and_apply(note)
+        assert validated_note.replies == []
+        assert validated_note.replies_collection == nil
+      end
+    end
+
+    test "does not trust an inbound internal replies collection field", %{note: note} do
+      note = Map.put(note, "replies_collection", note["id"] <> "/replies")
+
+      assert {:ok, validated_note} = ArticleNotePageValidator.cast_and_apply(note)
+      assert validated_note.replies_collection == nil
+    end
+
+    test "does not trust an inbound internal replies collection field with inline replies", %{
+      note: note
+    } do
+      reply = "https://remote.example/objects/reply"
+
+      note =
+        Map.merge(note, %{
+          "replies" => [reply],
+          "replies_collection" => note["id"] <> "/replies"
+        })
+
+      assert {:ok, validated_note} = ArticleNotePageValidator.cast_and_apply(note)
+      assert validated_note.replies == [reply]
+      assert validated_note.replies_collection == nil
+    end
+
+    test "can preserve an internal replies collection field with inline replies", %{note: note} do
+      reply = "https://remote.example/objects/reply"
+      replies_collection = note["id"] <> "/replies"
+
+      note =
+        Map.merge(note, %{
+          "replies" => [reply],
+          "replies_collection" => replies_collection
+        })
+
+      assert {:ok, validated_note} =
+               ArticleNotePageValidator.cast_and_apply(note,
+                 preserve_internal_replies_collection: true
+               )
+
+      assert validated_note.replies == [reply]
+      assert validated_note.replies_collection == replies_collection
+    end
   end
 
   describe "Note with history" do

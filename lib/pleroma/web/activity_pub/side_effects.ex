@@ -23,6 +23,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.Streamer
   alias Pleroma.Workers.PollWorker
+  alias Pleroma.Workers.RemoteRepliesFetcherWorker
 
   require Pleroma.Constants
   require Logger
@@ -230,6 +231,13 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
           })
           |> Oban.insert()
         end
+      end
+
+      if not activity.local do
+        current_depth = meta[:depth] || 1
+
+        RemoteRepliesFetcherWorker.enqueue_for_object(object, reply_depth)
+        RemoteRepliesFetcherWorker.enqueue_for_reply_ancestors(object, current_depth)
       end
 
       Pleroma.Web.RichMedia.Card.get_by_activity(activity)
@@ -538,6 +546,8 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
   def handle_object_creation(%{"type" => objtype} = object, _activity, meta)
       when objtype in ~w[Audio Video Image Event Article Note Page] do
+    meta = Keyword.put(meta, :preserve_internal_replies_collection, true)
+
     with {:ok, object, meta} <- Pipeline.common_pipeline(object, meta) do
       {:ok, object, meta}
     end

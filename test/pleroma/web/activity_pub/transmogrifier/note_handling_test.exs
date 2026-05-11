@@ -16,6 +16,8 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
   import Mock
   import Pleroma.Factory
 
+  require Pleroma.Constants
+
   setup_all do
     Tesla.Mock.mock_global(fn env -> apply(HttpRequestMock, :request, [env]) end)
     :ok
@@ -475,6 +477,107 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
       end
     end
 
+    test "schedules background refresh of an advertised replies collection", %{
+      activity: activity
+    } do
+      clear_config([:instance, :federation_incoming_replies_max_depth], 1)
+
+      clear_config([:activitypub, :remote_replies_collection_refresh],
+        enabled: true,
+        schedule: [0]
+      )
+
+      object_id =
+        "http://mastodon.example.org/users/admin/statuses/#{System.unique_integer([:positive])}"
+
+      replies_collection = object_id <> "/replies"
+
+      activity =
+        activity
+        |> put_in(["id"], object_id <> "/activity")
+        |> put_in(["object", "id"], object_id)
+        |> put_in(["object", "atomUri"], object_id)
+        |> put_in(["object", "url"], object_id)
+        |> put_in(["object", "replies"], %{
+          "id" => replies_collection,
+          "type" => "OrderedCollection",
+          "items" => []
+        })
+
+      assert {:ok, %Activity{data: data, local: false}} = Transmogrifier.handle_incoming(activity)
+      object = Object.normalize(data["object"])
+
+      assert object.data["replies_collection"] == replies_collection
+
+      assert_enqueued(
+        worker: Pleroma.Workers.RemoteRepliesFetcherWorker,
+        args: %{
+          "op" => "refresh_replies",
+          "object_id" => object.data["id"],
+          "collection_id" => replies_collection,
+          "depth" => 1,
+          "refresh_index" => 0
+        }
+      )
+    end
+
+    test "does not preserve inbound internal replies collection with inline replies", %{
+      activity: activity
+    } do
+      clear_config([:instance, :federation_incoming_replies_max_depth], 1)
+
+      object_id =
+        "http://mastodon.example.org/users/admin/statuses/#{System.unique_integer([:positive])}"
+
+      reply_id = object_id <> "/reply"
+      replies_collection = object_id <> "/replies"
+
+      activity =
+        activity
+        |> put_in(["id"], object_id <> "/activity")
+        |> put_in(["object", "id"], object_id)
+        |> put_in(["object", "atomUri"], object_id)
+        |> put_in(["object", "url"], object_id)
+        |> put_in(["object", "replies"], [reply_id])
+        |> put_in(["object", "replies_collection"], replies_collection)
+
+      assert {:ok, %Activity{data: data, local: false}} = Transmogrifier.handle_incoming(activity)
+      object = Object.normalize(data["object"])
+
+      assert object.data["replies"] == [reply_id]
+      assert object.data["replies_collection"] == nil
+      assert all_enqueued(worker: Pleroma.Workers.RemoteRepliesFetcherWorker) == []
+    end
+
+    test "does not schedule replies collection refresh when disabled", %{activity: activity} do
+      clear_config([:instance, :federation_incoming_replies_max_depth], 1)
+
+      clear_config([:activitypub, :remote_replies_collection_refresh],
+        enabled: false,
+        schedule: [0]
+      )
+
+      object_id =
+        "http://mastodon.example.org/users/admin/statuses/#{System.unique_integer([:positive])}"
+
+      replies_collection = object_id <> "/replies"
+
+      activity =
+        activity
+        |> put_in(["id"], object_id <> "/activity")
+        |> put_in(["object", "id"], object_id)
+        |> put_in(["object", "atomUri"], object_id)
+        |> put_in(["object", "url"], object_id)
+        |> put_in(["object", "replies"], %{
+          "id" => replies_collection,
+          "type" => "OrderedCollection",
+          "items" => []
+        })
+
+      assert {:ok, %Activity{local: false}} = Transmogrifier.handle_incoming(activity)
+      assert all_enqueued(worker: Pleroma.Workers.RemoteRepliesFetcherWorker) == []
+    end
+
     test "does NOT schedule background fetching of `replies` beyond max thread depth limit allows",
          %{activity: activity} do
       clear_config([:instance, :federation_incoming_replies_max_depth], 0)
@@ -482,6 +585,89 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
       {:ok, _activity} = Transmogrifier.handle_incoming(activity)
 
       assert all_enqueued(worker: Pleroma.Workers.RemoteFetcherWorker) == []
+      assert all_enqueued(worker: Pleroma.Workers.RemoteRepliesFetcherWorker) == []
+    end
+  end
+
+  describe "`handle_incoming/2`, reply-triggered replies collection refresh" do
+    setup do
+      clear_config([:instance, :federation_incoming_replies_max_depth], 10)
+
+      clear_config([:activitypub, :remote_replies_collection_refresh],
+        enabled: true,
+        schedule: [0],
+        triggered_refresh_delay: 0,
+        triggered_refresh_ancestor_depth: 3,
+        max_pages: 2,
+        max_items: 40
+      )
+
+      actor = "https://reply-trigger.example/users/alice"
+      parent_id = "https://reply-trigger.example/objects/parent"
+      parent_collection_id = parent_id <> "/replies"
+
+      user = insert(:user, local: false, ap_id: actor)
+
+      parent =
+        insert(:note,
+          user: user,
+          object_local: false,
+          data: %{
+            "id" => parent_id,
+            "actor" => actor,
+            "attributedTo" => actor,
+            "replies_collection" => parent_collection_id
+          }
+        )
+
+      insert(:note_activity,
+        user: user,
+        note: parent,
+        local: false,
+        data_attrs: %{"id" => parent_id <> "/activity"}
+      )
+
+      %{actor: actor, parent_id: parent_id, parent_collection_id: parent_collection_id}
+    end
+
+    test "schedules a debounced refresh for the replied-to parent", %{
+      actor: actor,
+      parent_id: parent_id,
+      parent_collection_id: parent_collection_id
+    } do
+      reply_id = "https://reply-trigger.example/objects/reply"
+
+      activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => reply_id <> "/activity",
+        "type" => "Create",
+        "actor" => actor,
+        "to" => [Pleroma.Constants.as_public()],
+        "cc" => [actor <> "/followers"],
+        "object" => %{
+          "id" => reply_id,
+          "type" => "Note",
+          "attributedTo" => actor,
+          "to" => [Pleroma.Constants.as_public()],
+          "cc" => [actor <> "/followers"],
+          "content" => "reply",
+          "published" => DateTime.utc_now() |> DateTime.to_iso8601(),
+          "inReplyTo" => parent_id
+        }
+      }
+
+      assert {:ok, %Activity{local: false}} = Transmogrifier.handle_incoming(activity)
+
+      assert_enqueued(
+        worker: Pleroma.Workers.RemoteRepliesFetcherWorker,
+        args: %{
+          "op" => "refresh_replies",
+          "object_id" => parent_id,
+          "collection_id" => parent_collection_id,
+          "depth" => 1,
+          "refresh_index" => "triggered"
+        }
+      )
     end
   end
 

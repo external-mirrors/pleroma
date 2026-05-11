@@ -148,7 +148,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
            do_separate_with_history(object, fn object ->
              with {:ok, object} <-
                     object
-                    |> validator.cast_and_validate()
+                    |> cast_and_validate_object(validator, meta)
                     |> Ecto.Changeset.apply_action(:insert) do
                object = stringify_keys(object)
 
@@ -279,6 +279,17 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   end
 
   def cast_and_apply(o), do: {:error, {:validator_not_set, o}}
+
+  defp cast_and_validate_object(object, ArticleNotePageValidator, meta) do
+    ArticleNotePageValidator.cast_and_validate(object,
+      preserve_internal_replies_collection:
+        Access.get(meta, :preserve_internal_replies_collection, false)
+    )
+  end
+
+  defp cast_and_validate_object(object, validator, _meta) do
+    validator.cast_and_validate(object)
+  end
 
   def stringify_keys(object) when is_struct(object) do
     object
