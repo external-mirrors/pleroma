@@ -185,10 +185,7 @@ defmodule Pleroma.Mixfile do
       {:remote_ip,
        git: "https://git.pleroma.social/pleroma/remote_ip.git",
        ref: "b647d0deecaa3acb140854fe4bda5b7e1dc6d1c8"},
-      {:captcha, "~> 1.0.1",
-       hex: :pleroma_captcha,
-       compile:
-         "make --always-make && mkdir -p $ERL_LIBS/captcha/ebin && elixirc lib/captcha.ex -o $ERL_LIBS/captcha/ebin && printf \"%s\" \"{application,captcha,[{applications,[kernel,stdlib,elixir,logger]},{modules,['Elixir.Captcha']},{registered,[]},{vsn,\\\"1.0.1\\\"}]}.\" > $ERL_LIBS/captcha/ebin/captcha.app"},
+      {:captcha, "~> 1.0.3", hex: :pleroma_captcha},
       {:restarter, path: "./restarter"},
       {:majic, "~> 1.2"},
       {:open_api_spex, "~> 3.22"},
