@@ -29,6 +29,17 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidationTest do
       assert valid_post_delete["deleted_activity_id"]
     end
 
+    test "it's invalid if the object was already deleted", %{
+      valid_post_delete: valid_post_delete
+    } do
+      object = Object.get_by_ap_id(valid_post_delete["object"])
+      assert {:ok, _, _} = Object.delete(object)
+
+      {:error, cng} = ObjectValidator.validate(valid_post_delete, [])
+
+      assert {:object, {"has already been deleted", []}} in cng.errors
+    end
+
     test "it is invalid if the object isn't in a list of certain types", %{
       valid_post_delete: valid_post_delete
     } do

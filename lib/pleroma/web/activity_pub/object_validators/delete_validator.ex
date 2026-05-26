@@ -7,9 +7,12 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
 
   alias Pleroma.Activity
   alias Pleroma.EctoType.ActivityPub.ObjectValidators
+  alias Pleroma.Object
+  alias Pleroma.Repo
   alias Pleroma.User
 
   import Ecto.Changeset
+  import Ecto.Query, only: [from: 2]
   import Pleroma.Web.ActivityPub.ObjectValidators.CommonValidations
 
   @primary_key false
@@ -56,13 +59,13 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
     Tombstone
     Video
   }
-  defp validate_data(cng) do
+  defp validate_data(cng, meta) do
     cng
     |> validate_required([:id, :type, :actor, :to, :cc, :object])
     |> validate_inclusion(:type, ["Delete"])
     |> validate_delete_actor(:actor)
     |> validate_modification_rights(:messages_delete)
-    |> validate_object_or_user_presence(allowed_types: @deletable_types)
+    |> validate_delete_target(meta)
     |> add_deleted_activity_id()
   end
 
@@ -70,10 +73,54 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
     !same_domain?(cng)
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, meta \\ []) do
     data
     |> cast_data
-    |> validate_data
+    |> validate_data(meta)
+  end
+
+  defp validate_delete_target(cng, meta) do
+    validate_change(cng, :object, fn field_name, object_id ->
+      case User.get_cached_by_ap_id(object_id) do
+        %User{is_active: false} ->
+          [{field_name, "user is deactivated"}]
+
+        %User{} ->
+          []
+
+        _ ->
+          validate_deleted_object(field_name, object_id, meta)
+      end
+    end)
+  end
+
+  defp validate_deleted_object(field_name, object_id, meta) do
+    case get_object_for_update(object_id) || Activity.get_by_ap_id(object_id) do
+      nil ->
+        [{field_name, "can't find object"}]
+
+      %Object{data: %{"type" => "Tombstone"}} ->
+        if Keyword.get(meta, :allow_tombstone_delete) do
+          []
+        else
+          [{field_name, "has already been deleted"}]
+        end
+
+      %{data: %{"type" => type}} when type not in @deletable_types ->
+        [{field_name, "object not in allowed types"}]
+
+      _ ->
+        []
+    end
+  end
+
+  defp get_object_for_update(object_id) do
+    Repo.one(
+      from(object in Object,
+        where: fragment("(?)->>'id' = ?", object.data, ^object_id),
+        lock: "FOR UPDATE"
+      )
+    )
   end
 
   defp validate_delete_actor(cng, field_name) do

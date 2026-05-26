@@ -2205,8 +2205,12 @@ defmodule Pleroma.User do
         # We have the create activity, but not the object, it was probably pruned.
         # Insert a tombstone and try again
         with {:ok, tombstone_data, _} <- Builder.tombstone(user.ap_id, object),
-             {:ok, _tombstone} <- Object.create(tombstone_data) do
-          delete_activity(activity, user)
+             {:ok, _tombstone} <- Object.create(tombstone_data),
+             {:ok, delete_data, _} <- Builder.delete(user, object) do
+          Pipeline.common_pipeline(delete_data,
+            local: user.local,
+            allow_tombstone_delete: true
+          )
         end
 
       e ->

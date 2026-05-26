@@ -19,6 +19,13 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
     :ok
   end
 
+  defp delete_count_for_object(object_id) do
+    Activity
+    |> where([activity], fragment("?->>'type' = ?", activity.data, "Delete"))
+    |> where([activity], fragment("associated_object_id(?) = ?", activity.data, ^object_id))
+    |> Repo.aggregate(:count)
+  end
+
   test "it works for incoming deletes" do
     activity = insert(:note_activity)
     deleting_user = insert(:user)
@@ -42,6 +49,30 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
     # Objects are replaced by a tombstone object.
     object = Object.normalize(activity.data["object"], fetch: false)
     assert object.data["type"] == "Tombstone"
+  end
+
+  test "it rejects incoming deletes when the object is already deleted" do
+    activity = insert(:note_activity)
+    deleting_user = insert(:user)
+    object_id = activity.data["object"]
+
+    data =
+      File.read!("test/fixtures/mastodon-delete.json")
+      |> Jason.decode!()
+      |> Map.put("actor", deleting_user.ap_id)
+      |> put_in(["object", "id"], object_id)
+
+    {:ok, %Activity{}} = Transmogrifier.handle_incoming(data)
+    assert delete_count_for_object(object_id) == 1
+
+    duplicate_data = Map.put(data, "id", data["id"] <> "/duplicate")
+
+    assert match?(
+             {:error, {:validate, {:error, _}}},
+             Transmogrifier.handle_incoming(duplicate_data)
+           )
+
+    assert delete_count_for_object(object_id) == 1
   end
 
   test "it works for incoming when the object has been pruned" do

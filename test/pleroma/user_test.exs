@@ -1776,6 +1776,18 @@ defmodule Pleroma.UserTest do
       refute Activity.get_by_id(activity.id)
     end
 
+    test ".delete_user_activities deletes pruned create activities", %{user: user} do
+      {:ok, activity} = CommonAPI.post(user, %{status: "2hu"})
+
+      activity
+      |> Object.normalize(fetch: false)
+      |> Object.prune()
+
+      User.delete_user_activities(user)
+
+      refute Activity.get_by_id(activity.id)
+    end
+
     test "it deactivates a user, all follow relationships and all activities", %{user: user} do
       follower = insert(:user)
       {:ok, follower, user} = User.follow(follower, user)

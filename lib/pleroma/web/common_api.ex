@@ -173,10 +173,37 @@ defmodule Pleroma.Web.CommonAPI do
            {:find_activity, Activity.get_by_id(activity_id, filter: [])},
          {_, {:ok, _}} <- {:cancel_jobs, maybe_cancel_jobs(activity)},
          {_, %Object{} = object, _} <-
-           {:find_object, Object.normalize(activity, fetch: false), activity},
-         true <- User.privileged?(user, :messages_delete) || user.ap_id == object.data["actor"],
+           {:find_object, Object.normalize(activity, fetch: false), activity} do
+      do_delete(activity, object, user, [])
+    else
+      {:find_activity, _} ->
+        {:error, :not_found}
+
+      {:find_object, nil, %Activity{data: %{"actor" => actor, "object" => object}} = activity} ->
+        # We have the create activity, but not the object, it was probably pruned.
+        # Insert a tombstone and try again
+        with {:ok, tombstone_data, _} <- Builder.tombstone(actor, object),
+             {:ok, tombstone} <- Object.create(tombstone_data) do
+          do_delete(activity, tombstone, user, allow_tombstone_delete: true)
+        else
+          _ ->
+            Logger.error(
+              "Could not insert tombstone for missing object on deletion. Object is #{object}."
+            )
+
+            {:error, dgettext("errors", "Could not delete")}
+        end
+
+      _ ->
+        {:error, dgettext("errors", "Could not delete")}
+    end
+  end
+
+  defp do_delete(activity, object, user, pipeline_meta) do
+    with true <- User.privileged?(user, :messages_delete) || user.ap_id == object.data["actor"],
          {:ok, delete_data, _} <- Builder.delete(user, object.data["id"]),
-         {:ok, delete, _} <- Pipeline.common_pipeline(delete_data, local: true) do
+         {:ok, delete, _} <-
+           Pipeline.common_pipeline(delete_data, [local: true] ++ pipeline_meta) do
       if User.privileged?(user, :messages_delete) and user.ap_id != object.data["actor"] do
         action =
           if object.data["type"] == "ChatMessage" do
@@ -188,30 +215,12 @@ defmodule Pleroma.Web.CommonAPI do
         ModerationLog.insert_log(%{
           action: action,
           actor: user,
-          subject_id: activity_id
+          subject_id: activity.id
         })
       end
 
       {:ok, delete}
     else
-      {:find_activity, _} ->
-        {:error, :not_found}
-
-      {:find_object, nil, %Activity{data: %{"actor" => actor, "object" => object}}} ->
-        # We have the create activity, but not the object, it was probably pruned.
-        # Insert a tombstone and try again
-        with {:ok, tombstone_data, _} <- Builder.tombstone(actor, object),
-             {:ok, _tombstone} <- Object.create(tombstone_data) do
-          delete(activity_id, user)
-        else
-          _ ->
-            Logger.error(
-              "Could not insert tombstone for missing object on deletion. Object is #{object}."
-            )
-
-            {:error, dgettext("errors", "Could not delete")}
-        end
-
       _ ->
         {:error, dgettext("errors", "Could not delete")}
     end

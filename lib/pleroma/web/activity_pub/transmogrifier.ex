@@ -617,7 +617,13 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
              # We have one, insert a tombstone and retry
              {:ok, tombstone_data, _} <- Builder.tombstone(actor, object_id),
              {:ok, _tombstone} <- Object.create(tombstone_data) do
-          handle_incoming(data)
+          case Pipeline.common_pipeline(data,
+                 local: false,
+                 allow_tombstone_delete: true
+               ) do
+            {:ok, activity, _} -> {:ok, activity}
+            error -> {:error, error}
+          end
         else
           _ -> e
         end
