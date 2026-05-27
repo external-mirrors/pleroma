@@ -44,6 +44,26 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
     assert object.data["type"] == "Tombstone"
   end
 
+  test "it treats duplicate incoming deletes as idempotent" do
+    activity = insert(:note_activity)
+    deleting_user = insert(:user)
+
+    data =
+      File.read!("test/fixtures/mastodon-delete.json")
+      |> Jason.decode!()
+      |> Map.put("actor", deleting_user.ap_id)
+      |> put_in(["object", "id"], activity.data["object"])
+
+    {:ok, %Activity{} = first_delete} = Transmogrifier.handle_incoming(data)
+
+    duplicate_data = Map.put(data, "id", data["id"] <> "/duplicate")
+
+    assert {:ok, %Activity{id: id}} = Transmogrifier.handle_incoming(duplicate_data)
+    assert id == first_delete.id
+
+    refute Activity.get_by_ap_id(duplicate_data["id"])
+  end
+
   test "it works for incoming when the object has been pruned" do
     activity = insert(:note_activity)
 

@@ -19,6 +19,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Builder
+  alias Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator
   alias Pleroma.Web.ActivityPub.Pipeline
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.Streamer
@@ -306,66 +307,11 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   # - Removes posts from search index (if needed)
   @impl true
   def handle(%{data: %{"type" => "Delete", "object" => deleted_object}} = object, meta) do
-    deleted_object =
-      Object.normalize(deleted_object, fetch: false) ||
-        User.get_cached_by_ap_id(deleted_object)
+    target =
+      Keyword.get(meta, :delete_target) ||
+        DeleteValidator.classify_target(deleted_object, ignore_activity_id: object.id)
 
-    result =
-      case deleted_object do
-        %Object{} ->
-          with {_, {:ok, deleted_object, _activity}} <- {:object, Object.delete(deleted_object)},
-               {_, actor} when is_binary(actor) <- {:actor, deleted_object.data["actor"]},
-               {_, %User{} = user} <- {:user, User.get_cached_by_ap_id(actor)} do
-            User.remove_pinned_object_id(user, deleted_object.data["id"])
-
-            {:ok, user} = ActivityPub.decrease_note_count_if_public(user, deleted_object)
-
-            if in_reply_to = deleted_object.data["inReplyTo"] do
-              Object.decrease_replies_count(in_reply_to)
-            end
-
-            if quote_url = deleted_object.data["quoteUrl"] do
-              Object.decrease_quotes_count(quote_url)
-            end
-
-            MessageReference.delete_for_object(deleted_object)
-
-            ap_streamer().stream_out(object)
-            ap_streamer().stream_out_participations(deleted_object, user)
-            :ok
-          else
-            {:actor, _} ->
-              @logger.error("The object doesn't have an actor: #{inspect(deleted_object)}")
-              :no_object_actor
-
-            {:user, _} ->
-              @logger.error(
-                "The object's actor could not be resolved to a user: #{inspect(deleted_object)}"
-              )
-
-              :no_object_user
-
-            {:object, _} ->
-              @logger.error("The object could not be deleted: #{inspect(deleted_object)}")
-              {:error, object}
-          end
-
-        %User{} ->
-          with {:ok, _} <- User.delete(deleted_object) do
-            :ok
-          end
-      end
-
-    if result == :ok do
-      # Only remove from index when deleting actual objects, not users or anything else
-      with %Pleroma.Object{} <- deleted_object do
-        Pleroma.Search.remove_from_index(deleted_object)
-      end
-
-      {:ok, object, meta}
-    else
-      {:error, result}
-    end
+    handle_delete_target(object, meta, target)
   end
 
   # Tasks this handles:
@@ -431,6 +377,98 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   @impl true
   def handle(object, meta) do
     {:ok, object, meta}
+  end
+
+  defp handle_delete_target(delete_activity, meta, %{state: :live_object, object: object}) do
+    handle_delete_object(delete_activity, meta, object)
+  end
+
+  defp handle_delete_target(delete_activity, meta, %{
+         state: :pruned_object_with_create,
+         object_id: object_id,
+         create_activity: create_activity
+       }) do
+    with {:ok, tombstone} <- create_tombstone_for_pruned_object(object_id, create_activity) do
+      handle_delete_object(delete_activity, meta, tombstone)
+    end
+  end
+
+  defp handle_delete_target(delete_activity, meta, %{state: :tombstone_duplicate}) do
+    {:ok, delete_activity, meta}
+  end
+
+  defp handle_delete_target(delete_activity, meta, %{state: :user, user: user}) do
+    with {:ok, _} <- User.delete(user) do
+      {:ok, delete_activity, meta}
+    end
+  end
+
+  defp handle_delete_target(_delete_activity, _meta, _target),
+    do: {:error, :delete_target_not_found}
+
+  defp create_tombstone_for_pruned_object(object_id, %Activity{data: %{"actor" => actor}}) do
+    with {:ok, tombstone_data, _} <- Builder.tombstone(actor, object_id) do
+      case Object.create(tombstone_data) do
+        {:ok, tombstone} ->
+          {:ok, tombstone}
+
+        _ ->
+          case Object.get_by_ap_id(object_id) do
+            %Object{} = tombstone -> {:ok, tombstone}
+            _ -> {:error, :tombstone_not_created}
+          end
+      end
+    end
+  end
+
+  defp handle_delete_object(delete_activity, meta, deleted_object) do
+    result = do_delete_object_side_effects(delete_activity, deleted_object)
+
+    if result == :ok do
+      Pleroma.Search.remove_from_index(deleted_object)
+      {:ok, delete_activity, meta}
+    else
+      {:error, result}
+    end
+  end
+
+  defp do_delete_object_side_effects(delete_activity, deleted_object) do
+    with {_, {:ok, deleted_object, _activity}} <- {:object, Object.delete(deleted_object)},
+         {_, actor} when is_binary(actor) <- {:actor, deleted_object.data["actor"]},
+         {_, %User{} = user} <- {:user, User.get_cached_by_ap_id(actor)} do
+      User.remove_pinned_object_id(user, deleted_object.data["id"])
+
+      {:ok, user} = ActivityPub.decrease_note_count_if_public(user, deleted_object)
+
+      if in_reply_to = deleted_object.data["inReplyTo"] do
+        Object.decrease_replies_count(in_reply_to)
+      end
+
+      if quote_url = deleted_object.data["quoteUrl"] do
+        Object.decrease_quotes_count(quote_url)
+      end
+
+      MessageReference.delete_for_object(deleted_object)
+
+      ap_streamer().stream_out(delete_activity)
+      ap_streamer().stream_out_participations(deleted_object, user)
+      :ok
+    else
+      {:actor, _} ->
+        @logger.error("The object doesn't have an actor: #{inspect(deleted_object)}")
+        :no_object_actor
+
+      {:user, _} ->
+        @logger.error(
+          "The object's actor could not be resolved to a user: #{inspect(deleted_object)}"
+        )
+
+        :no_object_user
+
+      {:object, _} ->
+        @logger.error("The object could not be deleted: #{inspect(deleted_object)}")
+        {:error, delete_activity}
+    end
   end
 
   defp handle_update_user(

@@ -91,7 +91,12 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
          do_not_federate <- DeleteValidator.do_not_federate?(cng),
          {:ok, object} <- Ecto.Changeset.apply_action(cng, :insert) do
       object = stringify_keys(object)
-      meta = Keyword.put(meta, :do_not_federate, do_not_federate)
+
+      meta =
+        meta
+        |> Keyword.put(:do_not_federate, do_not_federate)
+        |> Keyword.put(:delete_target, DeleteValidator.classify_target(object))
+
       {:ok, object, meta}
     end
   end

@@ -172,14 +172,15 @@ defmodule Pleroma.Web.CommonAPI do
     with {_, %Activity{data: %{"object" => _, "type" => "Create"}} = activity} <-
            {:find_activity, Activity.get_by_id(activity_id, filter: [])},
          {_, {:ok, _}} <- {:cancel_jobs, maybe_cancel_jobs(activity)},
-         {_, %Object{} = object, _} <-
-           {:find_object, Object.normalize(activity, fetch: false), activity},
-         true <- User.privileged?(user, :messages_delete) || user.ap_id == object.data["actor"],
-         {:ok, delete_data, _} <- Builder.delete(user, object.data["id"]),
+         object_id when is_binary(object_id) <- object_id_from_create(activity),
+         object <- Object.normalize(activity, fetch: false),
+         actor <- if(object, do: object.data["actor"], else: activity.data["actor"]),
+         true <- User.privileged?(user, :messages_delete) || user.ap_id == actor,
+         {:ok, delete_data, _} <- Builder.delete(user, object_id),
          {:ok, delete, _} <- Pipeline.common_pipeline(delete_data, local: true) do
-      if User.privileged?(user, :messages_delete) and user.ap_id != object.data["actor"] do
+      if User.privileged?(user, :messages_delete) and user.ap_id != actor do
         action =
-          if object.data["type"] == "ChatMessage" do
+          if object && object.data["type"] == "ChatMessage" do
             "chat_message_delete"
           else
             "status_delete"
@@ -197,25 +198,13 @@ defmodule Pleroma.Web.CommonAPI do
       {:find_activity, _} ->
         {:error, :not_found}
 
-      {:find_object, nil, %Activity{data: %{"actor" => actor, "object" => object}}} ->
-        # We have the create activity, but not the object, it was probably pruned.
-        # Insert a tombstone and try again
-        with {:ok, tombstone_data, _} <- Builder.tombstone(actor, object),
-             {:ok, _tombstone} <- Object.create(tombstone_data) do
-          delete(activity_id, user)
-        else
-          _ ->
-            Logger.error(
-              "Could not insert tombstone for missing object on deletion. Object is #{object}."
-            )
-
-            {:error, dgettext("errors", "Could not delete")}
-        end
-
       _ ->
         {:error, dgettext("errors", "Could not delete")}
     end
   end
+
+  defp object_id_from_create(%Activity{data: %{"object" => %{"id" => object_id}}}), do: object_id
+  defp object_id_from_create(%Activity{data: %{"object" => object_id}}), do: object_id
 
   @spec repeat(String.t(), User.t(), map()) :: {:ok, Activity.t()} | {:error, :not_found}
   def repeat(id, user, params \\ %{}) do

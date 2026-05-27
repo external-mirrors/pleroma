@@ -1776,6 +1776,33 @@ defmodule Pleroma.UserTest do
       refute Activity.get_by_id(activity.id)
     end
 
+    test ".delete_user_activities deletes create activities with pruned objects", %{user: user} do
+      {:ok, activity} = CommonAPI.post(user, %{status: "2hu"})
+
+      activity
+      |> Object.normalize(fetch: false)
+      |> Object.prune()
+
+      User.delete_user_activities(user)
+
+      refute Activity.get_by_id(activity.id)
+      assert %Object{data: %{"type" => "Tombstone"}} = Object.normalize(activity.data["object"])
+    end
+
+    test "it deactivates a user and deletes create activities with pruned objects", %{user: user} do
+      {:ok, activity} = CommonAPI.post(user, %{status: "2hu"})
+
+      activity
+      |> Object.normalize(fetch: false)
+      |> Object.prune()
+
+      {:ok, job} = User.delete(user)
+      {:ok, _user} = ObanHelpers.perform(job)
+
+      refute Activity.get_by_id(activity.id)
+      assert %Object{data: %{"type" => "Tombstone"}} = Object.normalize(activity.data["object"])
+    end
+
     test "it deactivates a user, all follow relationships and all activities", %{user: user} do
       follower = insert(:user)
       {:ok, follower, user} = User.follow(follower, user)

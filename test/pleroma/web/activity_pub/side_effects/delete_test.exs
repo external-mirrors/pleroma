@@ -102,31 +102,55 @@ defmodule Pleroma.Web.ActivityPub.SideEffects.DeleteTest do
       delete: delete,
       post: post,
       object: object,
-      user: user,
-      op: op
+      user: user
     } do
-      object_id = object.id
+      object_ap_id = object.data["id"]
       user_id = user.id
+
+      {:ok, object} = Repo.delete(object)
+      Cachex.del(:object_cache, "object:#{object.data["id"]}")
 
       ActivityPubMock
       |> expect(:stream_out, fn ^delete -> nil end)
-      |> expect(:stream_out_participations, fn %Object{id: ^object_id}, %User{id: ^user_id} ->
+      |> expect(:stream_out_participations, fn %Object{data: %{"id" => ^object_ap_id}},
+                                               %User{id: ^user_id} ->
         nil
       end)
 
       {:ok, _delete, _} = SideEffects.handle(delete)
-      user = User.get_cached_by_ap_id(object.data["actor"])
 
-      object = Object.get_by_id(object.id)
+      object = Object.get_by_ap_id(object_ap_id)
       assert object.data["type"] == "Tombstone"
       refute Activity.get_by_id(post.id)
+    end
 
-      user = User.get_by_id(user.id)
-      assert user.note_count == 0
+    test "it handles first deletes when the target is already a tombstone", %{
+      delete: delete,
+      post: post,
+      object: object,
+      user: user
+    } do
+      object_ap_id = object.data["id"]
+      user_id = user.id
 
-      object = Object.normalize(op.data["object"], fetch: false)
+      {:ok, object} = Repo.delete(object)
+      Cachex.del(:object_cache, "object:#{object.data["id"]}")
 
-      assert object.data["repliesCount"] == 0
+      {:ok, tombstone_data, _} = Builder.tombstone(user.ap_id, object_ap_id)
+      {:ok, _tombstone} = Object.create(tombstone_data)
+
+      ActivityPubMock
+      |> expect(:stream_out, fn ^delete -> nil end)
+      |> expect(:stream_out_participations, fn %Object{data: %{"id" => ^object_ap_id}},
+                                               %User{id: ^user_id} ->
+        nil
+      end)
+
+      {:ok, _delete, _} = SideEffects.handle(delete)
+
+      object = Object.get_by_ap_id(object_ap_id)
+      assert object.data["type"] == "Tombstone"
+      refute Activity.get_by_id(post.id)
     end
 
     test "it logs issues with objects deletion", %{

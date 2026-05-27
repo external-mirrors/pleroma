@@ -6,6 +6,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidationTest do
   use Pleroma.DataCase, async: false
 
   alias Pleroma.Object
+  alias Pleroma.Repo
   alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.ObjectValidator
   alias Pleroma.Web.CommonAPI
@@ -24,9 +25,41 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidationTest do
     end
 
     test "it is valid for a post deletion", %{valid_post_delete: valid_post_delete} do
-      {:ok, valid_post_delete, _} = ObjectValidator.validate(valid_post_delete, [])
+      {:ok, valid_post_delete, meta} = ObjectValidator.validate(valid_post_delete, [])
 
       assert valid_post_delete["deleted_activity_id"]
+      assert meta[:delete_target].state == :live_object
+    end
+
+    test "it is valid when the object has been pruned", %{
+      valid_post_delete: valid_post_delete
+    } do
+      object = Object.get_by_ap_id(valid_post_delete["object"])
+
+      {:ok, object} = Repo.delete(object)
+      Cachex.del(:object_cache, "object:#{object.data["id"]}")
+
+      {:ok, valid_post_delete, meta} = ObjectValidator.validate(valid_post_delete, [])
+
+      assert valid_post_delete["deleted_activity_id"]
+      assert meta[:delete_target].state == :pruned_object_with_create
+    end
+
+    test "it treats tombstones without an existing Delete as a deletable object", %{
+      user: user,
+      valid_post_delete: valid_post_delete
+    } do
+      object = Object.get_by_ap_id(valid_post_delete["object"])
+
+      {:ok, object} = Repo.delete(object)
+      Cachex.del(:object_cache, "object:#{object.data["id"]}")
+
+      {:ok, tombstone_data, _} = Builder.tombstone(user.ap_id, valid_post_delete["object"])
+      {:ok, _tombstone} = Object.create(tombstone_data)
+
+      {:ok, _, meta} = ObjectValidator.validate(valid_post_delete, [])
+
+      assert meta[:delete_target].state == :live_object
     end
 
     test "it is invalid if the object isn't in a list of certain types", %{
@@ -48,7 +81,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidationTest do
     end
 
     test "it is valid for a user deletion", %{valid_user_delete: valid_user_delete} do
-      assert match?({:ok, _, _}, ObjectValidator.validate(valid_user_delete, []))
+      {:ok, _, meta} = ObjectValidator.validate(valid_user_delete, [])
+      assert meta[:delete_target].state == :user
     end
 
     test "it's invalid if the id is missing", %{valid_post_delete: valid_post_delete} do

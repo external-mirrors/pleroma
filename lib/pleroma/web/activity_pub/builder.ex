@@ -161,6 +161,9 @@ defmodule Pleroma.Web.ActivityPub.Builder do
         {_, %User{follower_address: follower_address}} ->
           # We are deleting a user, address the followers of that user
           [follower_address]
+
+        {_, _} ->
+          []
       end
 
     {:ok,

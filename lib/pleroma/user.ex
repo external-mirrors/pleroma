@@ -2196,19 +2196,13 @@ defmodule Pleroma.User do
     |> Stream.run()
   end
 
-  defp delete_activity(%{data: %{"type" => "Create", "object" => object}} = activity, user) do
-    with {_, %Object{}} <- {:find_object, Object.get_by_ap_id(object)},
+  defp delete_activity(%{data: %{"type" => "Create"}} = activity, user) do
+    object = object_id_from_create_activity(activity)
+
+    with object when is_binary(object) <- object,
          {:ok, delete_data, _} <- Builder.delete(user, object) do
       Pipeline.common_pipeline(delete_data, local: user.local)
     else
-      {:find_object, nil} ->
-        # We have the create activity, but not the object, it was probably pruned.
-        # Insert a tombstone and try again
-        with {:ok, tombstone_data, _} <- Builder.tombstone(user.ap_id, object),
-             {:ok, _tombstone} <- Object.create(tombstone_data) do
-          delete_activity(activity, user)
-        end
-
       e ->
         Logger.error("Could not delete #{object} created by #{activity.data["ap_id"]}")
         Logger.error("Error: #{inspect(e)}")
@@ -2222,6 +2216,10 @@ defmodule Pleroma.User do
   end
 
   defp delete_activity(_activity, _user), do: "Doing nothing"
+
+  defp object_id_from_create_activity(%{data: %{"object" => %{"id" => object}}}), do: object
+  defp object_id_from_create_activity(%{data: %{"object" => object}}), do: object
+  defp object_id_from_create_activity(_), do: nil
 
   defp delete_outgoing_pending_follow_requests(user) do
     user
