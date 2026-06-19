@@ -12,6 +12,8 @@ steps:
   trigger-deploy:
     image: docker.io/woodpeckerci/plugin-trigger:1.1.1
     settings:
+      params:
+        - BRANCH=stable
       deploy: 'docs'
       last-successful: true
       token:
