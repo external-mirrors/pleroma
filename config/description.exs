@@ -815,7 +815,8 @@ config :pleroma, :config_description, [
           "text/plain",
           "text/html",
           "text/markdown",
-          "text/bbcode"
+          "text/bbcode",
+          "text/x.misskeymarkdown"
         ]
       },
       %{
@@ -1394,7 +1395,13 @@ config :pleroma, :config_description, [
             label: "Post Content Type",
             type: {:dropdown, :atom},
             description: "Default post formatting option",
-            suggestions: ["text/plain", "text/html", "text/markdown", "text/bbcode"]
+            suggestions: [
+              "text/plain",
+              "text/html",
+              "text/markdown",
+              "text/bbcode",
+              "text/x.misskeymarkdown"
+            ]
           },
           %{
             key: :redirectRootNoLogin,
@@ -2131,6 +2138,11 @@ config :pleroma, :config_description, [
         description:
           "Amount of milliseconds after which the HTTP request is forcibly terminated.",
         suggestions: [5_000]
+      },
+      %{
+        key: :user_agent,
+        type: :string,
+        description: "Custom User-Agent header to be used when fetching rich media content."
       }
     ]
   },
@@ -2898,7 +2910,7 @@ config :pleroma, :config_description, [
     key: Pleroma.Web.Plugs.RemoteIp,
     type: :group,
     description: """
-    `Pleroma.Web.Plugs.RemoteIp` is a shim to call [`RemoteIp`](https://git.pleroma.social/pleroma/remote_ip) but with runtime configuration.
+    `Pleroma.Web.Plugs.RemoteIp` is a shim to call [`RemoteIp`](https://hex.pm/packages/remote_ip) but with runtime configuration.
     **If your instance is not behind at least one reverse proxy, you should not enable this plug.**
     """,
     children: [
@@ -2913,6 +2925,12 @@ config :pleroma, :config_description, [
         description: """
           A list of strings naming the HTTP headers to use when deriving the true client IP. Default: `["x-forwarded-for"]`.
         """
+      },
+      %{
+        key: :clients,
+        type: {:list, :string},
+        description:
+          "A list of client IPs or subnets in CIDR notation. These will not be treated as proxies or reserved ranges. Defaults to `[]`. IPv4 entries without a bitmask will be assumed to be /32 and IPv6 /128."
       },
       %{
         key: :proxies,
@@ -3328,6 +3346,12 @@ config :pleroma, :config_description, [
         description:
           "A map containing available frontends and parameters for their installation.",
         children: frontend_options
+      },
+      %{
+        key: :pickable,
+        type: {:list, :string},
+        description:
+          "A list containing all frontends users can pick as their preference, format is :name/:ref, e.g pleroma-fe/stable."
       }
     ]
   },
@@ -3534,9 +3558,7 @@ config :pleroma, :config_description, [
       %{
         key: :provider,
         type: :module,
-        suggestions: [
-          Pleroma.Language.LanguageDetector.Fasttext
-        ]
+        suggestions: {:list_behaviour_implementations, Pleroma.Language.LanguageDetector.Provider}
       },
       %{
         group: {:subgroup, Pleroma.Language.LanguageDetector.Fasttext},
@@ -3556,10 +3578,7 @@ config :pleroma, :config_description, [
       %{
         key: :provider,
         type: :module,
-        suggestions: [
-          Pleroma.Language.Translation.Deepl,
-          Pleroma.Language.Translation.Libretranslate
-        ]
+        suggestions: {:list_behaviour_implementations, Pleroma.Language.Translation.Provider}
       },
       %{
         group: {:subgroup, Pleroma.Language.Translation.Deepl},
@@ -3588,6 +3607,27 @@ config :pleroma, :config_description, [
         label: "LibreTranslate API Key",
         type: :string,
         suggestions: ["YOUR_API_KEY"]
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.TranslateLocally},
+        key: :intermediary_language,
+        label:
+          "translateLocally intermediary language (used when direct source->target model is not available)",
+        type: :string,
+        suggestions: ["en"]
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.Mozhi},
+        key: :base_url,
+        label: "Mozhi instance URL",
+        type: :string
+      },
+      %{
+        group: {:subgroup, Pleroma.Language.Translation.Mozhi},
+        key: :engine,
+        label: "Engine used for Mozhi",
+        type: :string,
+        suggestions: ["libretranslate"]
       }
     ]
   }

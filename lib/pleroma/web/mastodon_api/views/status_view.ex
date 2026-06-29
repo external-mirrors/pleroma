@@ -28,9 +28,13 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
   # This is a naive way to do this, just spawning a process per activity
   # to fetch the preview. However it should be fine considering
   # pagination is restricted to 40 activities at a time
-  defp fetch_rich_media_for_activities(activities) do
+  # Force disable Websockets streaming for backfill jobs,
+  # otherwise old posts can show up on timelines.
+  defp fetch_rich_media_for_activities(activities, opts) do
+    opts = Map.put(opts, :stream, false)
+
     Enum.each(activities, fn activity ->
-      Card.get_by_activity(activity)
+      Card.get_by_activity(activity, opts)
     end)
   end
 
@@ -113,7 +117,8 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
     activities = Enum.filter(opts.activities, & &1)
 
     # Start prefetching rich media before doing anything else
-    fetch_rich_media_for_activities(activities)
+    fetch_rich_media_for_activities(activities, opts)
+
     replied_to_activities = get_replied_to_activities(activities)
     quoted_activities = get_quoted_activities(activities)
 
@@ -240,7 +245,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
   def render("show.json", %{activity: %{data: %{"object" => _object}} = activity} = opts) do
     object = Object.normalize(activity, fetch: false)
 
-    user = CommonAPI.get_user(activity.data["actor"])
+    user = CommonAPI.get_user(object.data["actor"])
     user_follower_address = user.follower_address
 
     like_count = object.data["like_count"] || 0
@@ -361,8 +366,10 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
 
     summary = object.data["summary"] || ""
 
+    # Force disable Websockets streaming for backfill jobs which the below call will create,
+    # otherwise old posts can show up on timelines.
     card =
-      case Card.get_by_activity(activity) do
+      case Card.get_by_activity(activity, Map.put(opts, :stream, false)) do
         %Card{} = result -> render("card.json", result)
         _ -> nil
       end
@@ -447,6 +454,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
       application: build_application(object.data["generator"]),
       language: get_language(object),
       emojis: build_emojis(object.data["emoji"]),
+      quotes_count: object.data["quotesCount"] || 0,
       pleroma: %{
         local: activity.local,
         conversation_id: get_context_id(activity),
@@ -602,7 +610,8 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
   def render("attachment.json", %{attachment: attachment}) do
     [attachment_url | _] = attachment["url"]
     media_type = attachment_url["mediaType"] || attachment_url["mimeType"] || "image"
-    href = attachment_url["href"] |> MediaProxy.url()
+    href_remote = attachment_url["href"]
+    href = href_remote |> MediaProxy.url()
     href_preview = attachment_url["href"] |> MediaProxy.preview_url()
     meta = render("attachment_meta.json", %{attachment: attachment})
 
@@ -641,7 +650,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
     %{
       id: attachment_id,
       url: href,
-      remote_url: href,
+      remote_url: href_remote,
       preview_url: href_preview,
       text_url: href,
       type: type,
