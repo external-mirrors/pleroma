@@ -40,15 +40,33 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
     end
   end
 
+  defp webfinger_xml_response(conn, status) do
+    content_type = if status not in [400, 404] do
+      conn
+      |> Plug.Conn.get_resp_header("content-type")
+      |> List.first()
+      |> String.split(";")
+      |> List.first()
+    end
+
+    status = Plug.Conn.Status.code(status)
+
+    if status == 200 do
+      assert content_type == "application/xrd+xml"
+      response(conn, status)
+    else
+      response(conn, status)
+    end
+  end
+
   test "GET host-meta" do
     response =
       build_conn()
       |> get("/.well-known/host-meta")
-
-    assert response.status == 200
+      |> webfinger_xml_response(200)
 
     response_xml =
-      response.resp_body
+      response
       |> Floki.parse_document!(html_parser: Floki.HTMLParser.Mochiweb, attributes_as_maps: true)
 
     expected_xml =
@@ -94,7 +112,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
         build_conn()
         |> put_req_header("accept", "application/xrd+xml")
         |> get("/.well-known/webfinger?resource=acct:#{user.nickname}@localhost")
-        |> response(200)
+        |> webfinger_xml_response(200)
 
       assert response =~ "<Alias>https://hyrule.world/users/zelda</Alias>"
     end
@@ -166,7 +184,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
         build_conn()
         |> put_req_header("accept", "application/xrd+xml")
         |> get("/.well-known/webfinger?resource=acct:#{user.nickname}@localhost")
-        |> response(200)
+        |> webfinger_xml_response(200)
 
       assert response =~ "<Alias>https://hyrule.world/users/zelda</Alias>"
       assert response =~ "<Alias>https://mushroom.kingdom/users/toad</Alias>"
@@ -207,7 +225,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
         build_conn()
         |> put_req_header("accept", "application/xrd+xml")
         |> get("/.well-known/webfinger?resource=acct:jimm@localhost")
-        |> response(404)
+        |> webfinger_xml_response(404)
 
       assert result == "Couldn't find user"
     end
