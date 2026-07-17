@@ -15,6 +15,31 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
 
   setup_all do: clear_config([:instance, :federating], true)
 
+  defp webfinger_json_response(conn, status) do
+    content_type = if status != 400 do
+      conn
+      |> Plug.Conn.get_resp_header("content-type")
+      |> List.first()
+      |> String.split(";")
+      |> List.first()
+    end
+
+    status = Plug.Conn.Status.code(status)
+
+    case status do
+      200 ->
+        assert content_type == "application/jrd+json"
+        json_response(conn, status)
+
+      404 ->
+        assert content_type == "application/json"
+        json_response(conn, status)
+
+      400 ->
+        response(conn, status)
+    end
+  end
+
   test "GET host-meta" do
     response =
       build_conn()
@@ -47,7 +72,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
         build_conn()
         |> put_req_header("accept", "application/jrd+json")
         |> get("/.well-known/webfinger?resource=acct:#{user.nickname}@hyrule.world")
-        |> json_response(200)
+        |> webfinger_json_response(200)
 
       assert response["subject"] == "acct:#{user.nickname}@hyrule.world"
 
@@ -87,7 +112,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
     response =
       build_conn()
       |> get("/.well-known/webfinger?resource=acct:#{user.nickname}@hyrule.world")
-      |> json_response(200)
+      |> webfinger_json_response(200)
 
     assert response["subject"] == "acct:#{user.nickname}@hyrule.world"
 
@@ -113,7 +138,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
       response =
         build_conn()
         |> get("/.well-known/webfinger?resource=acct:#{user.nickname}@hyrule.world")
-        |> json_response(200)
+        |> webfinger_json_response(200)
 
       assert response["subject"] == "acct:#{user.nickname}@hyrule.world"
 
@@ -160,7 +185,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
       build_conn()
       |> put_req_header("accept", "application/jrd+json")
       |> get("/.well-known/webfinger?resource=acct:#{user.nickname}@example.com")
-      |> json_response(200)
+      |> webfinger_json_response(200)
 
     assert response["subject"] == "acct:#{user.nickname}@example.com"
     assert response["aliases"] == ["https://sub.example.com/users/#{user.nickname}"]
@@ -172,7 +197,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
         build_conn()
         |> put_req_header("accept", "application/jrd+json")
         |> get("/.well-known/webfinger?resource=acct:jimm@localhost")
-        |> json_response(404)
+        |> webfinger_json_response(404)
 
       assert result == "Couldn't find user"
     end
@@ -202,7 +227,7 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
       build_conn()
       |> put_req_header("accept", "text/html")
       |> get("/.well-known/webfinger?resource=acct:#{user.nickname}@hyrule.world")
-      |> json_response(200)
+      |> webfinger_json_response(200)
 
     assert response["subject"] == "acct:#{user.nickname}@hyrule.world"
 
@@ -218,6 +243,6 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
       |> put_req_header("accept", "application/xrd+xml,application/jrd+json")
       |> get("/.well-known/webfinger")
 
-    assert response(response, 400)
+    assert webfinger_json_response(response, 400)
   end
 end
