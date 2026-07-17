@@ -16,13 +16,14 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
   setup_all do: clear_config([:instance, :federating], true)
 
   defp webfinger_json_response(conn, status) do
-    content_type = if status != 400 do
-      conn
-      |> Plug.Conn.get_resp_header("content-type")
-      |> List.first()
-      |> String.split(";")
-      |> List.first()
-    end
+    content_type =
+      if status != 400 do
+        conn
+        |> Plug.Conn.get_resp_header("content-type")
+        |> List.first()
+        |> String.split(";")
+        |> List.first()
+      end
 
     status = Plug.Conn.Status.code(status)
 
@@ -41,13 +42,14 @@ defmodule Pleroma.Web.WebFinger.WebFingerControllerTest do
   end
 
   defp webfinger_xml_response(conn, status) do
-    content_type = if status not in [400, 404] do
-      conn
-      |> Plug.Conn.get_resp_header("content-type")
-      |> List.first()
-      |> String.split(";")
-      |> List.first()
-    end
+    content_type =
+      if status not in [400, 404] do
+        conn
+        |> Plug.Conn.get_resp_header("content-type")
+        |> List.first()
+        |> String.split(";")
+        |> List.first()
+      end
 
     status = Plug.Conn.Status.code(status)
 
