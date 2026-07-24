@@ -86,7 +86,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
   def classify_target(object_id, options) when is_binary(object_id) do
     case User.get_cached_by_ap_id(object_id) do
       %User{} = user ->
-        %{state: :user, object_id: object_id, user: user}
+        classify_user_target(object_id, user, options)
 
       _ ->
         classify_object_target(object_id, options)
@@ -95,20 +95,30 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
 
   def classify_target(object_id, _options), do: %{state: :missing, object_id: object_id}
 
+  defp classify_user_target(object_id, user, options) do
+    case get_latest_delete_by_object_ap_id(object_id, options[:ignore_activity_id]) do
+      %Activity{} = existing_delete ->
+        duplicate_target(object_id, existing_delete)
+
+      _ ->
+        %{state: :user, object_id: object_id, user: user}
+    end
+  end
+
   defp classify_object_target(object_id, options) do
-    case Object.get_cached_by_ap_id(object_id) do
+    case Object.get_by_ap_id(object_id) do
       %Object{data: %{"type" => "Tombstone"}} = object ->
         case get_latest_delete_by_object_ap_id(object_id, options[:ignore_activity_id]) do
           %Activity{} = existing_delete ->
-            %{
-              state: :tombstone_duplicate,
-              object_id: object_id,
-              object: object,
-              existing_delete: existing_delete
-            }
+            duplicate_target(object_id, existing_delete, object)
 
           _ ->
-            %{state: :live_object, object_id: object_id, object: object}
+            %{
+              state: :live_object,
+              object_id: object_id,
+              object: object,
+              create_activity: get_create_by_object_ap_id(object_id)
+            }
         end
 
       %Object{data: %{"type" => type}} = object when type in @deletable_object_types ->
@@ -132,6 +142,15 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
     end
   end
 
+  defp duplicate_target(object_id, existing_delete, object \\ nil) do
+    %{
+      state: :tombstone_duplicate,
+      object_id: object_id,
+      object: object,
+      existing_delete: existing_delete
+    }
+  end
+
   defp get_latest_delete_by_object_ap_id(object_id, ignored_activity_id) do
     query =
       Activity
@@ -151,7 +170,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
     |> Repo.one()
   end
 
-  defp get_create_by_object_ap_id(object_id) when is_binary(object_id) do
+  @doc false
+  def get_create_by_object_ap_id(object_id) when is_binary(object_id) do
     Activity
     |> Queries.by_object_id(object_id)
     |> Queries.by_type("Create")
@@ -160,7 +180,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
     |> Repo.one()
   end
 
-  defp get_create_by_object_ap_id(_), do: nil
+  def get_create_by_object_ap_id(_), do: nil
 
   defp validate_delete_target(cng) do
     validate_change(cng, :object, fn field_name, object_id ->

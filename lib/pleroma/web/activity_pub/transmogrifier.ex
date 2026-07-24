@@ -604,6 +604,8 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
        ) do
     case Pipeline.common_pipeline(data, local: false) do
       {:ok, activity, _} -> {:ok, activity}
+      {:error, _} = error -> error
+      {:reject, _} = error -> error
       e -> {:error, e}
     end
   end

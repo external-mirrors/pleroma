@@ -379,9 +379,16 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
     {:ok, object, meta}
   end
 
-  defp handle_delete_target(delete_activity, meta, %{state: :live_object, object: object}) do
-    handle_delete_object(delete_activity, meta, object)
+  defp handle_delete_target(delete_activity, meta, %{
+         state: :live_object,
+         object: object,
+         create_activity: create_activity
+       }) do
+    handle_delete_object(delete_activity, meta, object, create_activity)
   end
+
+  defp handle_delete_target(delete_activity, meta, %{state: :live_object, object: object}),
+    do: handle_delete_object(delete_activity, meta, object, nil)
 
   defp handle_delete_target(delete_activity, meta, %{
          state: :pruned_object_with_create,
@@ -389,7 +396,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
          create_activity: create_activity
        }) do
     with {:ok, tombstone} <- create_tombstone_for_pruned_object(object_id, create_activity) do
-      handle_delete_object(delete_activity, meta, tombstone)
+      handle_delete_object(delete_activity, meta, tombstone, create_activity)
     end
   end
 
@@ -421,21 +428,31 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
     end
   end
 
-  defp handle_delete_object(delete_activity, meta, deleted_object) do
-    result = do_delete_object_side_effects(delete_activity, deleted_object)
+  defp handle_delete_object(delete_activity, meta, deleted_object, create_activity) do
+    case do_delete_object_side_effects(delete_activity, deleted_object, create_activity) do
+      {:ok, deleted_object, user} ->
+        Pleroma.Search.remove_from_index(deleted_object)
 
-    if result == :ok do
-      Pleroma.Search.remove_from_index(deleted_object)
-      {:ok, delete_activity, meta}
-    else
-      {:error, result}
+        meta =
+          Keyword.update(
+            meta,
+            :delete_streamables,
+            [{delete_activity, deleted_object, user}],
+            &[{delete_activity, deleted_object, user} | &1]
+          )
+
+        {:ok, delete_activity, meta}
+
+      error ->
+        {:error, error}
     end
   end
 
-  defp do_delete_object_side_effects(delete_activity, deleted_object) do
-    with {_, {:ok, deleted_object, _activity}} <- {:object, Object.delete(deleted_object)},
-         {_, actor} when is_binary(actor) <- {:actor, deleted_object.data["actor"]},
-         {_, %User{} = user} <- {:user, User.get_cached_by_ap_id(actor)} do
+  defp do_delete_object_side_effects(delete_activity, deleted_object, create_activity) do
+    with {_, actor} when is_binary(actor) <-
+           {:actor, delete_object_actor(delete_activity, deleted_object, create_activity)},
+         {_, %User{} = user} <- {:user, User.get_cached_by_ap_id(actor)},
+         {_, {:ok, deleted_object, _activity}} <- {:object, Object.delete(deleted_object)} do
       User.remove_pinned_object_id(user, deleted_object.data["id"])
 
       {:ok, user} = ActivityPub.decrease_note_count_if_public(user, deleted_object)
@@ -450,9 +467,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
       MessageReference.delete_for_object(deleted_object)
 
-      ap_streamer().stream_out(delete_activity)
-      ap_streamer().stream_out_participations(deleted_object, user)
-      :ok
+      {:ok, deleted_object, user}
     else
       {:actor, _} ->
         @logger.error("The object doesn't have an actor: #{inspect(deleted_object)}")
@@ -470,6 +485,31 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
         {:error, delete_activity}
     end
   end
+
+  defp delete_object_actor(
+         _delete_activity,
+         %Object{data: %{"actor" => actor}},
+         _create_activity
+       )
+       when is_binary(actor),
+       do: actor
+
+  defp delete_object_actor(
+         _delete_activity,
+         %Object{data: %{"type" => "Tombstone"}},
+         %Activity{data: %{"actor" => actor}}
+       )
+       when is_binary(actor),
+       do: actor
+
+  defp delete_object_actor(
+         %{data: %{"actor" => delete_actor}},
+         %Object{data: %{"type" => "Tombstone"}},
+         _create_activity
+       ),
+       do: delete_actor
+
+  defp delete_object_actor(_delete_activity, _deleted_object, _create_activity), do: nil
 
   defp handle_update_user(
          %{data: %{"type" => "Update", "object" => updated_object}} = object,
@@ -650,6 +690,17 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
     meta
   end
 
+  defp stream_deletes(meta) do
+    meta
+    |> Keyword.get(:delete_streamables, [])
+    |> Enum.each(fn {delete_activity, deleted_object, user} ->
+      ap_streamer().stream_out(delete_activity)
+      ap_streamer().stream_out_participations(deleted_object, user)
+    end)
+
+    meta
+  end
+
   defp add_streamables(meta, streamables) do
     existing = Keyword.get(meta, :streamables, [])
 
@@ -667,6 +718,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   @impl true
   def handle_after_transaction(meta) do
     meta
+    |> stream_deletes()
     |> stream_notifications()
     |> send_streamables()
   end

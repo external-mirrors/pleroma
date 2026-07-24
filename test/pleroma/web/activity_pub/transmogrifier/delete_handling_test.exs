@@ -8,10 +8,16 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
 
   alias Pleroma.Activity
   alias Pleroma.Object
+  alias Pleroma.Repo
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.User
+  alias Pleroma.Web.ActivityPub.MRFMock
   alias Pleroma.Web.ActivityPub.Transmogrifier
+  alias Pleroma.Web.CommonAPI
 
+  alias Pleroma.LoggerMock
+
+  import Mox
   import Pleroma.Factory
 
   setup_all do
@@ -19,15 +25,25 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
     :ok
   end
 
+  defp delete_data(activity, deleting_user) do
+    File.read!("test/fixtures/mastodon-delete.json")
+    |> Jason.decode!()
+    |> Map.put("actor", deleting_user.ap_id)
+    |> put_in(["object", "id"], activity.data["object"])
+  end
+
+  defp delete_count_for_object(object_id) do
+    Activity
+    |> where([activity], fragment("?->>'type' = ?", activity.data, "Delete"))
+    |> where([activity], fragment("associated_object_id(?) = ?", activity.data, ^object_id))
+    |> Repo.aggregate(:count)
+  end
+
   test "it works for incoming deletes" do
     activity = insert(:note_activity)
     deleting_user = insert(:user)
 
-    data =
-      File.read!("test/fixtures/mastodon-delete.json")
-      |> Jason.decode!()
-      |> Map.put("actor", deleting_user.ap_id)
-      |> put_in(["object", "id"], activity.data["object"])
+    data = delete_data(activity, deleting_user)
 
     {:ok, %Activity{actor: actor, local: false, data: %{"id" => id}}} =
       Transmogrifier.handle_incoming(data)
@@ -47,21 +63,141 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
   test "it treats duplicate incoming deletes as idempotent" do
     activity = insert(:note_activity)
     deleting_user = insert(:user)
+    object_id = activity.data["object"]
 
-    data =
-      File.read!("test/fixtures/mastodon-delete.json")
-      |> Jason.decode!()
-      |> Map.put("actor", deleting_user.ap_id)
-      |> put_in(["object", "id"], activity.data["object"])
+    data = delete_data(activity, deleting_user)
 
     {:ok, %Activity{} = first_delete} = Transmogrifier.handle_incoming(data)
+    assert delete_count_for_object(object_id) == 1
+
+    assert {:ok, %Activity{id: id}} = Transmogrifier.handle_incoming(data)
+    assert id == first_delete.id
+
+    spoofed_replay = Map.put(data, "actor", insert(:user).ap_id)
+    assert {:error, :already_deleted} = Transmogrifier.handle_incoming(spoofed_replay)
 
     duplicate_data = Map.put(data, "id", data["id"] <> "/duplicate")
 
-    assert {:ok, %Activity{id: id}} = Transmogrifier.handle_incoming(duplicate_data)
-    assert id == first_delete.id
+    assert {:error, :already_deleted} = Transmogrifier.handle_incoming(duplicate_data)
 
     refute Activity.get_by_ap_id(duplicate_data["id"])
+    assert delete_count_for_object(object_id) == 1
+  end
+
+  test "it ignores stale live objects in cache when detecting duplicate deletes" do
+    activity = insert(:note_activity)
+    deleting_user = insert(:user)
+    stale_object = Object.get_by_ap_id(activity.data["object"])
+    data = delete_data(activity, deleting_user)
+
+    assert {:ok, %Activity{}} = Transmogrifier.handle_incoming(data)
+    Object.set_cache(stale_object)
+
+    duplicate_data = Map.put(data, "id", data["id"] <> "/stale-cache")
+
+    assert {:error, :already_deleted} = Transmogrifier.handle_incoming(duplicate_data)
+    assert delete_count_for_object(activity.data["object"]) == 1
+  end
+
+  test "it rolls back failed delete side effects so the activity can be retried" do
+    activity = insert(:note_activity)
+    deleting_user = insert(:user)
+    object = Object.get_by_ap_id(activity.data["object"])
+    data = delete_data(activity, deleting_user)
+
+    {:ok, object} =
+      object
+      |> Object.change(%{data: Map.delete(object.data, "actor")})
+      |> Repo.update()
+
+    Cachex.del(:object_cache, "object:#{object.data["id"]}")
+
+    LoggerMock
+    |> expect(:error, fn message -> assert message =~ "The object doesn't have an actor" end)
+
+    assert {:error, {:side_effects, {:error, :no_object_actor}}} =
+             Transmogrifier.handle_incoming(data)
+
+    refute Activity.get_by_ap_id(data["id"])
+    assert %Object{data: %{"type" => "Note"}} = Object.get_by_ap_id(object.data["id"])
+    assert Activity.get_by_id(activity.id)
+
+    current_object = Object.get_by_ap_id(object.data["id"])
+
+    {:ok, _object} =
+      current_object
+      |> Object.change(%{data: Map.put(current_object.data, "actor", deleting_user.ap_id)})
+      |> Repo.update()
+
+    Cachex.del(:object_cache, "object:#{object.data["id"]}")
+
+    assert {:ok, %Activity{data: %{"id" => delete_id}}} =
+             Transmogrifier.handle_incoming(data)
+
+    assert delete_id == data["id"]
+  end
+
+  test "it invalidates caches when an exception rolls back mutated Delete side effects" do
+    deleting_user = insert(:user)
+    {:ok, activity} = CommonAPI.post(deleting_user, %{status: "rollback cached state"})
+    object = Object.get_by_ap_id(activity.data["object"])
+    data = delete_data(activity, deleting_user)
+
+    {:ok, object} =
+      object
+      |> Object.change(%{data: Map.put(object.data, "inReplyTo", %{})})
+      |> Repo.update()
+
+    Cachex.del(:object_cache, "object:#{object.data["id"]}")
+
+    assert_raise Protocol.UndefinedError, fn ->
+      Transmogrifier.handle_incoming(data)
+    end
+
+    assert User.get_by_id(deleting_user.id).note_count == 1
+    assert User.get_cached_by_ap_id(deleting_user.ap_id).note_count == 1
+    assert %Object{data: %{"type" => "Note"}} = Object.get_by_ap_id(object.data["id"])
+    assert Activity.get_by_id(activity.id)
+    refute Activity.get_by_ap_id(data["id"])
+  end
+
+  test "it rejects MRF rewrites of the Delete actor or target" do
+    activity = insert(:note_activity)
+    other_activity = insert(:note_activity)
+    deleting_user = insert(:user)
+    other_deleting_user = insert(:user)
+    data = delete_data(activity, deleting_user)
+
+    MRFMock
+    |> expect(:pipeline_filter, fn message, meta ->
+      {:ok, Map.put(message, "object", other_activity.data["object"]), meta}
+    end)
+
+    assert {:error, :delete_identity_changed} = Transmogrifier.handle_incoming(data)
+
+    assert Activity.get_by_id(activity.id)
+    assert Activity.get_by_id(other_activity.id)
+    refute Activity.get_by_ap_id(data["id"])
+
+    MRFMock
+    |> expect(:pipeline_filter, fn message, meta ->
+      {:ok, Map.put(message, "actor", other_deleting_user.ap_id), meta}
+    end)
+
+    assert {:error, :delete_identity_changed} =
+             data
+             |> Map.update!("id", &(&1 <> "/actor-rewrite"))
+             |> Transmogrifier.handle_incoming()
+
+    assert Activity.get_by_id(activity.id)
+
+    MRFMock
+    |> expect(:pipeline_filter, fn message, meta ->
+      {:ok, Map.update!(message, "id", &(&1 <> "/mrf-rewrite")), meta}
+    end)
+
+    assert {:error, :delete_identity_changed} = Transmogrifier.handle_incoming(data)
+    assert Activity.get_by_id(activity.id)
   end
 
   test "it works for incoming when the object has been pruned" do
@@ -76,11 +212,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
 
     deleting_user = insert(:user)
 
-    data =
-      File.read!("test/fixtures/mastodon-delete.json")
-      |> Jason.decode!()
-      |> Map.put("actor", deleting_user.ap_id)
-      |> put_in(["object", "id"], activity.data["object"])
+    data = delete_data(activity, deleting_user)
 
     {:ok, %Activity{actor: actor, local: false, data: %{"id" => id}}} =
       Transmogrifier.handle_incoming(data)
@@ -93,17 +225,32 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
     assert actor == deleting_user.ap_id
   end
 
+  test "it handles a first Delete for a canonical tombstone without an actor" do
+    activity = insert(:note_activity)
+    object = Object.get_by_ap_id(activity.data["object"])
+    deleting_user = User.get_cached_by_ap_id(object.data["actor"])
+    data = delete_data(activity, deleting_user)
+
+    assert {:ok, tombstone} = Object.swap_object_with_tombstone(object)
+    refute tombstone.data["actor"]
+    Cachex.del(:object_cache, "object:#{object.data["id"]}")
+
+    assert {:ok, %Activity{data: %{"id" => delete_id}}} =
+             Transmogrifier.handle_incoming(data)
+
+    assert delete_id == data["id"]
+    refute Activity.get_by_id(activity.id)
+  end
+
   test "it fails for incoming deletes with spoofed origin" do
     activity = insert(:note_activity)
     %{ap_id: ap_id} = insert(:user, ap_id: "https://gensokyo.2hu/users/raymoo")
 
     data =
-      File.read!("test/fixtures/mastodon-delete.json")
-      |> Jason.decode!()
-      |> Map.put("actor", ap_id)
-      |> put_in(["object", "id"], activity.data["object"])
+      activity
+      |> delete_data(%{ap_id: ap_id})
 
-    assert match?({:error, _}, Transmogrifier.handle_incoming(data))
+    assert {:error, {:validate, {:error, _}}} = Transmogrifier.handle_incoming(data)
   end
 
   test "it works for incoming user deletes" do
@@ -113,7 +260,15 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
       File.read!("test/fixtures/mastodon-delete-user.json")
       |> Jason.decode!()
 
-    {:ok, _} = Transmogrifier.handle_incoming(data)
+    {:ok, first_delete} = Transmogrifier.handle_incoming(data)
+
+    assert {:ok, %Activity{id: id}} = Transmogrifier.handle_incoming(data)
+    assert id == first_delete.id
+
+    duplicate_data = Map.update!(data, "id", &(&1 <> "/duplicate"))
+    assert {:error, :already_deleted} = Transmogrifier.handle_incoming(duplicate_data)
+    assert delete_count_for_object(ap_id) == 1
+
     ObanHelpers.perform_all()
 
     refute User.get_cached_by_ap_id(ap_id).is_active
@@ -127,7 +282,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
       |> Jason.decode!()
       |> Map.put("actor", ap_id)
 
-    assert match?({:error, _}, Transmogrifier.handle_incoming(data))
+    assert {:error, {:validate, {:error, _}}} = Transmogrifier.handle_incoming(data)
 
     assert User.get_cached_by_ap_id(ap_id)
   end

@@ -36,7 +36,8 @@ defmodule Pleroma.Web.ActivityPub.SideEffects.DeleteTest do
     end
 
     test "it handles user deletions", %{delete_user: delete, user: user} do
-      {:ok, _delete, _} = SideEffects.handle(delete)
+      {:ok, _delete, meta} = SideEffects.handle(delete)
+      SideEffects.handle_after_transaction(meta)
       ObanHelpers.perform_all()
 
       refute User.get_cached_by_ap_id(user.ap_id).is_active
@@ -75,14 +76,22 @@ defmodule Pleroma.Web.ActivityPub.SideEffects.DeleteTest do
     } do
       object_id = object.id
       user_id = user.id
+      test_pid = self()
 
       ActivityPubMock
-      |> expect(:stream_out, fn ^delete -> nil end)
+      |> expect(:stream_out, fn ^delete -> send(test_pid, :delete_streamed) end)
       |> expect(:stream_out_participations, fn %Object{id: ^object_id}, %User{id: ^user_id} ->
-        nil
+        send(test_pid, :participations_streamed)
       end)
 
-      {:ok, _delete, _} = SideEffects.handle(delete)
+      {:ok, _delete, meta} = SideEffects.handle(delete)
+      refute_received :delete_streamed
+      refute_received :participations_streamed
+
+      SideEffects.handle_after_transaction(meta)
+      assert_received :delete_streamed
+      assert_received :participations_streamed
+
       user = User.get_cached_by_ap_id(object.data["actor"])
 
       object = Object.get_by_id(object.id)
@@ -117,7 +126,8 @@ defmodule Pleroma.Web.ActivityPub.SideEffects.DeleteTest do
         nil
       end)
 
-      {:ok, _delete, _} = SideEffects.handle(delete)
+      {:ok, _delete, meta} = SideEffects.handle(delete)
+      SideEffects.handle_after_transaction(meta)
 
       object = Object.get_by_ap_id(object_ap_id)
       assert object.data["type"] == "Tombstone"
@@ -146,7 +156,8 @@ defmodule Pleroma.Web.ActivityPub.SideEffects.DeleteTest do
         nil
       end)
 
-      {:ok, _delete, _} = SideEffects.handle(delete)
+      {:ok, _delete, meta} = SideEffects.handle(delete)
+      SideEffects.handle_after_transaction(meta)
 
       object = Object.get_by_ap_id(object_ap_id)
       assert object.data["type"] == "Tombstone"
