@@ -9,9 +9,9 @@ defmodule Pleroma.Workers.ReceiverWorkerTest do
   import Mock
   import Pleroma.Factory
 
-  alias Pleroma.User
   alias Pleroma.Activity
   alias Pleroma.Object
+  alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Workers.ReceiverWorker
