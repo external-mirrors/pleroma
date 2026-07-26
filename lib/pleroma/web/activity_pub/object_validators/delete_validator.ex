@@ -208,6 +208,18 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
 
   def get_create_by_object_ap_id(_), do: nil
 
+  @doc false
+  def get_delete_source_data(%Activity{
+        data: %{"pleroma_internal" => %{"delete_metadata" => metadata}}
+      })
+      when is_map(metadata),
+      do: metadata
+
+  def get_delete_source_data(%Activity{data: %{"object" => object}}) when is_map(object),
+    do: object
+
+  def get_delete_source_data(%Activity{data: data}), do: data
+
   defp validate_delete_target(cng) do
     validate_change(cng, :object, fn field_name, object_id ->
       case classify_target(object_id) do

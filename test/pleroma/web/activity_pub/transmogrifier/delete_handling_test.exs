@@ -12,6 +12,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
+  alias Pleroma.Web.ActivityPub.ActivityPubMock
   alias Pleroma.Web.ActivityPub.MRFMock
   alias Pleroma.Web.ActivityPub.SideEffects
   alias Pleroma.Web.ActivityPub.SideEffectsMock
@@ -137,6 +138,19 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
 
     assert {:ok, persisted_delete, _meta} = ActivityPub.persist(data, local: false)
     assert %Object{data: %{"type" => "Note"}} = Object.get_by_ap_id(object_id)
+
+    ActivityPubMock
+    |> expect(:stream_out, fn %Activity{
+                                data: %{"deleted_activity_id" => deleted_activity_id}
+                              } ->
+      assert deleted_activity_id == activity.id
+    end)
+    |> expect(:stream_out_participations, fn _object, _user -> :ok end)
+
+    MRFMock
+    |> expect(:pipeline_filter, fn message, meta ->
+      {:ok, Map.put(message, "deleted_activity_id", "wrong-activity"), meta}
+    end)
 
     assert {:ok, %Activity{id: delete_id}} = Transmogrifier.handle_incoming(data)
     assert delete_id == persisted_delete.id
@@ -278,12 +292,18 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
       Object.normalize(activity.data["object"], fetch: false)
       |> Repo.delete()
 
-    # TODO: mock cachex
-    Cachex.del(:object_cache, "object:#{object.data["id"]}")
+    Object.set_cache(object)
 
     deleting_user = insert(:user)
 
     data = delete_data(activity, deleting_user)
+
+    SideEffectsMock
+    |> expect(:handle, fn delete, meta ->
+      result = SideEffects.handle(delete, meta)
+      Object.set_cache(object)
+      result
+    end)
 
     {:ok, %Activity{actor: actor, local: false, data: %{"id" => id}}} =
       Transmogrifier.handle_incoming(data)
@@ -294,6 +314,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
     # This should be changed after we unify objects and activities
     refute Activity.get_by_id(activity.id)
     assert actor == deleting_user.ap_id
+    assert Object.get_cached_by_ap_id(object.data["id"]).data["type"] == "Tombstone"
   end
 
   test "it handles a first Delete for a canonical tombstone without an actor" do

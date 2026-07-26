@@ -238,9 +238,31 @@ defmodule Pleroma.Object do
   def cleanup_attachments(_, _), do: {:ok, nil}
 
   def prune(%Object{data: %{"id" => _id}} = object) do
-    with {:ok, object} <- Repo.delete(object),
+    with {:ok, _activity} <- preserve_delete_metadata(object),
+         {:ok, object} <- Repo.delete(object),
          {:ok, _} <- invalid_object_cache(object) do
       {:ok, object}
+    end
+  end
+
+  defp preserve_delete_metadata(%Object{data: %{"id" => id} = data}) do
+    case Activity.get_create_by_object_ap_id(id) do
+      %Activity{} = activity ->
+        metadata = Map.take(data, ~w(to cc directMessage inReplyTo quoteUrl))
+
+        internal_data =
+          activity.data
+          |> Map.get("pleroma_internal", %{})
+          |> Map.put("delete_metadata", metadata)
+
+        activity
+        |> Activity.change(%{
+          data: Map.put(activity.data, "pleroma_internal", internal_data)
+        })
+        |> Repo.update()
+
+      _ ->
+        {:ok, nil}
     end
   end
 

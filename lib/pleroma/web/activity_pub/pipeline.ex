@@ -95,7 +95,7 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
          {_, :ok} <-
            {:delete_identity, ensure_delete_identity(validated_message, message)},
          {_, {:ok, message, meta, delete_mode}} <-
-           {:idempotent_delete, prepare_idempotent_delete(message, meta)},
+           {:idempotent_delete, prepare_idempotent_delete(message, validated_message, meta)},
          {_, {:ok, message, meta}} <-
            {:persist, maybe_persist(message, meta, delete_mode)},
          {_, {:ok, message, meta}} <-
@@ -110,7 +110,7 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
     end
   end
 
-  defp prepare_idempotent_delete(message, meta) do
+  defp prepare_idempotent_delete(message, validated_message, meta) do
     case Keyword.get(meta, :delete_target) do
       %{state: :tombstone_duplicate, existing_delete: %Activity{} = activity} ->
         if activity.data["id"] == message["id"] and activity.data["actor"] == message["actor"] do
@@ -121,7 +121,7 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
 
       %{existing_delete: %Activity{} = activity} ->
         if activity.data["id"] == message["id"] and activity.data["actor"] == message["actor"] do
-          {:ok, activity, meta, :resume}
+          {:ok, put_delete_metadata(activity, validated_message), meta, :resume}
         else
           {:error, :already_deleted}
         end
@@ -130,6 +130,13 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
         {:ok, message, meta, :new}
     end
   end
+
+  defp put_delete_metadata(activity, %{"deleted_activity_id" => deleted_activity_id})
+       when is_binary(deleted_activity_id) do
+    %{activity | data: Map.put(activity.data, "deleted_activity_id", deleted_activity_id)}
+  end
+
+  defp put_delete_metadata(activity, _message), do: activity
 
   defp maybe_persist(message, meta, :new), do: activity_pub().persist(message, meta)
   defp maybe_persist(%Activity{} = activity, meta, _mode), do: {:ok, activity, meta}
@@ -204,18 +211,22 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
       %{
         state: :live_object,
         object: %Object{} = object,
-        create_activity: %Activity{data: %{"actor" => actor}}
+        create_activity: %Activity{data: %{"actor" => actor}} = create_activity
       } ->
-        invalidate_deleted_object_caches(object, actor)
+        source_data = DeleteValidator.get_delete_source_data(create_activity)
+        invalidate_deleted_object_caches(object, actor, source_data)
 
       %{state: :live_object, object: %Object{} = object} ->
-        invalidate_deleted_object_caches(object, object.data["actor"])
+        invalidate_deleted_object_caches(object, object.data["actor"], object.data)
 
       %{
         state: :pruned_object_with_create,
-        create_activity: %Activity{data: %{"actor" => actor}}
+        object_id: object_id,
+        create_activity: %Activity{data: %{"actor" => actor}} = create_activity
       } ->
+        invalidate_object_cache(object_id)
         invalidate_user_cache(actor)
+        invalidate_source_object_caches(DeleteValidator.get_delete_source_data(create_activity))
 
       %{state: :user, user: %User{} = user} ->
         User.invalidate_cache(user)
@@ -225,24 +236,23 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
     end
   end
 
-  defp invalidate_deleted_object_caches(object, actor) do
+  defp invalidate_deleted_object_caches(object, actor, source_data) do
     Object.invalid_object_cache(object)
     invalidate_target_actor_cache(object.data["id"], actor)
-    invalidate_object_cache(object.data["inReplyTo"])
-    invalidate_object_cache(object.data["quoteUrl"])
+    invalidate_source_object_caches(source_data)
   end
 
   defp invalidate_delete_target_caches(object_id) when is_binary(object_id) do
     case Object.get_by_ap_id(object_id) do
       %Object{} = object ->
+        source_data = delete_source_data(object, object_id)
         Object.invalid_object_cache(object)
         invalidate_target_actor_cache(object_id, object.data["actor"])
-        invalidate_object_cache(object.data["inReplyTo"])
-        invalidate_object_cache(object.data["quoteUrl"])
+        invalidate_source_object_caches(source_data)
 
       nil ->
         invalidate_user_cache(object_id)
-        invalidate_create_actor_cache(object_id)
+        invalidate_create_caches(object_id)
     end
   end
 
@@ -261,13 +271,31 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
     do: invalidate_user_cache(actor)
 
   defp invalidate_target_actor_cache(object_id, _actor),
-    do: invalidate_create_actor_cache(object_id)
+    do: invalidate_create_caches(object_id)
 
-  defp invalidate_create_actor_cache(object_id) do
+  defp invalidate_create_caches(object_id) do
     case DeleteValidator.get_create_by_object_ap_id(object_id) do
-      %Activity{data: %{"actor" => actor}} -> invalidate_user_cache(actor)
-      _ -> :ok
+      %Activity{data: %{"actor" => actor}} = create_activity ->
+        invalidate_user_cache(actor)
+        invalidate_source_object_caches(DeleteValidator.get_delete_source_data(create_activity))
+
+      _ ->
+        :ok
     end
+  end
+
+  defp delete_source_data(%Object{data: %{"type" => "Tombstone"}}, object_id) do
+    case DeleteValidator.get_create_by_object_ap_id(object_id) do
+      %Activity{} = create_activity -> DeleteValidator.get_delete_source_data(create_activity)
+      _ -> %{}
+    end
+  end
+
+  defp delete_source_data(%Object{data: data}, _object_id), do: data
+
+  defp invalidate_source_object_caches(source_data) do
+    invalidate_object_cache(source_data["inReplyTo"])
+    invalidate_object_cache(source_data["quoteUrl"])
   end
 
   defp invalidate_object_cache(ap_id) when is_binary(ap_id) do

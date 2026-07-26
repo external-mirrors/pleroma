@@ -22,6 +22,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   alias Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator
   alias Pleroma.Web.ActivityPub.Pipeline
   alias Pleroma.Web.ActivityPub.Utils
+  alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.Streamer
   alias Pleroma.Workers.PollWorker
 
@@ -449,20 +450,24 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   end
 
   defp do_delete_object_side_effects(delete_activity, deleted_object, create_activity) do
+    source_data = delete_source_data(deleted_object, create_activity)
+
     with {_, actor} when is_binary(actor) <-
            {:actor, delete_object_actor(delete_activity, deleted_object, create_activity)},
          {_, %User{} = user} <- {:user, User.get_cached_by_ap_id(actor)},
          {_, {:ok, deleted_object, _activity}} <- {:object, Object.delete(deleted_object)} do
       User.remove_pinned_object_id(user, deleted_object.data["id"])
 
-      {:ok, user} = ActivityPub.decrease_note_count_if_public(user, deleted_object)
+      {:ok, user} = ActivityPub.decrease_note_count_if_public(user, source_data)
 
-      if in_reply_to = deleted_object.data["inReplyTo"] do
-        Object.decrease_replies_count(in_reply_to)
-      end
+      if Visibility.public?(source_data) do
+        if in_reply_to = source_data["inReplyTo"] do
+          Object.decrease_replies_count(in_reply_to)
+        end
 
-      if quote_url = deleted_object.data["quoteUrl"] do
-        Object.decrease_quotes_count(quote_url)
+        if quote_url = source_data["quoteUrl"] do
+          Object.decrease_quotes_count(quote_url)
+        end
       end
 
       MessageReference.delete_for_object(deleted_object)
@@ -485,6 +490,14 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
         {:error, delete_activity}
     end
   end
+
+  defp delete_source_data(
+         %Object{data: %{"type" => "Tombstone"}},
+         %Activity{} = create_activity
+       ),
+       do: DeleteValidator.get_delete_source_data(create_activity)
+
+  defp delete_source_data(%Object{data: data}, _create_activity), do: data
 
   defp delete_object_actor(
          _delete_activity,
