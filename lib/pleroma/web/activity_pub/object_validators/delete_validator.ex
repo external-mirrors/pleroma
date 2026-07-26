@@ -97,6 +97,14 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
 
   defp classify_user_target(object_id, user, options) do
     case get_latest_delete_by_object_ap_id(object_id, options[:ignore_activity_id]) do
+      %Activity{} = existing_delete when user.is_active ->
+        %{
+          state: :user,
+          object_id: object_id,
+          user: user,
+          existing_delete: existing_delete
+        }
+
       %Activity{} = existing_delete ->
         duplicate_target(object_id, existing_delete)
 
@@ -108,8 +116,20 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
   defp classify_object_target(object_id, options) do
     case Object.get_by_ap_id(object_id) do
       %Object{data: %{"type" => "Tombstone"}} = object ->
-        case get_latest_delete_by_object_ap_id(object_id, options[:ignore_activity_id]) do
-          %Activity{} = existing_delete ->
+        create_activity = get_create_by_object_ap_id(object_id)
+
+        case {get_latest_delete_by_object_ap_id(object_id, options[:ignore_activity_id]),
+              create_activity} do
+          {%Activity{} = existing_delete, %Activity{}} ->
+            %{
+              state: :live_object,
+              object_id: object_id,
+              object: object,
+              create_activity: create_activity,
+              existing_delete: existing_delete
+            }
+
+          {%Activity{} = existing_delete, _} ->
             duplicate_target(object_id, existing_delete, object)
 
           _ ->
@@ -117,12 +137,13 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
               state: :live_object,
               object_id: object_id,
               object: object,
-              create_activity: get_create_by_object_ap_id(object_id)
+              create_activity: create_activity
             }
         end
 
       %Object{data: %{"type" => type}} = object when type in @deletable_object_types ->
         %{state: :live_object, object_id: object_id, object: object}
+        |> maybe_put_existing_delete(object_id, options)
 
       %Object{} = object ->
         %{state: :invalid_type, object_id: object_id, object: object}
@@ -135,6 +156,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
               object_id: object_id,
               create_activity: create_activity
             }
+            |> maybe_put_existing_delete(object_id, options)
 
           _ ->
             %{state: :missing, object_id: object_id}
@@ -149,6 +171,13 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
       object: object,
       existing_delete: existing_delete
     }
+  end
+
+  defp maybe_put_existing_delete(target, object_id, options) do
+    case get_latest_delete_by_object_ap_id(object_id, options[:ignore_activity_id]) do
+      %Activity{} = existing_delete -> Map.put(target, :existing_delete, existing_delete)
+      _ -> target
+    end
   end
 
   defp get_latest_delete_by_object_ap_id(object_id, ignored_activity_id) do

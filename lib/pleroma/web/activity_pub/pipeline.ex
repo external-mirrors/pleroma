@@ -41,6 +41,7 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
 
     case run_transaction(object, transaction) do
       {:ok, {:ok, activity, meta}} ->
+        invalidate_delete_caches_after_commit(meta)
         side_effects().handle_after_transaction(meta)
         {:ok, activity, meta}
 
@@ -93,34 +94,48 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
          {_, {:ok, message, meta}} <- {:mrf, mrf().pipeline_filter(message, meta)},
          {_, :ok} <-
            {:delete_identity, ensure_delete_identity(validated_message, message)},
-         {_, :continue} <-
-           {:idempotent_delete, maybe_skip_idempotent_delete(message, meta)},
-         {_, {:ok, message, meta}} <- {:persist, activity_pub().persist(message, meta)},
-         {_, {:ok, message, meta}} <- {:side_effects, side_effects().handle(message, meta)},
-         {_, {:ok, _}} <- {:federation, maybe_federate(message, meta)} do
+         {_, {:ok, message, meta, delete_mode}} <-
+           {:idempotent_delete, prepare_idempotent_delete(message, meta)},
+         {_, {:ok, message, meta}} <-
+           {:persist, maybe_persist(message, meta, delete_mode)},
+         {_, {:ok, message, meta}} <-
+           {:side_effects, maybe_handle_side_effects(message, meta, delete_mode)},
+         {_, {:ok, _}} <- {:federation, maybe_federate(message, meta, delete_mode)} do
       {:ok, message, meta}
     else
       {:mrf, {:reject, message, _}} -> {:reject, message}
       {:delete_identity, {:error, reason}} -> {:error, reason}
-      {:idempotent_delete, {:ok, activity, meta}} -> {:ok, activity, meta}
       {:idempotent_delete, {:error, reason}} -> {:error, reason}
       e -> {:error, e}
     end
   end
 
-  defp maybe_skip_idempotent_delete(message, meta) do
+  defp prepare_idempotent_delete(message, meta) do
     case Keyword.get(meta, :delete_target) do
       %{state: :tombstone_duplicate, existing_delete: %Activity{} = activity} ->
         if activity.data["id"] == message["id"] and activity.data["actor"] == message["actor"] do
-          {:ok, activity, meta}
+          {:ok, activity, meta, :skip}
+        else
+          {:error, :already_deleted}
+        end
+
+      %{existing_delete: %Activity{} = activity} ->
+        if activity.data["id"] == message["id"] and activity.data["actor"] == message["actor"] do
+          {:ok, activity, meta, :resume}
         else
           {:error, :already_deleted}
         end
 
       _ ->
-        :continue
+        {:ok, message, meta, :new}
     end
   end
+
+  defp maybe_persist(message, meta, :new), do: activity_pub().persist(message, meta)
+  defp maybe_persist(%Activity{} = activity, meta, _mode), do: {:ok, activity, meta}
+
+  defp maybe_handle_side_effects(message, meta, :skip), do: {:ok, message, meta}
+  defp maybe_handle_side_effects(message, meta, _mode), do: side_effects().handle(message, meta)
 
   defp lock_delete_target(%{"type" => "Delete", "object" => object}) do
     case object_id(object) do
@@ -184,6 +199,39 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
 
   defp invalidate_delete_caches(_), do: :ok
 
+  defp invalidate_delete_caches_after_commit(meta) do
+    case Keyword.get(meta, :delete_target) do
+      %{
+        state: :live_object,
+        object: %Object{} = object,
+        create_activity: %Activity{data: %{"actor" => actor}}
+      } ->
+        invalidate_deleted_object_caches(object, actor)
+
+      %{state: :live_object, object: %Object{} = object} ->
+        invalidate_deleted_object_caches(object, object.data["actor"])
+
+      %{
+        state: :pruned_object_with_create,
+        create_activity: %Activity{data: %{"actor" => actor}}
+      } ->
+        invalidate_user_cache(actor)
+
+      %{state: :user, user: %User{} = user} ->
+        User.invalidate_cache(user)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp invalidate_deleted_object_caches(object, actor) do
+    Object.invalid_object_cache(object)
+    invalidate_target_actor_cache(object.data["id"], actor)
+    invalidate_object_cache(object.data["inReplyTo"])
+    invalidate_object_cache(object.data["quoteUrl"])
+  end
+
   defp invalidate_delete_target_caches(object_id) when is_binary(object_id) do
     case Object.get_by_ap_id(object_id) do
       %Object{} = object ->
@@ -230,6 +278,10 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
   end
 
   defp invalidate_object_cache(_), do: :ok
+
+  defp maybe_federate(_message, _meta, :skip), do: {:ok, :not_federated}
+
+  defp maybe_federate(message, meta, _mode), do: maybe_federate(message, meta)
 
   defp maybe_federate(%Object{}, _), do: {:ok, :not_federated}
 

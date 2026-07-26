@@ -11,7 +11,10 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
   alias Pleroma.Repo
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.User
+  alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.MRFMock
+  alias Pleroma.Web.ActivityPub.SideEffects
+  alias Pleroma.Web.ActivityPub.SideEffectsMock
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.CommonAPI
 
@@ -97,6 +100,74 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
 
     assert {:error, :already_deleted} = Transmogrifier.handle_incoming(duplicate_data)
     assert delete_count_for_object(activity.data["object"]) == 1
+  end
+
+  test "it invalidates caches again after a Delete commits" do
+    user = insert(:user)
+    {:ok, parent} = CommonAPI.post(user, %{status: "parent"})
+    {:ok, activity} = CommonAPI.post(user, %{status: "reply", in_reply_to_id: parent.id})
+
+    object = Object.get_by_ap_id(activity.data["object"])
+    parent_object = Object.get_by_ap_id(parent.data["object"])
+    cached_user = User.get_by_id(user.id)
+    data = delete_data(activity, user)
+
+    SideEffectsMock
+    |> expect(:handle, fn delete, meta ->
+      result = SideEffects.handle(delete, meta)
+
+      Object.set_cache(object)
+      Object.set_cache(parent_object)
+      User.set_cache(cached_user)
+
+      result
+    end)
+
+    assert {:ok, %Activity{}} = Transmogrifier.handle_incoming(data)
+    assert Object.get_cached_by_ap_id(object.data["id"]).data["type"] == "Tombstone"
+    assert Object.get_cached_by_ap_id(parent_object.data["id"]).data["repliesCount"] == 0
+    assert User.get_cached_by_ap_id(user.ap_id).note_count == 1
+  end
+
+  test "it completes an exact replay of a persisted Delete with missing side effects" do
+    user = insert(:user)
+    {:ok, activity} = CommonAPI.post(user, %{status: "retry persisted Delete"})
+    object_id = activity.data["object"]
+    data = delete_data(activity, user)
+
+    assert {:ok, persisted_delete, _meta} = ActivityPub.persist(data, local: false)
+    assert %Object{data: %{"type" => "Note"}} = Object.get_by_ap_id(object_id)
+
+    assert {:ok, %Activity{id: delete_id}} = Transmogrifier.handle_incoming(data)
+    assert delete_id == persisted_delete.id
+    assert delete_count_for_object(object_id) == 1
+    assert %Object{data: %{"type" => "Tombstone"}} = Object.get_by_ap_id(object_id)
+    refute Activity.get_by_id(activity.id)
+  end
+
+  test "it completes a persisted Delete when a tombstone still has its Create" do
+    user = insert(:user)
+    {:ok, activity} = CommonAPI.post(user, %{status: "retry tombstone Delete"})
+    object = Object.get_by_ap_id(activity.data["object"])
+    data = delete_data(activity, user)
+
+    {:ok, cached_user} = User.add_pinned_object_id(user, object.data["id"])
+    assert {:ok, _tombstone} = Object.swap_object_with_tombstone(object)
+    Object.invalid_object_cache(object)
+    assert {:ok, persisted_delete, _meta} = ActivityPub.persist(data, local: false)
+
+    SideEffectsMock
+    |> expect(:handle, fn delete, meta ->
+      result = SideEffects.handle(delete, meta)
+      User.set_cache(cached_user)
+      result
+    end)
+
+    assert {:ok, %Activity{id: delete_id}} = Transmogrifier.handle_incoming(data)
+    assert delete_id == persisted_delete.id
+    assert delete_count_for_object(object.data["id"]) == 1
+    refute Activity.get_by_id(activity.id)
+    refute Map.has_key?(User.get_cached_by_ap_id(user.ap_id).pinned_objects, object.data["id"])
   end
 
   test "it rolls back failed delete side effects so the activity can be retried" do
@@ -272,6 +343,22 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
     ObanHelpers.perform_all()
 
     refute User.get_cached_by_ap_id(ap_id).is_active
+  end
+
+  test "it completes an exact replay of a persisted user Delete" do
+    user = insert(:user, ap_id: "http://mastodon.example.org/users/admin")
+
+    data =
+      File.read!("test/fixtures/mastodon-delete-user.json")
+      |> Jason.decode!()
+
+    assert {:ok, persisted_delete, _meta} = ActivityPub.persist(data, local: false)
+    assert User.get_cached_by_ap_id(user.ap_id).is_active
+
+    assert {:ok, %Activity{id: delete_id}} = Transmogrifier.handle_incoming(data)
+    assert delete_id == persisted_delete.id
+    assert delete_count_for_object(user.ap_id) == 1
+    refute User.get_cached_by_ap_id(user.ap_id).is_active
   end
 
   test "it fails for incoming user deletes with spoofed origin" do
