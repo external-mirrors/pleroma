@@ -354,11 +354,21 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
 
     assert {:ok, persisted_delete, _meta} = ActivityPub.persist(data, local: false)
     assert User.get_cached_by_ap_id(user.ap_id).is_active
+    assert {:ok, _user} = User.set_activation(user, false)
+    refute_enqueued(worker: Pleroma.Workers.DeleteWorker)
 
     assert {:ok, %Activity{id: delete_id}} = Transmogrifier.handle_incoming(data)
     assert delete_id == persisted_delete.id
     assert delete_count_for_object(user.ap_id) == 1
     refute User.get_cached_by_ap_id(user.ap_id).is_active
+
+    assert_enqueued(
+      worker: Pleroma.Workers.DeleteWorker,
+      args: %{"op" => "delete_user", "user_id" => user.id}
+    )
+
+    assert {:ok, %Activity{id: ^delete_id}} = Transmogrifier.handle_incoming(data)
+    assert length(all_enqueued(worker: Pleroma.Workers.DeleteWorker)) == 1
   end
 
   test "it fails for incoming user deletes with spoofed origin" do

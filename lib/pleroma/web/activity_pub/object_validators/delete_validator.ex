@@ -97,16 +97,13 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
 
   defp classify_user_target(object_id, user, options) do
     case get_latest_delete_by_object_ap_id(object_id, options[:ignore_activity_id]) do
-      %Activity{} = existing_delete when user.is_active ->
+      %Activity{} = existing_delete ->
         %{
           state: :user,
           object_id: object_id,
           user: user,
           existing_delete: existing_delete
         }
-
-      %Activity{} = existing_delete ->
-        duplicate_target(object_id, existing_delete)
 
       _ ->
         %{state: :user, object_id: object_id, user: user}
@@ -164,7 +161,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
     end
   end
 
-  defp duplicate_target(object_id, existing_delete, object \\ nil) do
+  defp duplicate_target(object_id, existing_delete, object) do
     %{
       state: :tombstone_duplicate,
       object_id: object_id,

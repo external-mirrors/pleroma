@@ -2075,7 +2075,7 @@ defmodule Pleroma.User do
     # Purge the user immediately
     purge(user)
 
-    DeleteWorker.new(%{"op" => "delete_user", "user_id" => user.id})
+    DeleteWorker.new_user(user.id)
     |> Oban.insert()
   end
 

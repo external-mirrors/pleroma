@@ -12,6 +12,16 @@ defmodule Pleroma.Workers.DeleteWorkerTest do
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.Workers.DeleteWorker
 
+  test "keeps per-user deletion jobs unique" do
+    user = insert(:user)
+
+    assert {:ok, first_job} = user.id |> DeleteWorker.new_user() |> Oban.insert()
+    refute first_job.conflict?
+
+    assert {:ok, duplicate_job} = user.id |> DeleteWorker.new_user() |> Oban.insert()
+    assert duplicate_job.conflict?
+  end
+
   describe "instance deletion" do
     test "creates individual Oban jobs for each user when deleting an instance" do
       user1 = insert(:user, nickname: "alice@example.com", name: "Alice")

@@ -7,6 +7,12 @@ defmodule Pleroma.Workers.DeleteWorker do
 
   use Oban.Worker, queue: :slow
 
+  def new_user(user_id) do
+    new(%{"op" => "delete_user", "user_id" => user_id},
+      unique: [period: :infinity, keys: [:user_id]]
+    )
+  end
+
   @impl true
   def perform(%Job{args: %{"op" => "delete_user", "user_id" => user_id}}) do
     user = User.get_cached_by_id(user_id)
@@ -19,8 +25,8 @@ defmodule Pleroma.Workers.DeleteWorker do
       User.Query.build(%{nickname: "@#{host}"})
       |> Pleroma.Repo.all()
       |> Enum.each(fn user ->
-        %{"op" => "delete_user", "user_id" => user.id}
-        |> __MODULE__.new()
+        user.id
+        |> __MODULE__.new_user()
         |> Oban.insert()
       end)
 
