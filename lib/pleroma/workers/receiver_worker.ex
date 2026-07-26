@@ -69,6 +69,7 @@ defmodule Pleroma.Workers.ReceiverWorker do
       {:error, {:validate, {:error, _changeset} = reason}} -> {:cancel, reason}
       # Duplicate detection during Normalization
       {:error, :already_present} -> {:cancel, :already_present}
+      {:error, :already_deleted} -> {:cancel, :already_deleted}
       # MRFs will return a reject
       {:error, {:reject, _} = reason} -> {:cancel, reason}
       # HTTP Sigs

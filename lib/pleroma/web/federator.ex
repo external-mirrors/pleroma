@@ -58,16 +58,19 @@ defmodule Pleroma.Web.Federator do
     |> Oban.insert()
   end
 
-  def incoming_ap_doc(%{"type" => "Delete"} = params) do
-    ReceiverWorker.new(%{"op" => "incoming_ap_doc", "params" => params},
-      priority: 3,
-      queue: :slow
-    )
-    |> Oban.insert()
-  end
-
   def incoming_ap_doc(params) do
-    ReceiverWorker.new(%{"op" => "incoming_ap_doc", "params" => params})
+    options =
+      if delete_activity?(params) do
+        [
+          priority: 3,
+          queue: :slow,
+          unique: [period: :infinity, states: [:available, :scheduled, :executing, :retryable]]
+        ]
+      else
+        []
+      end
+
+    ReceiverWorker.new(%{"op" => "incoming_ap_doc", "params" => params}, options)
     |> Oban.insert()
   end
 
@@ -111,11 +114,13 @@ defmodule Pleroma.Web.Federator do
       |> Map.get("actor")
       |> Utils.get_ap_id()
 
+    existing_activity = Activity.normalize(params["id"])
+
     # NOTE: we use the actor ID to do the containment, this is fine because an
     # actor shouldn't be acting on objects outside their own AP server.
     with {_, {:ok, user}} <- {:actor, User.get_or_fetch_by_ap_id(actor)},
-         {:user_active, true} <- {:user_active, match?(true, user.is_active)},
-         nil <- Activity.normalize(params["id"]),
+         {:activity_state, :ok} <-
+           {:activity_state, incoming_activity_state(user, existing_activity, params)},
          {_, :ok} <-
            {:correct_origin?, Containment.contain_origin_from_id(actor, params)},
          {:ok, activity} <- Transmogrifier.handle_incoming(params) do
@@ -125,9 +130,12 @@ defmodule Pleroma.Web.Federator do
         Logger.debug("Origin containment failure for #{params["id"]}")
         {:error, :origin_containment_failed}
 
-      %Activity{} ->
+      {:activity_state, :already_present} ->
         Logger.debug("Already had #{params["id"]}")
         {:error, :already_present}
+
+      {:activity_state, {:user_active, false} = reason} ->
+        {:error, reason}
 
       {:actor, e} ->
         Logger.debug("Unhandled actor #{actor}, #{inspect(e)}")
@@ -143,4 +151,31 @@ defmodule Pleroma.Web.Federator do
         {:error, e}
     end
   end
+
+  defp incoming_activity_state(user, %Activity{data: existing_data}, params) do
+    cond do
+      exact_delete_replay?(existing_data, params) -> :ok
+      user.is_active != true -> {:user_active, false}
+      true -> :already_present
+    end
+  end
+
+  defp incoming_activity_state(%User{is_active: true}, nil, _params), do: :ok
+  defp incoming_activity_state(_user, nil, _params), do: {:user_active, false}
+
+  defp exact_delete_replay?(existing_data, params) do
+    existing_actor = Utils.get_ap_id(existing_data["actor"])
+    incoming_actor = Utils.get_ap_id(params["actor"])
+    existing_object = Utils.get_ap_id(existing_data["object"])
+    incoming_object = Utils.get_ap_id(params["object"])
+
+    delete_activity?(existing_data) and delete_activity?(params) and
+      is_binary(existing_data["id"]) and existing_data["id"] == params["id"] and
+      is_binary(existing_actor) and existing_actor == incoming_actor and
+      is_binary(existing_object) and existing_object == incoming_object
+  end
+
+  defp delete_activity?(%{"type" => "Delete"}), do: true
+  defp delete_activity?(%{"type" => types}) when is_list(types), do: "Delete" in types
+  defp delete_activity?(_), do: false
 end

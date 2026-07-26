@@ -4,6 +4,7 @@
 
 defmodule Pleroma.Web.FederatorTest do
   alias Pleroma.Instances
+  alias Pleroma.Repo
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.Federator
@@ -165,6 +166,32 @@ defmodule Pleroma.Web.FederatorTest do
 
       assert {:ok, job} = Federator.incoming_ap_doc(params)
       assert {:cancel, :already_present} = ObanHelpers.perform(job)
+    end
+
+    test "keeps in-flight Delete jobs unique and allows completed jobs to be enqueued again" do
+      for type <- ["Delete", ["Delete"]] do
+        params = %{
+          "type" => type,
+          "id" => "https://example.com/activities/delete/#{inspect(type)}",
+          "actor" => "https://example.com/users/alice",
+          "object" => "https://example.com/objects/note"
+        }
+
+        assert {:ok, first_job} = Federator.incoming_ap_doc(params)
+        refute first_job.conflict?
+
+        assert {:ok, duplicate_job} = Federator.incoming_ap_doc(params)
+        assert duplicate_job.conflict?
+
+        assert {:ok, completed_job} =
+                 first_job
+                 |> Ecto.Changeset.change(state: "completed")
+                 |> Repo.update()
+
+        assert completed_job.state == "completed"
+        assert {:ok, replay_job} = Federator.incoming_ap_doc(params)
+        refute replay_job.conflict?
+      end
     end
 
     test "rejects incoming AP docs with incorrect origin" do

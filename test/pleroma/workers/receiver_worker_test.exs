@@ -10,6 +10,9 @@ defmodule Pleroma.Workers.ReceiverWorkerTest do
   import Pleroma.Factory
 
   alias Pleroma.User
+  alias Pleroma.Activity
+  alias Pleroma.Object
+  alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Workers.ReceiverWorker
 
@@ -69,6 +72,61 @@ defmodule Pleroma.Workers.ReceiverWorkerTest do
              ReceiverWorker.perform(%Oban.Job{
                args: %{"op" => "incoming_ap_doc", "params" => params}
              })
+  end
+
+  test "it does not retry Deletes for an already deleted target" do
+    params = %{
+      "type" => "Delete",
+      "id" => "https://example.com/activities/delete-duplicate",
+      "actor" => "https://example.com/users/alice",
+      "object" => "https://example.com/objects/note"
+    }
+
+    with_mock Pleroma.Web.Federator,
+      perform: fn :incoming_ap_doc, ^params -> {:error, {:error, :already_deleted}} end do
+      assert {:cancel, :already_deleted} = perform_incoming(params)
+    end
+  end
+
+  test "it completes an exact replay of a persisted Delete" do
+    user =
+      insert(:user,
+        local: false,
+        ap_id: "http://mastodon.example.org/users/admin"
+      )
+
+    object =
+      insert(:note,
+        user: user,
+        data: %{"id" => "http://mastodon.example.org/objects/recover-delete"}
+      )
+
+    activity = insert(:note_activity, user: user, note: object, local: false)
+    object_id = activity.data["object"]
+
+    params =
+      File.read!("test/fixtures/mastodon-delete.json")
+      |> Jason.decode!()
+      |> Map.put("actor", user.ap_id)
+      |> put_in(["object", "id"], object_id)
+
+    assert {:ok, persisted_delete, _meta} = ActivityPub.persist(params, local: false)
+    assert %Object{data: %{"type" => "Note"}} = Object.get_by_ap_id(object_id)
+    assert {:ok, %User{}} = User.set_activation(user, false)
+
+    replay_params = Map.put(params, "type", ["Delete"])
+
+    assert {:ok, %Activity{id: delete_id}} = perform_incoming(replay_params)
+    assert delete_id == persisted_delete.id
+    assert %Object{data: %{"type" => "Tombstone"}} = Object.get_by_ap_id(object_id)
+  end
+
+  test "keeps the inactive-actor error for existing non-Delete activities" do
+    user = insert(:user)
+    activity = insert(:note_activity, user: user)
+    assert {:ok, %User{}} = User.set_activation(user, false)
+
+    assert {:cancel, {:user_active, false}} = perform_incoming(activity.data)
   end
 
   describe "cancels on a failed user fetch" do
