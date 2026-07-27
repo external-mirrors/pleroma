@@ -32,6 +32,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFields do
   defmacro object_fields do
     quote bind_quoted: binding() do
       field(:content, :string)
+      field(:contentMap, ObjectValidators.ContentLanguageMap)
+      field(:htmlMfm, :boolean)
 
       field(:published, ObjectValidators.DateTime)
       field(:updated, ObjectValidators.DateTime)
@@ -59,6 +61,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFields do
       field(:like_count, :integer, default: 0)
       field(:announcement_count, :integer, default: 0)
       field(:quotes_count, :integer, default: 0)
+      field(:language, ObjectValidators.LanguageCode)
       field(:inReplyTo, ObjectValidators.ObjectID)
       field(:quoteUrl, ObjectValidators.ObjectID)
       field(:url, ObjectValidators.BareUri)
