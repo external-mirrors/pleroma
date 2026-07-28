@@ -176,6 +176,33 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
       assert ["lain", "lain2"] -- Enum.map(log_entry.data["subjects"], & &1["nickname"]) == []
     end
 
+    test "Create on an alternative domain", %{conn: conn} do
+      clear_config([:instance, :multitenancy, :enabled], true)
+
+      # Private, so that we also cover the admin bypassing the publicity check.
+      {:ok, domain} = Pleroma.Domain.create(%{domain: "pleroma.example.org", public: false})
+
+      conn
+      |> put_req_header("accept", "application/json")
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/pleroma/admin/users", %{
+        "users" => [
+          %{
+            "nickname" => "lain",
+            "email" => "lain@example.org",
+            "password" => "test",
+            "domain" => to_string(domain.id)
+          }
+        ]
+      })
+      |> json_response_and_validate_schema(200)
+
+      user = User.get_by_nickname("lain@pleroma.example.org")
+
+      assert user.domain_id == domain.id
+      assert user.local
+    end
+
     test "Admin-created users bypass account confirmation", %{conn: conn} do
       clear_config([:instance, :account_activation_required], true)
 

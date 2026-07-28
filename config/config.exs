@@ -265,7 +265,11 @@ config :pleroma, :instance,
   max_endorsed_users: 20,
   birthday_required: false,
   birthday_min_age: 0,
-  max_media_attachments: 1_000
+  max_media_attachments: 1_000,
+  multitenancy: [
+    enabled: false,
+    separate_timelines: false
+  ]
 
 config :pleroma, :welcome,
   direct_message: [
@@ -609,6 +613,7 @@ config :pleroma, Oban,
   ],
   plugins: [Oban.Plugins.Lazarus, {Oban.Plugins.Pruner, max_age: 900}],
   crontab: [
+    {"0 0 * * 0", Pleroma.Workers.Cron.CheckDomainsResolveWorker},
     {"0 0 * * 0", Pleroma.Workers.Cron.DigestEmailsWorker},
     {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker},
     {"*/10 * * * *", Pleroma.Workers.Cron.AppCleanupWorker}

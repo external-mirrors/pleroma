@@ -177,10 +177,12 @@ defmodule Pleroma.Web.AdminAPI.UserController do
           email: email,
           password: password,
           password_confirmation: password,
-          bio: "."
+          bio: ".",
+          domain_id: Map.get(attrs, :domain)
         }
 
-        {User.register_changeset(%User{}, user_data, confirmed: true), passwordless?}
+        {User.register_changeset(%User{}, user_data, confirmed: true, from_admin: true),
+         passwordless?}
       end)
       |> Enum.reduce(Multi.new(), fn {changeset, passwordless?}, multi ->
         user_operation = {:user, Ecto.UUID.generate()}

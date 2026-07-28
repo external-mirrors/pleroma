@@ -100,7 +100,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         skip_thread_containment: false,
         accepts_chat_messages: nil,
         avatar_description: "",
-        header_description: ""
+        header_description: "",
+        is_local: true
       }
     }
 
@@ -367,7 +368,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         skip_thread_containment: false,
         accepts_chat_messages: nil,
         avatar_description: "",
-        header_description: ""
+        header_description: "",
+        is_local: true
       }
     }
 

@@ -114,7 +114,11 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Account do
             description: "Favicon image of the user's instance"
           },
           avatar_description: %Schema{type: :string, deprecated: true},
-          header_description: %Schema{type: :string, deprecated: true}
+          header_description: %Schema{type: :string, deprecated: true},
+          is_local: %Schema{
+            type: :boolean,
+            description: "Whether the account is hosted on this instance"
+          }
         }
       },
       source: %Schema{

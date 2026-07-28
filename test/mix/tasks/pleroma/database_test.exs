@@ -388,6 +388,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
                ["data_migration_failed_ids"],
                ["data_migrations"],
                ["deliveries"],
+               ["domains"],
                ["filters"],
                ["following_relationships"],
                ["hashtags"],

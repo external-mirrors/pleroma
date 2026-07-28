@@ -117,7 +117,8 @@ defmodule Pleroma.Web.MastodonAPI.InstanceViewTest do
     "pleroma:get:main/ostatus",
     "pleroma:group_actors",
     "pleroma:bookmark_folders",
-    "pleroma:block_expiration"
+    "pleroma:block_expiration",
+    "pleroma:multitenancy"
   ]
 
   @configurable_features [
@@ -327,7 +328,8 @@ defmodule Pleroma.Web.MastodonAPI.InstanceViewTest do
           allow_inline_images: true,
           allow_headings: false,
           allow_tables: false
-        }
+        },
+        multitenancy: nil
       },
       stats: %{mau: Pleroma.User.active_user_count()},
       vapid_public_key: Keyword.get(Pleroma.Web.Push.vapid_config(), :public_key)

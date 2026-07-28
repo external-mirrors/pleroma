@@ -168,6 +168,24 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
       assert json_response(conn, 200) == UserView.render("user.json", %{user: user})
     end
 
+    test "it returns a json representation of a local user domain different from host", %{
+      conn: conn
+    } do
+      user =
+        insert(:user, %{
+          nickname: "nick@example.org"
+        })
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/users/#{user.nickname}.json")
+
+      user = User.get_cached_by_id(user.id)
+
+      assert json_response(conn, 200) == UserView.render("user.json", %{user: user})
+    end
+
     test "it returns 404 for remote users", %{
       conn: conn
     } do
@@ -714,6 +732,22 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
   end
 
   describe "/inbox" do
+    test "the shared inbox works when addressed on an alternative domain", %{conn: conn} do
+      clear_config([:instance, :multitenancy, :enabled], true)
+
+      {:ok, _domain} = Pleroma.Domain.create(%{domain: "pleroma.example.org", public: true})
+
+      data = File.read!("test/fixtures/mastodon-post-activity.json") |> Jason.decode!()
+
+      conn =
+        conn
+        |> assign_valid_signature_for_actor(data["actor"])
+        |> put_req_header("content-type", "application/activity+json")
+        |> post("http://pleroma.example.org/inbox", data)
+
+      assert "ok" == json_response(conn, 200)
+    end
+
     test "it inserts an incoming activity into the database", %{conn: conn} do
       data = File.read!("test/fixtures/mastodon-post-activity.json") |> Jason.decode!()
 

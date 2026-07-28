@@ -36,6 +36,8 @@ defmodule Pleroma.Web.MastodonAPI.TimelineController do
     when action in [:public, :hashtag]
   )
 
+  plug(Pleroma.Web.Plugs.SetDomainPlug when action in [:public, :hashtag])
+
   defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.TimelineOperation
 
   # GET /api/v1/timelines/home
@@ -124,6 +126,7 @@ defmodule Pleroma.Web.MastodonAPI.TimelineController do
         |> Map.put(:instance, params[:instance])
         # Restricts unfederated content to authenticated users
         |> Map.put(:includes_local_public, not is_nil(user))
+        |> maybe_put_domain_id(conn)
         |> ActivityPub.fetch_public_activities()
 
       conn
@@ -141,7 +144,7 @@ defmodule Pleroma.Web.MastodonAPI.TimelineController do
     render_error(conn, :unauthorized, "authorization required for timeline view")
   end
 
-  defp hashtag_fetching(params, user, local_only) do
+  defp hashtag_fetching(conn, params, user, local_only) do
     # Note: not sanitizing tag options at this stage (may be mix-cased, have duplicates etc.)
     tags_any =
       [params[:tag], params[:any]]
@@ -160,6 +163,7 @@ defmodule Pleroma.Web.MastodonAPI.TimelineController do
     |> Map.put(:tag, tags_any)
     |> Map.put(:tag_all, tag_all)
     |> Map.put(:tag_reject, tag_reject)
+    |> maybe_put_domain_id(conn)
     |> ActivityPub.fetch_public_activities()
   end
 
@@ -170,7 +174,7 @@ defmodule Pleroma.Web.MastodonAPI.TimelineController do
     if is_nil(user) and restrict_unauthenticated?(local_only) do
       fail_on_bad_auth(conn)
     else
-      activities = hashtag_fetching(params, user, local_only)
+      activities = hashtag_fetching(conn, params, user, local_only)
 
       conn
       |> add_link_headers(activities, %{"local" => local_only})
@@ -193,6 +197,7 @@ defmodule Pleroma.Web.MastodonAPI.TimelineController do
         |> Map.put(:user, user)
         |> Map.put(:muting_user, user)
         |> Map.put(:local_only, params[:local])
+        |> maybe_put_domain_id(conn)
 
       # we must filter the following list for the user to avoid leaking statuses the user
       # does not actually have permission to see (for more info, peruse security issue #270).
@@ -217,4 +222,21 @@ defmodule Pleroma.Web.MastodonAPI.TimelineController do
       _e -> render_error(conn, :forbidden, "Error.")
     end
   end
+
+  defp maybe_put_domain_id(%{local_only: true} = params, conn) do
+    if Config.get([:instance, :multitenancy, :separate_timelines]) do
+      # `:main` restricts the timeline to accounts on the instance's own host.
+      domain_id =
+        case conn.assigns[:domain] do
+          %Pleroma.Domain{id: id} -> id
+          _ -> :main
+        end
+
+      Map.put(params, :domain_id, domain_id)
+    else
+      params
+    end
+  end
+
+  defp maybe_put_domain_id(params, _conn), do: params
 end

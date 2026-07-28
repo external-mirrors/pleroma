@@ -341,7 +341,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         accepts_chat_messages: accepts_chat_messages,
         favicon: favicon,
         avatar_description: avatar_description,
-        header_description: header_description
+        header_description: header_description,
+        is_local: user.local
       }
     }
     |> maybe_put_role(user, opts[:for])

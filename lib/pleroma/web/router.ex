@@ -323,6 +323,11 @@ defmodule Pleroma.Web.Router do
     patch("/rules/:id", RuleController, :update)
     delete("/rules/:id", RuleController, :delete)
 
+    get("/domains", DomainController, :index)
+    post("/domains", DomainController, :create)
+    patch("/domains/:id", DomainController, :update)
+    delete("/domains/:id", DomainController, :delete)
+
     get("/webhooks", WebhookController, :index)
     get("/webhooks/:id", WebhookController, :show)
     post("/webhooks", WebhookController, :create)

@@ -851,6 +851,96 @@ defmodule Pleroma.UserTest do
     end
   end
 
+  describe "user registration, with custom domain" do
+    @full_user_data %{
+      bio: "A guy",
+      name: "my name",
+      nickname: "nick",
+      password: "test",
+      password_confirmation: "test",
+      email: "email@example.com"
+    }
+
+    setup do
+      clear_config([:instance, :multitenancy], %{enabled: true})
+    end
+
+    test "it registers on a given domain" do
+      {:ok, %{id: domain_id}} =
+        Pleroma.Domain.create(%{
+          domain: "pleroma.example.org",
+          public: true
+        })
+
+      params =
+        @full_user_data
+        |> Map.put(:domain_id, to_string(domain_id))
+
+      changeset = User.register_changeset(%User{}, params)
+      assert changeset.valid?
+
+      {:ok, user} = Repo.insert(changeset)
+
+      assert user.nickname == "nick@pleroma.example.org"
+    end
+
+    test "it fails when domain is private" do
+      {:ok, %{id: domain_id}} =
+        Pleroma.Domain.create(%{
+          domain: "private.example.org",
+          public: false
+        })
+
+      params =
+        @full_user_data
+        |> Map.put(:domain_id, to_string(domain_id))
+
+      changeset = User.register_changeset(%User{}, params)
+      refute changeset.valid?
+    end
+
+    test "an admin may use a private domain" do
+      {:ok, %{id: domain_id}} =
+        Pleroma.Domain.create(%{
+          domain: "private.example.org",
+          public: false
+        })
+
+      params = Map.put(@full_user_data, :domain_id, to_string(domain_id))
+
+      changeset = User.register_changeset(%User{}, params, from_admin: true)
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :nickname) == "nick@private.example.org"
+      assert Ecto.Changeset.get_change(changeset, :domain_id) == domain_id
+    end
+
+    test "it fails on an id that is not a domain" do
+      for domain_id <- ["not-an-id", 12_345] do
+        params = Map.put(@full_user_data, :domain_id, domain_id)
+
+        changeset = User.register_changeset(%User{}, params)
+
+        refute changeset.valid?
+        assert Keyword.has_key?(changeset.errors, :domain)
+      end
+    end
+
+    test "restricted nicknames stay restricted on alternative domains" do
+      clear_config([Pleroma.User, :restricted_nicknames], ["admin"])
+
+      {:ok, %{id: domain_id}} =
+        Pleroma.Domain.create(%{domain: "pleroma.example.org", public: true})
+
+      params =
+        @full_user_data
+        |> Map.put(:nickname, "admin")
+        |> Map.put(:domain_id, to_string(domain_id))
+
+      refute User.register_changeset(%User{}, params).valid?
+    end
+  end
+
   describe "get_or_fetch/1" do
     test "gets an existing user by nickname" do
       user = insert(:user)
