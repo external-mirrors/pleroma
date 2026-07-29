@@ -51,6 +51,11 @@ defmodule Pleroma.ThreadMute do
     |> Repo.all()
   end
 
+  def lock_context(context) when is_binary(context) do
+    Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [context])
+    :ok
+  end
+
   defp maybe_filter_on_ap_id(query, ap_ids) when is_list(ap_ids) do
     where(query, [tm, u], u.ap_id in ^ap_ids)
   end

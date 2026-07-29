@@ -8,7 +8,9 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
 
   alias Pleroma.Activity
   alias Pleroma.Object
+  alias Pleroma.ThreadMute
   alias Pleroma.User
+  alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.CommonAPI
@@ -818,5 +820,285 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
 
     assert object.data["context"] == object.data["inReplyTo"]
     assert modified.data["context"] == object.data["inReplyTo"]
+  end
+
+  defp misskey_reply(id, in_reply_to) do
+    "test/fixtures/tesla_mock/mk.absturztau.be-93e7nm8wqg-activity.json"
+    |> File.read!()
+    |> Jason.decode!()
+    |> Map.put("id", "#{id}/activity")
+    |> put_in(["object", "id"], id)
+    |> put_in(["object", "inReplyTo"], in_reply_to)
+  end
+
+  test "rethreads a contextless reply after its parent arrives" do
+    insert(:user, ap_id: "https://mk.absturztau.be/users/8ozbzjs3o8")
+    local_user = insert(:user)
+    {:ok, root} = CommonAPI.post(local_user, %{status: "local root"})
+    root_object = Object.normalize(root, fetch: false)
+
+    intermediate_id = "https://mk.absturztau.be/notes/intermediate"
+
+    child_id = "https://mk.absturztau.be/notes/child"
+    child_activity = misskey_reply(child_id, intermediate_id)
+
+    child =
+      with_mock Pleroma.Web.Federator,
+        allowed_thread_distance?: fn _ -> false end do
+        {:ok, child} = Transmogrifier.handle_incoming(child_activity)
+        child
+      end
+
+    assert child.data["context"] == intermediate_id
+    assert Object.get_cached_by_ap_id(child_id).data["context"] == intermediate_id
+
+    activity_cache_path = URI.parse(child.data["id"]).path
+    object_cache_path = URI.parse(child_id).path
+    Cachex.put(:web_resp_cache, activity_cache_path, "stale activity")
+    Cachex.put(:web_resp_cache, object_cache_path, "stale object")
+
+    intermediate_activity = misskey_reply(intermediate_id, root_object.data["id"])
+
+    {:ok, intermediate} = Transmogrifier.handle_incoming(intermediate_activity)
+    child_object_id = child.data["object"]
+
+    assert intermediate.data["context"] == root.data["context"]
+    assert Activity.get_by_id(child.id).data["context"] == root.data["context"]
+    assert Object.get_by_ap_id(child_object_id).data["context"] == root.data["context"]
+
+    assert Object.get_cached_by_ap_id(child_object_id).data["context"] ==
+             root.data["context"]
+
+    assert {:ok, nil} = Cachex.get(:web_resp_cache, activity_cache_path)
+    assert {:ok, nil} = Cachex.get(:web_resp_cache, object_cache_path)
+
+    thread_ids =
+      root.data["context"]
+      |> ActivityPub.fetch_activities_for_context(%{user: local_user})
+      |> Enum.map(& &1.id)
+
+    assert child.id in thread_ids
+    assert intermediate.id in thread_ids
+    assert root.id in thread_ids
+  end
+
+  test "rethreads a contextless reply when it commits after its parent" do
+    insert(:user, ap_id: "https://mk.absturztau.be/users/8ozbzjs3o8")
+    local_user = insert(:user)
+    {:ok, root} = CommonAPI.post(local_user, %{status: "local root"})
+    root_object = Object.normalize(root, fetch: false)
+
+    intermediate_id = "https://mk.absturztau.be/notes/intermediate"
+
+    {:ok, intermediate} =
+      intermediate_id
+      |> misskey_reply(root_object.data["id"])
+      |> Transmogrifier.handle_incoming()
+
+    child =
+      with_mock Pleroma.Web.Federator,
+        allowed_thread_distance?: fn _ -> false end do
+        {:ok, child} =
+          "https://mk.absturztau.be/notes/child"
+          |> misskey_reply(intermediate_id)
+          |> Transmogrifier.handle_incoming()
+
+        child
+      end
+
+    assert intermediate.data["context"] == root.data["context"]
+    assert Activity.get_by_id(child.id).data["context"] == root.data["context"]
+  end
+
+  test "rethreads a contextless reply after its remote root arrives" do
+    insert(:user, ap_id: "https://mk.absturztau.be/users/8ozbzjs3o8")
+
+    root_id = "https://mk.absturztau.be/notes/root"
+    root_context = "https://mk.absturztau.be/contexts/thread"
+    child_id = "https://mk.absturztau.be/notes/child"
+    unrelated_id = "https://mk.absturztau.be/notes/unrelated"
+
+    unrelated_activity =
+      unrelated_id
+      |> misskey_reply(nil)
+      |> Map.put("context", root_id)
+      |> put_in(["object", "context"], root_id)
+
+    {:ok, unrelated} = Transmogrifier.handle_incoming(unrelated_activity)
+
+    child =
+      with_mock Pleroma.Web.Federator,
+        allowed_thread_distance?: fn _ -> false end do
+        {:ok, child} =
+          child_id
+          |> misskey_reply(root_id)
+          |> Transmogrifier.handle_incoming()
+
+        child
+      end
+
+    assert child.data["context"] == root_id
+
+    root_activity =
+      root_id
+      |> misskey_reply(nil)
+      |> Map.put("context", root_context)
+      |> put_in(["object", "context"], root_context)
+
+    {:ok, root} = Transmogrifier.handle_incoming(root_activity)
+
+    assert root.data["context"] == root_context
+    assert Activity.get_by_id(child.id).data["context"] == root_context
+    assert Object.get_by_ap_id(child_id).data["context"] == root_context
+    assert Activity.get_by_id(unrelated.id).data["context"] == root_id
+    assert Object.get_by_ap_id(unrelated_id).data["context"] == root_id
+  end
+
+  test "rethreads descendants as missing ancestors arrive" do
+    insert(:user, ap_id: "https://mk.absturztau.be/users/8ozbzjs3o8")
+    local_user = insert(:user)
+    {:ok, root} = CommonAPI.post(local_user, %{status: "local root"})
+    root_object = Object.normalize(root, fetch: false)
+
+    grandparent_id = "https://mk.absturztau.be/notes/grandparent"
+    parent_id = "https://mk.absturztau.be/notes/parent"
+    child_id = "https://mk.absturztau.be/notes/child"
+    sibling_id = "https://mk.absturztau.be/notes/sibling"
+
+    [child, sibling] =
+      with_mock Pleroma.Web.Federator,
+        allowed_thread_distance?: fn _ -> false end do
+        {:ok, child} =
+          child_id
+          |> misskey_reply(parent_id)
+          |> Transmogrifier.handle_incoming()
+
+        {:ok, sibling} =
+          sibling_id
+          |> misskey_reply(parent_id)
+          |> Transmogrifier.handle_incoming()
+
+        [child, sibling]
+      end
+
+    parent =
+      with_mock Pleroma.Web.Federator,
+        allowed_thread_distance?: fn _ -> false end do
+        {:ok, parent} =
+          parent_id
+          |> misskey_reply(grandparent_id)
+          |> Transmogrifier.handle_incoming()
+
+        parent
+      end
+
+    assert Activity.get_by_id(child.id).data["context"] == grandparent_id
+    assert parent.data["context"] == grandparent_id
+
+    {:ok, grandparent} =
+      grandparent_id
+      |> misskey_reply(root_object.data["id"])
+      |> Transmogrifier.handle_incoming()
+
+    for activity <- [child, sibling, parent, grandparent] do
+      assert Activity.get_by_id(activity.id).data["context"] == root.data["context"]
+      assert Object.get_by_ap_id(activity.data["object"]).data["context"] == root.data["context"]
+    end
+  end
+
+  test "does not rethread a direct reply through an ancestor context" do
+    insert(:user, ap_id: "https://mk.absturztau.be/users/8ozbzjs3o8")
+    local_user = insert(:user)
+    {:ok, root} = CommonAPI.post(local_user, %{status: "local root"})
+    root_object = Object.normalize(root, fetch: false)
+
+    grandparent_id = "https://mk.absturztau.be/notes/grandparent"
+    parent_id = "https://mk.absturztau.be/notes/parent"
+    direct_child_id = "https://mk.absturztau.be/notes/direct-child"
+
+    parent =
+      with_mock Pleroma.Web.Federator,
+        allowed_thread_distance?: fn _ -> false end do
+        {:ok, parent} =
+          parent_id
+          |> misskey_reply(grandparent_id)
+          |> Transmogrifier.handle_incoming()
+
+        parent
+      end
+
+    direct_child_activity =
+      direct_child_id
+      |> misskey_reply(parent_id)
+      |> Map.put("to", [local_user.ap_id])
+      |> Map.put("cc", [])
+      |> put_in(["object", "to"], [local_user.ap_id])
+      |> put_in(["object", "cc"], [])
+
+    {:ok, direct_child} = Transmogrifier.handle_incoming(direct_child_activity)
+
+    direct_child_object = Object.normalize(direct_child, fetch: false)
+    assert direct_child.data["context"] == grandparent_id
+    assert direct_child_object.data["inReplyTo"] == parent_id
+    assert direct_child_object.data["context"] == grandparent_id
+
+    {:ok, _grandparent} =
+      grandparent_id
+      |> misskey_reply(root_object.data["id"])
+      |> Transmogrifier.handle_incoming()
+
+    assert Activity.get_by_id(parent.id).data["context"] == grandparent_id
+    assert Activity.get_by_id(direct_child.id).data["context"] == grandparent_id
+    assert Object.get_by_ap_id(direct_child_id).data["context"] == grandparent_id
+  end
+
+  test "does not rethread a muted context" do
+    insert(:user, ap_id: "https://mk.absturztau.be/users/8ozbzjs3o8")
+    muting_user = insert(:user)
+
+    root_id = "https://mk.absturztau.be/notes/root"
+    root_context = "https://mk.absturztau.be/contexts/thread"
+    child_id = "https://mk.absturztau.be/notes/child"
+    sibling_id = "https://mk.absturztau.be/notes/sibling"
+
+    [child, sibling] =
+      with_mock Pleroma.Web.Federator,
+        allowed_thread_distance?: fn _ -> false end do
+        {:ok, child} =
+          child_id
+          |> misskey_reply(root_id)
+          |> Transmogrifier.handle_incoming()
+
+        {:ok, sibling} =
+          sibling_id
+          |> misskey_reply(root_id)
+          |> Transmogrifier.handle_incoming()
+
+        [child, sibling]
+      end
+
+    {:ok, _mute} = ThreadMute.add_mute(muting_user.id, root_id)
+
+    root_activity =
+      root_id
+      |> misskey_reply(nil)
+      |> Map.put("context", root_context)
+      |> put_in(["object", "context"], root_context)
+
+    {:ok, _root} = Transmogrifier.handle_incoming(root_activity)
+
+    assert Activity.get_by_id(child.id).data["context"] == root_id
+    assert Object.get_by_ap_id(child_id).data["context"] == root_id
+    assert Activity.get_by_id(sibling.id).data["context"] == root_id
+    assert ThreadMute.exists?(muting_user.id, root_id)
+
+    {:ok, returned_child} = CommonAPI.remove_mute(child, muting_user)
+
+    assert returned_child.id == child.id
+    assert Activity.get_by_id(child.id).data["context"] == root_context
+    assert Object.get_by_ap_id(child_id).data["context"] == root_context
+    assert Activity.get_by_id(sibling.id).data["context"] == root_context
+    assert Object.get_by_ap_id(sibling_id).data["context"] == root_context
+    refute ThreadMute.exists?(muting_user.id, root_id)
   end
 end

@@ -942,6 +942,33 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   end
 
   def update_activity_visibility(activity, visibility) when visibility in @valid_visibilities do
+    if Repo.in_transaction?() do
+      do_update_activity_visibility(activity, visibility)
+    else
+      case Repo.transaction(fn ->
+             case do_update_activity_visibility(activity, visibility) do
+               {:ok, activity} -> activity
+               {:error, error} -> Repo.rollback(error)
+             end
+           end) do
+        {:ok, activity} -> {:ok, activity}
+        {:error, error} -> {:error, error}
+      end
+    end
+  end
+
+  def update_activity_visibility(_, _), do: {:error, "Unsupported visibility"}
+
+  defp do_update_activity_visibility(activity, visibility) do
+    object = Object.get_by_id_for_update(activity.object.id)
+
+    activity =
+      Activity
+      |> where([stored_activity], stored_activity.id == ^activity.id)
+      |> lock("FOR UPDATE")
+      |> Repo.one!()
+      |> Map.put(:object, object)
+
     [to, cc, recipients] =
       activity
       |> get_updated_targets(visibility)
@@ -967,8 +994,6 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     |> Activity.change(%{data: activity_data, recipients: recipients})
     |> Repo.update()
   end
-
-  def update_activity_visibility(_, _), do: {:error, "Unsupported visibility"}
 
   defp get_updated_targets(
          %Activity{data: %{"to" => to} = data, recipients: recipients},

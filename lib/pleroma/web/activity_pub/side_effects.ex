@@ -9,6 +9,8 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   liked object, a `Follow` activity will add the user to the follower
   collection, and so on.
   """
+  import Ecto.Query
+
   alias Pleroma.Activity
   alias Pleroma.Chat
   alias Pleroma.Chat.MessageReference
@@ -16,11 +18,13 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   alias Pleroma.Notification
   alias Pleroma.Object
   alias Pleroma.Repo
+  alias Pleroma.ThreadMute
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.Pipeline
   alias Pleroma.Web.ActivityPub.Utils
+  alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.Streamer
   alias Pleroma.Workers.PollWorker
 
@@ -204,6 +208,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   @impl true
   def handle(%{data: %{"type" => "Create"}} = activity, meta) do
     with {:ok, object, meta} <- handle_object_creation(meta[:object_data], activity, meta),
+         {activity, object, meta} <- rethread_orphaned_replies(activity, object, meta),
          %User{} = user <- User.get_cached_by_ap_id(activity.data["actor"]) do
       {:ok, notifications} = Notification.create_notifications(activity)
       {:ok, _user} = ActivityPub.increase_note_count_if_public(user, object)
@@ -433,6 +438,303 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
     {:ok, object, meta}
   end
 
+  defp rethread_orphaned_replies(
+         activity,
+         %Object{
+           data: %{"id" => id, "context" => context, "type" => type} = data
+         } = object,
+         meta
+       )
+       when type in Pleroma.Constants.status_object_types() do
+    in_reply_to = data["inReplyTo"]
+
+    cond do
+      Visibility.get_visibility(object) == "direct" ->
+        initial_resolution = parent_context(in_reply_to, context)
+        locked_contexts = lock_thread_contexts([id, in_reply_to, context])
+
+        if is_binary(in_reply_to) do
+          {_visibility, parent_context} =
+            stable_parent_context(in_reply_to, context, locked_contexts)
+
+          if initial_resolution in [{:ok, context}, {:direct, context}] and
+               parent_context != context do
+            Repo.rollback(:stale_direct_context)
+          end
+        end
+
+        {activity, object, meta}
+
+      is_binary(in_reply_to) ->
+        # Lock from the reply toward its ancestors so adjacent ingestions cannot pass each other.
+        locked_contexts = lock_thread_contexts([id, in_reply_to])
+
+        case stable_parent_context(in_reply_to, context, locked_contexts) do
+          {:direct, _context} ->
+            {activity, object, meta}
+
+          {:ok, target_context} ->
+            rethread_contexts(activity, object, target_context, meta)
+        end
+
+      activity.local == false and id != context ->
+        lock_thread_contexts([id, context])
+        rethread_contexts(activity, object, context, meta)
+
+      true ->
+        {activity, object, meta}
+    end
+  end
+
+  defp rethread_orphaned_replies(
+         activity,
+         %Object{data: %{"id" => id, "context" => context, "inReplyTo" => in_reply_to}} = object,
+         meta
+       )
+       when is_binary(in_reply_to) do
+    locked_contexts = lock_thread_contexts([id, in_reply_to, context])
+
+    case stable_parent_context(in_reply_to, context, locked_contexts) do
+      {:direct, _context} -> {activity, object, meta}
+      {:ok, target_context} -> rethread_contexts(activity, object, target_context, meta)
+    end
+  end
+
+  defp rethread_orphaned_replies(activity, object, meta),
+    do: {activity, object, meta}
+
+  def reconcile_thread(%Activity{} = activity) do
+    requested_activity_id = activity.id
+
+    reconciliation_activity =
+      activity.id
+      |> Activity.get_by_id_with_object()
+      |> highest_reconciliation_activity()
+
+    case Repo.transaction(fn ->
+           rethread_orphaned_replies(
+             reconciliation_activity,
+             reconciliation_activity.object,
+             []
+           )
+         end) do
+      {:ok, {_activity, _object, meta}} ->
+        invalidate_rethreaded_objects(meta)
+        {:ok, Activity.get_by_id_with_object(requested_activity_id)}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp highest_reconciliation_activity(activity, seen_ids \\ MapSet.new())
+
+  defp highest_reconciliation_activity(
+         %Activity{object: %Object{data: %{"inReplyTo" => in_reply_to}}} = activity,
+         seen_ids
+       )
+       when is_binary(in_reply_to) do
+    seen_ids = MapSet.put(seen_ids, activity.id)
+
+    case Activity.get_create_by_object_ap_id(in_reply_to) do
+      %Activity{id: parent_id} ->
+        if MapSet.member?(seen_ids, parent_id) do
+          activity
+        else
+          parent = Activity.get_by_id_with_object(parent_id)
+
+          if is_binary(parent.object.data["inReplyTo"]) do
+            highest_reconciliation_activity(parent, seen_ids)
+          else
+            parent_object = parent.object
+
+            if parent.local == false and
+                 parent_object.data["id"] != parent_object.data["context"] do
+              parent
+            else
+              activity
+            end
+          end
+        end
+
+      _ ->
+        activity
+    end
+  end
+
+  defp highest_reconciliation_activity(activity, _seen_ids), do: activity
+
+  defp lock_thread_contexts(contexts, locked_contexts \\ MapSet.new()) do
+    Enum.reduce(contexts, locked_contexts, fn context, locked_contexts ->
+      if is_binary(context) and not MapSet.member?(locked_contexts, context) do
+        ThreadMute.lock_context(context)
+        MapSet.put(locked_contexts, context)
+      else
+        locked_contexts
+      end
+    end)
+  end
+
+  defp stable_parent_context(in_reply_to, fallback_context, locked_contexts) do
+    resolution = parent_context(in_reply_to, fallback_context)
+    {_visibility, parent_context} = resolution
+    locked_contexts = lock_thread_contexts([parent_context], locked_contexts)
+
+    case parent_context(in_reply_to, fallback_context) do
+      ^resolution ->
+        resolution
+
+      {_visibility, changed_context} ->
+        stable_parent_context(in_reply_to, changed_context, locked_contexts)
+    end
+  end
+
+  defp parent_context(in_reply_to, fallback_context) do
+    case Object.get_by_ap_id(in_reply_to) do
+      %Object{data: %{"context" => parent_context}} = parent ->
+        visibility = if Visibility.get_visibility(parent) == "direct", do: :direct, else: :ok
+        {visibility, parent_context}
+
+      _ ->
+        {:ok, fallback_context}
+    end
+  end
+
+  defp rethread_contexts(activity, object, target_context, meta) do
+    descendants = stable_descendant_objects(object, target_context)
+    source_contexts = source_contexts([object | descendants], target_context)
+
+    if Enum.any?([object | descendants], &(Visibility.get_visibility(&1) == "direct")) or
+         muted_contexts?(source_contexts) do
+      {activity, object, meta}
+    else
+      do_rethread_contexts(activity, object, descendants, target_context, meta)
+    end
+  end
+
+  defp stable_descendant_objects(object, target_context) do
+    descendants = descendant_objects([object.data["id"]])
+    lock_thread_contexts(source_contexts([object | descendants], target_context))
+    stable_descendant_objects(object, target_context, descendants)
+  end
+
+  defp stable_descendant_objects(object, target_context, previous_descendants) do
+    descendants = descendant_objects([object.data["id"]])
+    lock_thread_contexts(source_contexts([object | descendants], target_context))
+
+    if descendant_snapshot(descendants) == descendant_snapshot(previous_descendants) do
+      descendants
+    else
+      stable_descendant_objects(object, target_context, descendants)
+    end
+  end
+
+  defp descendant_snapshot(objects) do
+    objects
+    |> Enum.map(&{&1.data["id"], &1.data["context"]})
+    |> Enum.sort()
+  end
+
+  defp source_contexts(objects, target_context) do
+    objects
+    |> Enum.map(& &1.data["context"])
+    |> Enum.uniq()
+    |> List.delete(target_context)
+  end
+
+  defp do_rethread_contexts(activity, object, descendants, target_context, meta) do
+    objects =
+      if object.data["context"] == target_context, do: descendants, else: [object | descendants]
+
+    objects =
+      Enum.reject(objects, fn object ->
+        object.data["context"] == target_context or
+          object.data["type"] not in Pleroma.Constants.status_object_types()
+      end)
+
+    object_ap_ids = Enum.map(objects, & &1.data["id"])
+
+    if object_ap_ids == [] do
+      {activity, object, meta}
+    else
+      objects_query =
+        Object
+        |> where([stored_object], fragment("?->>'id'", stored_object.data) in ^object_ap_ids)
+
+      activities_query =
+        Activity
+        |> where([stored_activity], fragment("?->>'type' = 'Create'", stored_activity.data))
+        |> where(
+          [stored_activity],
+          fragment("associated_object_id(?)", stored_activity.data) in ^object_ap_ids
+        )
+
+      activities = Repo.all(activities_query)
+      update_context(objects_query, target_context)
+      update_context(activities_query, target_context)
+
+      repaired_current? = object.data["id"] in object_ap_ids
+
+      activity =
+        if repaired_current?, do: update_struct_context(activity, target_context), else: activity
+
+      object =
+        if repaired_current?, do: update_struct_context(object, target_context), else: object
+
+      meta =
+        meta
+        |> Keyword.update(:rethreaded_objects, objects, &(objects ++ &1))
+        |> Keyword.update(:rethreaded_activities, activities, &(activities ++ &1))
+
+      if repaired_current? do
+        preload_object(activity, object, meta)
+      else
+        {activity, object, meta}
+      end
+    end
+  end
+
+  defp descendant_objects(parent_ids, seen_ids \\ MapSet.new())
+
+  defp descendant_objects([], _seen_ids), do: []
+
+  defp descendant_objects(parent_ids, seen_ids) do
+    seen_ids = Enum.reduce(parent_ids, seen_ids, &MapSet.put(&2, &1))
+
+    children =
+      Object
+      |> where([object], fragment("?->>'inReplyTo'", object.data) in ^parent_ids)
+      |> Repo.all()
+      |> Enum.reject(&MapSet.member?(seen_ids, &1.data["id"]))
+
+    child_ids = Enum.map(children, & &1.data["id"])
+    seen_ids = Enum.reduce(child_ids, seen_ids, &MapSet.put(&2, &1))
+
+    children ++ descendant_objects(child_ids, seen_ids)
+  end
+
+  defp muted_contexts?([]), do: false
+
+  defp muted_contexts?(contexts) do
+    ThreadMute
+    |> where([mute], mute.context in ^contexts)
+    |> Repo.exists?()
+  end
+
+  defp update_struct_context(struct, target_context) do
+    put_in(struct.data["context"], target_context)
+  end
+
+  defp preload_object(activity, object, meta), do: {%{activity | object: object}, object, meta}
+
+  defp update_context(queryable, context) do
+    queryable
+    |> update([entry],
+      set: [data: fragment("jsonb_set(?, '{context}', ?)", entry.data, ^context)]
+    )
+    |> Repo.update_all([])
+  end
+
   defp handle_update_user(
          %{data: %{"type" => "Update", "object" => updated_object}} = object,
          meta
@@ -629,7 +931,25 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   @impl true
   def handle_after_transaction(meta) do
     meta
+    |> invalidate_rethreaded_objects()
     |> stream_notifications()
     |> send_streamables()
+  end
+
+  defp invalidate_rethreaded_objects(meta) do
+    meta
+    |> Keyword.get(:rethreaded_objects, [])
+    |> Enum.each(fn object ->
+      Object.invalid_object_cache(object)
+      @cachex.del(:web_resp_cache, URI.parse(object.data["id"]).path)
+    end)
+
+    meta
+    |> Keyword.get(:rethreaded_activities, [])
+    |> Enum.each(fn activity ->
+      @cachex.del(:web_resp_cache, URI.parse(activity.data["id"]).path)
+    end)
+
+    meta
   end
 end

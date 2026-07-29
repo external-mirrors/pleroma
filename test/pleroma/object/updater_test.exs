@@ -9,6 +9,7 @@ defmodule Pleroma.Object.UpdaterTest do
   import Pleroma.Factory
 
   alias Pleroma.Object.Updater
+  alias Pleroma.Repo
 
   describe "make_update_object_data/3" do
     setup do
@@ -72,5 +73,23 @@ defmodule Pleroma.Object.UpdaterTest do
       assert used_history_in_new_object?
       assert updated_data["formerRepresentations"] == update_object_data["formerRepresentations"]
     end
+  end
+
+  test "touches updated_at when object data is unchanged" do
+    object = insert(:note)
+    old_updated_at = ~N[2020-01-01 00:00:00]
+
+    object =
+      object
+      |> Ecto.Changeset.change(updated_at: old_updated_at)
+      |> Repo.update!()
+
+    {:ok, _current_object} = Pleroma.Object.update_data(object, %{"reaction_count" => 1})
+
+    assert {:ok, updated_object, false} =
+             Updater.do_update_and_invalidate_cache(object, object.data, true)
+
+    assert NaiveDateTime.after?(updated_object.updated_at, old_updated_at)
+    assert updated_object.data["reaction_count"] == 1
   end
 end

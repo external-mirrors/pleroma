@@ -99,6 +99,10 @@ defmodule Pleroma.Object do
   def get_by_id(nil), do: nil
   def get_by_id(id), do: Repo.get(Object, id)
 
+  def get_by_id_for_update(id) do
+    Repo.one(from(object in Object, where: object.id == ^id, lock: "FOR UPDATE"))
+  end
+
   def get_by_ap_id(nil), do: nil
 
   def get_by_ap_id(ap_id) do
@@ -245,7 +249,7 @@ defmodule Pleroma.Object do
   end
 
   def invalid_object_cache(%Object{data: %{"id" => id}}) do
-    with {:ok, true} <- @cachex.del(:object_cache, "object:#{id}") do
+    with {:ok, _} <- @cachex.del(:object_cache, "object:#{id}") do
       @cachex.del(:web_resp_cache, URI.parse(id).path)
     end
   end
@@ -256,9 +260,63 @@ defmodule Pleroma.Object do
   end
 
   def update_and_set_cache(changeset) do
-    with {:ok, object} <- Repo.update(changeset) do
-      set_cache(object)
+    if Repo.in_transaction?() do
+      with {:ok, object} <- update_preserving_context(changeset),
+           {:ok, _} <- invalid_object_cache(object) do
+        set_cache(object)
+      end
+    else
+      result =
+        case Repo.transaction(fn ->
+               case update_preserving_context(changeset) do
+                 {:ok, object} -> object
+                 {:error, error} -> Repo.rollback(error)
+               end
+             end) do
+          {:ok, object} -> {:ok, object}
+          {:error, error} -> {:error, error}
+        end
+
+      with {:ok, object} <- result,
+           {:ok, _} <- invalid_object_cache(object) do
+        {:ok, object}
+      end
     end
+  end
+
+  defp update_preserving_context(changeset) do
+    requested_data = fetch_change(changeset, :data)
+    requested_updated_at = fetch_change(changeset, :updated_at)
+    current_object = get_by_id_for_update(changeset.data.id)
+
+    changeset =
+      current_object
+      |> Repo.preload(:hashtags)
+      |> Object.change()
+
+    changeset =
+      case requested_data do
+        {:ok, data} ->
+          data =
+            if Map.has_key?(current_object.data, "context") do
+              Map.put(data, "context", current_object.data["context"])
+            else
+              data
+            end
+
+          Object.change(changeset.data, %{data: data})
+
+        :error ->
+          changeset
+      end
+
+    changeset =
+      case requested_updated_at do
+        {:ok, updated_at} -> put_change(changeset, :updated_at, updated_at)
+        :error -> changeset
+      end
+
+    Repo.update(changeset)
   end
 
   def increase_replies_count(ap_id) do
@@ -407,7 +465,7 @@ defmodule Pleroma.Object do
   def update_data(%Object{data: data} = object, attrs \\ %{}) do
     object
     |> Object.change(%{data: Map.merge(data || %{}, attrs)})
-    |> Repo.update()
+    |> update_and_set_cache()
   end
 
   def local?(%Object{data: %{"id" => id}}) do

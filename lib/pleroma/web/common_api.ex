@@ -8,6 +8,7 @@ defmodule Pleroma.Web.CommonAPI do
   alias Pleroma.Formatter
   alias Pleroma.ModerationLog
   alias Pleroma.Object
+  alias Pleroma.Repo
   alias Pleroma.Rule
   alias Pleroma.ThreadMute
   alias Pleroma.User
@@ -15,6 +16,7 @@ defmodule Pleroma.Web.CommonAPI do
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.Pipeline
+  alias Pleroma.Web.ActivityPub.SideEffects
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI.ActivityDraft
@@ -585,8 +587,7 @@ defmodule Pleroma.Web.CommonAPI do
     expires_in = Map.get(params, :expires_in, 0)
 
     with true <- activity_visible_to_actor(activity, user),
-         {:ok, _} <- ThreadMute.add_mute(user.id, activity.data["context"]),
-         _ <- Pleroma.Notification.mark_context_as_read(user, activity.data["context"]) do
+         {:ok, activity} <- add_mute_with_context_lock(activity, user) do
       if expires_in > 0 do
         Pleroma.Workers.MuteExpireWorker.new(
           %{"op" => "unmute_conversation", "user_id" => user.id, "activity_id" => activity.id},
@@ -606,8 +607,13 @@ defmodule Pleroma.Web.CommonAPI do
   def remove_mute(%Activity{} = activity, %User{} = user) do
     case activity_visible_to_actor(activity, user) do
       true ->
-        ThreadMute.remove_mute(user.id, activity.data["context"])
-        {:ok, activity}
+        with {:ok, activity} <-
+               with_context_lock(activity, fn activity ->
+                 ThreadMute.remove_mute(user.id, activity.data["context"])
+                 activity
+               end) do
+          SideEffects.reconcile_thread(activity)
+        end
 
       error ->
         error
@@ -626,6 +632,38 @@ defmodule Pleroma.Web.CommonAPI do
         )
 
         {:error, error}
+    end
+  end
+
+  defp add_mute_with_context_lock(activity, user) do
+    with_context_lock(activity, fn activity ->
+      case ThreadMute.add_mute(user.id, activity.data["context"]) do
+        {:ok, _mute} ->
+          Pleroma.Notification.mark_context_as_read(user, activity.data["context"])
+          activity
+
+        {:error, error} ->
+          Repo.rollback(error)
+      end
+    end)
+  end
+
+  defp with_context_lock(activity, fun) do
+    Repo.transaction(fn ->
+      activity = lock_stable_activity_context(activity)
+      fun.(activity)
+    end)
+  end
+
+  defp lock_stable_activity_context(activity) do
+    context = activity.data["context"]
+    ThreadMute.lock_context(context)
+    activity = Activity.get_by_id(activity.id)
+
+    if activity.data["context"] == context do
+      activity
+    else
+      lock_stable_activity_context(activity)
     end
   end
 
