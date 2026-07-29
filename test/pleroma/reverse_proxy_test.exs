@@ -838,9 +838,65 @@ defmodule Pleroma.ReverseProxyTest do
 
       conn = ReverseProxy.call(conn, "/disposition")
 
-      [disposition] = Conn.get_resp_header(conn, "content-disposition")
-      assert String.starts_with?(disposition, "inline")
-      refute String.starts_with?(disposition, "attachment")
+      assert Conn.get_resp_header(conn, "content-disposition") == [
+               "inline; filename=\"filename.png\""
+             ]
+    end
+
+    test "preserves an upstream inline filename", %{conn: conn} do
+      disposition_headers_mock([
+        {"content-type", "image/jpeg"},
+        {"content-disposition", "inline; filename=\"this-is-where-i-post-from.jpg\""},
+        {"content-length", "0"}
+      ])
+
+      conn = ReverseProxy.call(conn, "/disposition")
+
+      assert Conn.get_resp_header(conn, "content-disposition") == [
+               "inline; filename=\"this-is-where-i-post-from.jpg\""
+             ]
+    end
+
+    test "parses upstream filename parameters case-insensitively", %{conn: conn} do
+      disposition_headers_mock([
+        {"content-type", "image/jpeg"},
+        {"content-disposition", "inline; xfilename=\"wrong.jpg\"; Filename = \"right.jpg\""},
+        {"content-length", "0"}
+      ])
+
+      conn = ReverseProxy.call(conn, "/disposition")
+
+      assert Conn.get_resp_header(conn, "content-disposition") == [
+               "inline; filename=\"right.jpg\""
+             ]
+    end
+
+    test "falls back for a malformed upstream disposition", %{conn: conn} do
+      disposition_headers_mock([
+        {"content-type", "image/jpeg"},
+        {"content-disposition", "inline; filename=\"unterminated.jpg"},
+        {"content-length", "0"}
+      ])
+
+      conn = ReverseProxy.call(conn, "/disposition")
+
+      assert Conn.get_resp_header(conn, "content-disposition") == [
+               "inline; filename=\"inline.jpg\""
+             ]
+    end
+
+    test "falls back for a non-UTF-8 upstream disposition", %{conn: conn} do
+      disposition_headers_mock([
+        {"content-type", "image/jpeg"},
+        {"content-disposition", "inline; filename=\"invalid-\xFF.jpg\""},
+        {"content-length", "0"}
+      ])
+
+      conn = ReverseProxy.call(conn, "/disposition")
+
+      assert Conn.get_resp_header(conn, "content-disposition") == [
+               "inline; filename=\"inline.jpg\""
+             ]
     end
 
     test "with content-disposition header", %{conn: conn} do

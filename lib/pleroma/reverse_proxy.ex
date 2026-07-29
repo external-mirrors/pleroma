@@ -72,7 +72,7 @@ defmodule Pleroma.ReverseProxy do
     * `false` will add `content-disposition: attachment` to any request,
     * a list of whitelisted content types for which `content-disposition: inline`
     is always set (overriding any upstream header) so the media can be embedded
-    in pages; the filename is derived from the content type
+    in pages; the upstream filename is preserved, or derived from the content type
 
   * `sniff_content_type` (default `false`): detects an image MIME type from the first
   response chunk when the upstream type is missing or `application/octet-stream`.
@@ -548,21 +548,7 @@ defmodule Pleroma.ReverseProxy do
 
     if attachment? do
       name =
-        try do
-          {{"content-disposition", content_disposition_string}, _} =
-            List.keytake(headers, "content-disposition", 0)
-
-          [name | _] =
-            Regex.run(
-              ~r/filename="((?:[^"\\]|\\.)*)"/u,
-              content_disposition_string || "",
-              capture: :all_but_first
-            )
-
-          name
-        rescue
-          MatchError -> Keyword.get(opts, :attachment_name, "attachment")
-        end
+        content_disposition_filename(headers, Keyword.get(opts, :attachment_name, "attachment"))
 
       disposition = "attachment; filename=\"#{name}\""
 
@@ -571,7 +557,7 @@ defmodule Pleroma.ReverseProxy do
       if opt == true do
         headers
       else
-        name = inline_filename(content_type)
+        name = content_disposition_filename(headers, inline_filename(content_type))
 
         disposition =
           if name do
@@ -582,6 +568,21 @@ defmodule Pleroma.ReverseProxy do
 
         replace_header(headers, "content-disposition", disposition)
       end
+    end
+  end
+
+  defp content_disposition_filename(headers, fallback) do
+    with {_, content_disposition} <- List.keyfind(headers, "content-disposition", 0),
+         true <- is_binary(content_disposition) and String.valid?(content_disposition),
+         [name] <-
+           Regex.run(
+             ~r/(?:^|;)[\t ]*filename[\t ]*=[\t ]*"((?:[^"\\]|\\.)*)"/i,
+             content_disposition,
+             capture: :all_but_first
+           ) do
+      name
+    else
+      _ -> fallback
     end
   end
 
