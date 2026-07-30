@@ -1555,6 +1555,12 @@ config :pleroma, :config_description, [
         description: "Enables proxying of remote media via the instance's proxy"
       },
       %{
+        key: :ingestion_content_type_sniffing,
+        type: :boolean,
+        description:
+          "Detects image types for generic remote Document attachments during ingestion. Disabled by default because it makes outbound requests to attachment URLs. Destinations in IANA special-purpose ranges are conservatively rejected. DNS checks are best-effort: addresses are not pinned and configured proxies may resolve hosts independently, so strict SSRF prevention requires network-level egress controls."
+      },
+      %{
         key: :base_url,
         label: "Base URL",
         type: :string,

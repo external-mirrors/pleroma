@@ -19,4 +19,8 @@ defmodule Pleroma.ReverseProxy.Client.TeslaTest do
 
     assert :ok = Tesla.close(%{pid: conn, stream: stream})
   end
+
+  test "releases a finished stream without cancelling it" do
+    assert :ok = Tesla.close(%{pid: self(), stream: make_ref(), fin: true})
+  end
 end

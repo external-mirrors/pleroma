@@ -469,6 +469,7 @@ config :pleroma, :rich_media,
 
 config :pleroma, :media_proxy,
   enabled: false,
+  ingestion_content_type_sniffing: false,
   invalidation: [
     enabled: false,
     provider: Pleroma.Web.MediaProxy.Invalidation.Script

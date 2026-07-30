@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.ReverseProxy do
+  alias Pleroma.MediaType
   alias Pleroma.Utils.URIEncoding
 
   @range_headers ~w(range if-range)
@@ -17,7 +18,6 @@ defmodule Pleroma.ReverseProxy do
   @max_read_duration :timer.seconds(30)
   @max_body_length :infinity
   @failed_request_ttl :timer.seconds(60)
-  @sniff_bytes 8 * 1024
   @methods ~w(GET HEAD)
 
   @allowed_mime_types Pleroma.Config.get([Pleroma.Upload, :allowed_mime_types], [])
@@ -355,23 +355,19 @@ defmodule Pleroma.ReverseProxy do
   defp generic_content_type?(headers) do
     headers
     |> get_content_type()
-    |> String.trim()
-    |> String.downcase()
-    |> then(&(&1 in ["", "application/octet-stream"]))
+    |> MediaType.generic?()
   end
 
   defp maybe_put_image_content_type(headers, data) do
-    with false <- data == "",
-         {:ok, %{mime_type: "image/" <> _ = content_type}} <-
-           Majic.perform({:bytes, binary_part(data, 0, min(byte_size(data), @sniff_bytes))},
-             pool: Pleroma.MajicPool
-           ) do
-      [
-        {"content-type", content_type}
-        | Enum.reject(headers, fn {key, _} -> key == "content-type" end)
-      ]
-    else
-      _ -> headers
+    case MediaType.sniff_image(data) do
+      {:ok, content_type} ->
+        [
+          {"content-type", content_type}
+          | Enum.reject(headers, fn {key, _} -> key == "content-type" end)
+        ]
+
+      _ ->
+        headers
     end
   rescue
     error ->

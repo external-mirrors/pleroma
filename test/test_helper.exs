@@ -15,6 +15,7 @@ end
 Ecto.Adapters.SQL.Sandbox.mode(Pleroma.Repo, :manual)
 
 Mox.defmock(Pleroma.ReverseProxy.ClientMock, for: Pleroma.ReverseProxy.Client)
+Mox.defmock(Pleroma.HTTP.SafeStreamMock, for: Pleroma.HTTP.SafeStream)
 Mox.defmock(Pleroma.GunMock, for: Pleroma.Gun)
 
 {:ok, _} = Application.ensure_all_started(:ex_machina)

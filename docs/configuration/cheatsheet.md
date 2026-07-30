@@ -375,6 +375,7 @@ This section describe PWA manifest instance-specific values. Currently this opti
 ## :media_proxy
 
 * `enabled`: Enables proxying of remote media to the instance’s proxy
+* `ingestion_content_type_sniffing`: Detect image types for generic remote `Document` attachments during ingestion. Disabled by default. When enabled, Pleroma makes size- and time-limited outbound requests to attachment URLs and conservatively rejects destinations in IANA special-purpose ranges. DNS checks are best-effort: the HTTP connection is not pinned to the validated address, and configured proxies may resolve hosts independently. Deployments requiring strict SSRF prevention must also enforce outbound restrictions at the host or proxy network layer.
 * `base_url`: The base URL to access a user-uploaded file. Useful when you want to proxy the media files via another host/CDN fronts.
 * `proxy_opts`: All options defined in `Pleroma.ReverseProxy` documentation, defaults to `[max_body_length: (25*1_048_576)]`.
 * `whitelist`: List of hosts with scheme to bypass the mediaproxy (e.g. `https://example.com`)

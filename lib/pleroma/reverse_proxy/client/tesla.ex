@@ -78,6 +78,10 @@ defmodule Pleroma.ReverseProxy.Client.Tesla do
 
   @impl true
   @spec close(map) :: :ok | no_return()
+  def close(%{pid: pid, stream: stream, fin: true}) do
+    ConnectionPool.release_stream(pid, stream)
+  end
+
   def close(%{pid: pid, stream: stream}) do
     ConnectionPool.cancel_stream(pid, stream)
   end

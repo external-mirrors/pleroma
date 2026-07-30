@@ -16,6 +16,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   alias Pleroma.Repo
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
+  alias Pleroma.Web.ActivityPub.AttachmentClassifier
   alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.ObjectValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes
@@ -553,6 +554,18 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   defp normalize_tag_type(tag) when is_map(tag), do: TagValidator.normalize(tag)
   defp normalize_tag_type(tag), do: tag
 
+  defp classify_attachments(data) do
+    if AttachmentClassifier.enabled?() do
+      update_in(data["object"], fn object ->
+        object
+        |> fix_attachments()
+        |> AttachmentClassifier.fix()
+      end)
+    else
+      data
+    end
+  end
+
   # Flag objects are placed ahead of the ID check because Mastodon 2.8 and earlier send them
   # with nil ID.
   defp handle_incoming_normalized(
@@ -678,6 +691,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
 
     with {:ok, %User{}} <- ObjectValidator.fetch_actor(data),
          nil <- Activity.get_create_by_object_ap_id(obj_id),
+         data = classify_attachments(data),
          {:ok, activity, _} <- Pipeline.common_pipeline(data, options) do
       {:ok, activity}
     else

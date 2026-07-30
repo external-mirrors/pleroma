@@ -109,6 +109,9 @@ config :joken, default_signer: "yU8uHKq+yyAkZ11Hx//jcdacWc8yQ1bxAAGrplzB0Zwwjkp3
 
 config :pleroma, Pleroma.ReverseProxy.Client, Pleroma.ReverseProxy.ClientMock
 
+config :pleroma, Pleroma.Web.ActivityPub.AttachmentClassifier,
+  safe_stream: Pleroma.HTTP.SafeStreamMock
+
 config :pleroma, :modules, runtime_dir: "test/fixtures/modules"
 
 config :pleroma, Pleroma.Gun, Pleroma.GunMock

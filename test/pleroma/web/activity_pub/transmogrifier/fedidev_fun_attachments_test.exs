@@ -6,11 +6,17 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.FedidevFunAttachmentsTest do
   use Oban.Testing, repo: Pleroma.Repo
   use Pleroma.DataCase
 
+  alias Pleroma.HTTP.SafeStreamMock
   alias Pleroma.Object
+  alias Pleroma.Repo
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.Transmogrifier
+  alias Pleroma.Web.MastodonAPI.StatusView
 
+  import Mox
   import Pleroma.Factory
+
+  setup :verify_on_exit!
 
   setup_all do
     Tesla.Mock.mock_global(fn env -> apply(HttpRequestMock, :request, [env]) end)
@@ -52,6 +58,16 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.FedidevFunAttachmentsTest do
     |> ingest_data!()
   end
 
+  defp generic_document_data(url) do
+    data = File.read!("test/fixtures/fedidev.fun/attachment_url_list.json") |> Jason.decode!()
+
+    data
+    |> put_in(["object", "attachment", "type"], "Document")
+    |> put_in(["object", "attachment", "url"], [
+      %{"type" => "Link", "href" => url, "mediaType" => "application/octet-stream"}
+    ])
+  end
+
   test "drops non-http(s) attachment href" do
     {_activity, object} = ingest_fixture!("test/fixtures/fedidev.fun/attachment_payto_link.json")
     assert object.data["attachment"] == []
@@ -71,6 +87,42 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.FedidevFunAttachmentsTest do
     [%{"href" => href} | _] = attachment["url"]
 
     assert href == "https://fedidev.fun/images/007.png"
+  end
+
+  test "keeps ingestion content-type sniffing disabled by default" do
+    {_activity, object} =
+      "https://fedidev.fun/images/extensionless"
+      |> generic_document_data()
+      |> ingest_data!()
+
+    [attachment] = object.data["attachment"]
+
+    assert [%{"mediaType" => "application/octet-stream"}] = attachment["url"]
+    assert %{type: "unknown"} = StatusView.render("attachment.json", %{attachment: attachment})
+  end
+
+  test "detects extensionless Document images when explicitly enabled" do
+    clear_config([:media_proxy, :ingestion_content_type_sniffing], true)
+
+    url = "https://fedidev.fun/images/extensionless"
+    body = File.read!("test/fixtures/image.jpg")
+
+    expect(SafeStreamMock, :fetch_prefix, fn ^url, 8_192, opts ->
+      refute Repo.in_transaction?()
+      assert {"range", "bytes=0-8191"} in opts[:headers]
+      assert {"accept-encoding", "identity"} in opts[:headers]
+      assert opts[:pool] == :media
+      assert opts[:timeout] == 5_000
+      {:ok, binary_part(body, 0, 8_192)}
+    end)
+
+    data = generic_document_data(url)
+    {_activity, object} = ingest_data!(data)
+    [attachment] = object.data["attachment"]
+
+    assert [%{"mediaType" => "image/jpeg"}] = attachment["url"]
+    assert %{type: "image"} = StatusView.render("attachment.json", %{attachment: attachment})
+    assert {:ok, _activity} = Transmogrifier.handle_incoming(data)
   end
 
   test "drops malformed attachment list entries" do
