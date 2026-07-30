@@ -39,6 +39,7 @@ defmodule Pleroma.User do
   alias Pleroma.Web.Endpoint
   alias Pleroma.Web.OAuth
   alias Pleroma.Web.RelMe
+  alias Pleroma.Web.WebFinger
   alias Pleroma.Webhook.Notify
   alias Pleroma.Workers.BackgroundWorker
   alias Pleroma.Workers.DeleteWorker
@@ -2348,9 +2349,56 @@ defmodule Pleroma.User do
 
   @doc "Gets or fetch a user by uri or nickname."
   @spec get_or_fetch(String.t()) :: {:ok, User.t()} | {:error, String.t()}
-  def get_or_fetch("http://" <> _host = uri), do: get_or_fetch_by_ap_id(uri)
-  def get_or_fetch("https://" <> _host = uri), do: get_or_fetch_by_ap_id(uri)
+  def get_or_fetch("http://" <> _host = uri), do: get_or_fetch_by_uri(uri)
+  def get_or_fetch("https://" <> _host = uri), do: get_or_fetch_by_uri(uri)
   def get_or_fetch(nickname), do: get_or_fetch_by_nickname(nickname)
+
+  defp get_or_fetch_by_uri(uri) do
+    with {:ok, account} <- account_from_profile_url(uri),
+         {:ok,
+          %{
+            "ap_id" => ap_id,
+            "profile_url" => profile_url,
+            "subject" => "acct:" <> acct
+          }} <- WebFinger.finger(account),
+         true <- same_profile_url?(uri, profile_url) do
+      ActivityPub.make_user_from_ap_id(ap_id, nickname_from_acct: acct)
+    else
+      _ -> get_or_fetch_by_ap_id(uri)
+    end
+  end
+
+  defp account_from_profile_url(uri) do
+    case URI.parse(uri) do
+      %URI{authority: authority, host: host, path: path, userinfo: nil}
+      when is_binary(authority) and is_binary(host) ->
+        case String.split(path || "", "/", trim: true) do
+          ["@" <> nickname] when nickname != "" -> {:ok, "#{nickname}@#{authority}"}
+          _ -> :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp same_profile_url?(left, right) when is_binary(right) do
+    normalize_profile_url(left) == normalize_profile_url(right)
+  end
+
+  defp same_profile_url?(_, _), do: false
+
+  defp normalize_profile_url(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} = uri
+      when scheme in ["http", "https"] and is_binary(host) ->
+        path = String.trim_trailing(uri.path || "", "/")
+        URI.to_string(%{uri | host: String.downcase(host), path: path, query: nil, fragment: nil})
+
+      _ ->
+        nil
+    end
+  end
 
   # wait a period of time and return newest version of the User structs
   # this is because we have synchronous follow APIs and need to simulate them

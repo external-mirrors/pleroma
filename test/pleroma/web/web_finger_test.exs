@@ -105,6 +105,7 @@ defmodule Pleroma.Web.WebFingerTest do
       assert data["topic"] == nil
       assert data["subject"] == "acct:kPherox@mstdn.jp"
       assert data["ap_id"] == "https://mstdn.jp/users/kPherox"
+      assert data["profile_url"] == "https://mstdn.jp/@kPherox"
       assert data["subscribe_address"] == "https://mstdn.jp/authorize_interaction?acct={uri}"
     end
 
@@ -158,7 +159,9 @@ defmodule Pleroma.Web.WebFingerTest do
            }}
       end)
 
-      {:ok, _data} = WebFinger.finger("emelie@mastodon.social")
+      {:ok, data} = WebFinger.finger("emelie@mastodon.social")
+
+      assert data["profile_url"] == "https://mastodon.social/@emelie"
     end
 
     test "respects xml content-type" do

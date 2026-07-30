@@ -262,6 +262,164 @@ defmodule Pleroma.UserSearchTest do
       assert user == expected
     end
 
+    test "resolves profile URLs through a verified WebFinger profile-page link" do
+      user = insert(:user)
+      profile_url = "https://www.threads.example/@alice"
+      actor_id = "https://www.threads.example/ap/users/alice/"
+
+      Tesla.Mock.mock(fn
+        %{url: url}
+        when url in [
+               "https://www.threads.example/.well-known/host-meta",
+               "https://threads.example/.well-known/host-meta"
+             ] ->
+          {:ok, %Tesla.Env{status: 404}}
+
+        %{url: url}
+        when url in [
+               "https://www.threads.example/.well-known/webfinger?resource=acct:alice@www.threads.example",
+               "https://threads.example/.well-known/webfinger?resource=acct:alice@threads.example"
+             ] ->
+          Tesla.Mock.json(%{
+            "subject" => "acct:alice@threads.example",
+            "links" => [
+              %{"rel" => "self", "type" => "application/activity+json", "href" => actor_id},
+              %{
+                "rel" => "http://webfinger.net/rel/profile-page",
+                "type" => "text/html",
+                "href" => profile_url
+              }
+            ]
+          })
+
+        %{url: ^actor_id} ->
+          {:ok,
+           %Tesla.Env{
+             status: 200,
+             headers: [{"content-type", "application/activity+json"}],
+             body:
+               Jason.encode!(%{
+                 "id" => actor_id,
+                 "type" => "Person",
+                 "preferredUsername" => "alice",
+                 "name" => "Alice",
+                 "summary" => "",
+                 "url" => profile_url,
+                 "inbox" => actor_id <> "inbox",
+                 "outbox" => actor_id <> "outbox",
+                 "followers" => actor_id <> "followers",
+                 "following" => actor_id <> "following"
+               })
+           }}
+      end)
+
+      assert [%{nickname: "alice@threads.example", ap_id: ^actor_id}] =
+               User.search(profile_url, resolve: true, for_user: user)
+    end
+
+    test "does not resolve profile URLs through an unverified WebFinger profile-page link" do
+      user = insert(:user)
+      profile_url = "https://social.example/@alice"
+      actor_id = "https://social.example/users/alice"
+
+      Tesla.Mock.mock(fn
+        %{url: "https://social.example/.well-known/host-meta"} ->
+          {:ok, %Tesla.Env{status: 404}}
+
+        %{
+          url: "https://social.example/.well-known/webfinger?resource=acct:alice@social.example"
+        } ->
+          Tesla.Mock.json(%{
+            "subject" => "acct:alice@social.example",
+            "links" => [
+              %{"rel" => "self", "type" => "application/activity+json", "href" => actor_id},
+              %{
+                "rel" => "http://webfinger.net/rel/profile-page",
+                "type" => "text/html",
+                "href" => "https://social.example/@mallory"
+              }
+            ]
+          })
+
+        %{url: ^profile_url} ->
+          {:ok, %Tesla.Env{status: 404}}
+
+        %{url: ^actor_id} ->
+          send(self(), :fetched_unverified_actor)
+          {:ok, %Tesla.Env{status: 404}}
+      end)
+
+      assert [] = User.search(profile_url, resolve: true, for_user: user)
+      refute_received :fetched_unverified_actor
+    end
+
+    test "verifies the WebFinger account when its advertised actor is cached" do
+      profile_url = "https://evil.test/@mallory"
+      actor_id = "https://legit.invalid/users/alice"
+
+      cached_actor =
+        insert(:user,
+          local: false,
+          nickname: "alice@legit.invalid",
+          ap_id: actor_id
+        )
+
+      Tesla.Mock.mock(fn
+        %{url: url}
+        when url in [
+               "https://evil.test/.well-known/host-meta",
+               "https://legit.invalid/.well-known/host-meta"
+             ] ->
+          {:ok, %Tesla.Env{status: 404}}
+
+        %{url: "https://evil.test/.well-known/webfinger?resource=acct:mallory@evil.test"} ->
+          Tesla.Mock.json(%{
+            "subject" => "acct:mallory@evil.test",
+            "links" => [
+              %{"rel" => "self", "type" => "application/activity+json", "href" => actor_id},
+              %{
+                "rel" => "http://webfinger.net/rel/profile-page",
+                "type" => "text/html",
+                "href" => profile_url
+              }
+            ]
+          })
+
+        %{url: "https://legit.invalid/.well-known/webfinger?resource=acct:alice@legit.invalid"} ->
+          Tesla.Mock.json(%{
+            "subject" => "acct:alice@legit.invalid",
+            "links" => [
+              %{"rel" => "self", "type" => "application/activity+json", "href" => actor_id}
+            ]
+          })
+
+        %{url: ^actor_id} ->
+          {:ok,
+           %Tesla.Env{
+             status: 200,
+             headers: [{"content-type", "application/activity+json"}],
+             body:
+               Jason.encode!(%{
+                 "id" => actor_id,
+                 "type" => "Person",
+                 "preferredUsername" => "alice",
+                 "name" => "Alice",
+                 "summary" => "",
+                 "inbox" => actor_id <> "/inbox",
+                 "outbox" => actor_id <> "/outbox",
+                 "followers" => actor_id <> "/followers",
+                 "following" => actor_id <> "/following"
+               })
+           }}
+
+        %{url: ^profile_url} ->
+          {:ok, %Tesla.Env{status: 404}}
+      end)
+
+      assert {:error, _} = User.get_or_fetch(profile_url)
+      assert User.get_by_id(cached_actor.id).nickname == "alice@legit.invalid"
+    end
+
     test "excludes a blocked users from search result" do
       user = insert(:user, %{nickname: "Bill"})
 

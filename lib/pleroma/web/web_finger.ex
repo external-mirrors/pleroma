@@ -112,10 +112,15 @@ defmodule Pleroma.Web.WebFinger do
         ~s{//Link[@rel="self" and @type="application/activity+json"]/@href}
         |> XML.string_from_xpath(doc)
 
+      profile_url =
+        ~s{//Link[@rel="http://webfinger.net/rel/profile-page"]/@href}
+        |> XML.string_from_xpath(doc)
+
       data = %{
         "subject" => subject,
         "subscribe_address" => subscribe_address,
-        "ap_id" => ap_id
+        "ap_id" => ap_id,
+        "profile_url" => profile_url
       }
 
       {:ok, data}
@@ -135,6 +140,9 @@ defmodule Pleroma.Web.WebFinger do
 
             {nil, "http://ostatus.org/schema/1.0/subscribe"} ->
               Map.put(data, "subscribe_address", link["template"])
+
+            {_, "http://webfinger.net/rel/profile-page"} ->
+              Map.put(data, "profile_url", link["href"])
 
             _ ->
               Logger.debug("Unhandled type: #{inspect(link["type"])}")
