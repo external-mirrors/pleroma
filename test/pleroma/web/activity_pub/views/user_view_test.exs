@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.UserViewTest do
-  use Pleroma.DataCase, async: true
+  use Pleroma.DataCase, async: false
   import Pleroma.Factory
 
   alias Pleroma.User
@@ -219,6 +219,14 @@ defmodule Pleroma.Web.ActivityPub.UserViewTest do
                UserView.render("user.json", user: nil_user)["capabilities"],
                "acceptsChatMessages"
              )
+    end
+
+    test "it returns false if chat is disabled" do
+      clear_config([Pleroma.Chat, :enabled], false)
+      user = insert(:user, accepts_chat_messages: true)
+
+      assert %{"capabilities" => %{"acceptsChatMessages" => false}} =
+               UserView.render("user.json", user: user)
     end
   end
 end

@@ -8,6 +8,7 @@ defmodule Pleroma.Web.OAuth.App do
   import Ecto.Query
   alias Pleroma.Repo
   alias Pleroma.User
+  alias Pleroma.Web.OAuth.Authorization
   alias Pleroma.Web.OAuth.Token
 
   @type t :: %__MODULE__{}
@@ -31,7 +32,30 @@ defmodule Pleroma.Web.OAuth.App do
 
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(struct, params) do
+    params = normalize_redirect_uris_param(params)
+
     cast(struct, params, [:client_name, :redirect_uris, :scopes, :website, :trusted, :user_id])
+  end
+
+  defp normalize_redirect_uris_param(%{} = params) do
+    case params do
+      %{redirect_uris: redirect_uris} when is_list(redirect_uris) ->
+        Map.put(params, :redirect_uris, normalize_redirect_uris(redirect_uris))
+
+      %{"redirect_uris" => redirect_uris} when is_list(redirect_uris) ->
+        Map.put(params, "redirect_uris", normalize_redirect_uris(redirect_uris))
+
+      _ ->
+        params
+    end
+  end
+
+  defp normalize_redirect_uris(redirect_uris) when is_list(redirect_uris) do
+    redirect_uris
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
   end
 
   @spec register_changeset(t(), map()) :: Ecto.Changeset.t()
@@ -168,15 +192,26 @@ defmodule Pleroma.Web.OAuth.App do
 
   @spec remove_orphans(pos_integer()) :: :ok
   def remove_orphans(limit \\ 100) do
-    fifteen_mins_ago = DateTime.add(DateTime.utc_now(), -900, :second)
+    fifteen_mins_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -900)
 
     Repo.transaction(fn ->
+      app_ids =
+        from(a in __MODULE__,
+          where: is_nil(a.user_id) and a.inserted_at < ^fifteen_mins_ago,
+          limit: ^limit,
+          lock: "FOR UPDATE SKIP LOCKED",
+          select: a.id
+        )
+        |> Repo.all()
+
+      # Bulk deletes bypass the schema's association cleanup.
+      from(a in Authorization, where: a.app_id in ^app_ids) |> Repo.delete_all()
+      from(t in Token, where: t.app_id in ^app_ids) |> Repo.delete_all()
+
       from(a in __MODULE__,
-        where: is_nil(a.user_id) and a.inserted_at < ^fifteen_mins_ago,
-        limit: ^limit
+        where: a.id in ^app_ids and is_nil(a.user_id) and a.inserted_at < ^fifteen_mins_ago
       )
-      |> Repo.all()
-      |> Enum.each(&Repo.delete(&1))
+      |> Repo.delete_all()
     end)
 
     :ok

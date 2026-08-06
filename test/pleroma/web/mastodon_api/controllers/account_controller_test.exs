@@ -458,6 +458,170 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       assert [%{"id" => ^image_post_id}] = json_response_and_validate_schema(conn, 200)
     end
 
+    test "media respects activity restrictions when unauthenticated profiles are enabled", %{
+      conn: conn
+    } do
+      clear_config([:instance, :public], false)
+      clear_config([:restrict_unauthenticated, :profiles, :local], false)
+
+      user = insert(:user)
+
+      file = %Plug.Upload{
+        content_type: "image/jpeg",
+        path: Path.absname("test/fixtures/image.jpg"),
+        filename: "an_image.jpg"
+      }
+
+      {:ok, %{id: media_id}} = ActivityPub.upload(file, actor: user.ap_id)
+      {:ok, activity} = CommonAPI.post(user, %{status: "cofe", media_ids: [media_id]})
+      user_id = user.id
+
+      assert %{"id" => ^user_id} =
+               build_conn()
+               |> get("/api/v1/accounts/#{user.id}")
+               |> json_response_and_validate_schema(200)
+
+      assert [] =
+               build_conn()
+               |> get("/api/v1/accounts/#{user.id}/statuses?only_media=true")
+               |> json_response_and_validate_schema(200)
+
+      assert [%{"id" => activity_id}] =
+               conn
+               |> get("/api/v1/accounts/#{user.id}/statuses?only_media=true")
+               |> json_response_and_validate_schema(200)
+
+      assert activity_id == activity.id
+    end
+
+    test "remote activity restrictions apply to created and boosted objects", %{conn: conn} do
+      clear_config([:restrict_unauthenticated, :activities, :local], false)
+      clear_config([:restrict_unauthenticated, :activities, :remote], true)
+
+      local_user = insert(:user)
+      remote_user = insert(:user, local: false, domain: "example.com")
+      local_activity = insert(:note_activity, user: local_user)
+
+      mixed_create =
+        insert(:note_activity, local: true, object_local: false, user: local_user)
+
+      remote_activity =
+        insert(:note_activity, local: false, object_local: false, user: remote_user)
+
+      {:ok, announce} = CommonAPI.repeat(remote_activity.id, local_user)
+
+      status_ids =
+        build_conn()
+        |> get("/api/v1/accounts/#{local_user.id}/statuses")
+        |> json_response_and_validate_schema(200)
+        |> Enum.map(& &1["id"])
+
+      assert local_activity.id in status_ids
+      refute mixed_create.id in status_ids
+      refute announce.id in status_ids
+
+      authenticated_status_ids =
+        conn
+        |> get("/api/v1/accounts/#{local_user.id}/statuses")
+        |> json_response_and_validate_schema(200)
+        |> Enum.map(& &1["id"])
+
+      assert local_activity.id in authenticated_status_ids
+      assert mixed_create.id in authenticated_status_ids
+      assert announce.id in authenticated_status_ids
+    end
+
+    test "local activity restrictions apply to created and boosted objects", %{conn: conn} do
+      clear_config([:restrict_unauthenticated, :activities, :local], true)
+      clear_config([:restrict_unauthenticated, :activities, :remote], false)
+
+      local_user = insert(:user)
+      remote_user = insert(:user, local: false, domain: "example.com")
+      local_activity = insert(:note_activity, user: local_user)
+
+      remote_activity =
+        insert(:note_activity, local: false, object_local: false, user: remote_user)
+
+      mixed_create =
+        insert(:note_activity, local: false, object_local: true, user: remote_user)
+
+      remote_announce =
+        insert(:announce_activity, note_activity: local_activity, user: remote_user)
+        |> Ecto.Changeset.change(%{
+          local: false,
+          recipients: ["https://www.w3.org/ns/activitystreams#Public"]
+        })
+        |> Repo.update!()
+
+      status_ids =
+        build_conn()
+        |> get("/api/v1/accounts/#{remote_user.id}/statuses")
+        |> json_response_and_validate_schema(200)
+        |> Enum.map(& &1["id"])
+
+      assert remote_activity.id in status_ids
+      refute mixed_create.id in status_ids
+      refute remote_announce.id in status_ids
+
+      authenticated_status_ids =
+        conn
+        |> get("/api/v1/accounts/#{remote_user.id}/statuses")
+        |> json_response_and_validate_schema(200)
+        |> Enum.map(& &1["id"])
+
+      assert remote_activity.id in authenticated_status_ids
+      assert mixed_create.id in authenticated_status_ids
+      assert remote_announce.id in authenticated_status_ids
+    end
+
+    test "restricted local accounts reject activities with mismatched remote origins", %{
+      conn: conn
+    } do
+      clear_config([:restrict_unauthenticated, :activities, :local], true)
+      clear_config([:restrict_unauthenticated, :activities, :remote], false)
+
+      local_user = insert(:user)
+
+      mismatched_activity =
+        insert(:note_activity, local: false, object_local: false, user: local_user)
+
+      assert [] =
+               build_conn()
+               |> get("/api/v1/accounts/#{local_user.id}/statuses")
+               |> json_response_and_validate_schema(200)
+
+      assert [%{"id" => activity_id}] =
+               conn
+               |> get("/api/v1/accounts/#{local_user.id}/statuses")
+               |> json_response_and_validate_schema(200)
+
+      assert activity_id == mismatched_activity.id
+    end
+
+    test "restricted remote accounts reject activities with mismatched local origins", %{
+      conn: conn
+    } do
+      clear_config([:restrict_unauthenticated, :activities, :local], false)
+      clear_config([:restrict_unauthenticated, :activities, :remote], true)
+
+      remote_user = insert(:user, local: false, domain: "example.com")
+
+      mismatched_activity =
+        insert(:note_activity, local: true, object_local: true, user: remote_user)
+
+      assert [] =
+               build_conn()
+               |> get("/api/v1/accounts/#{remote_user.id}/statuses")
+               |> json_response_and_validate_schema(200)
+
+      assert [%{"id" => activity_id}] =
+               conn
+               |> get("/api/v1/accounts/#{remote_user.id}/statuses")
+               |> json_response_and_validate_schema(200)
+
+      assert activity_id == mismatched_activity.id
+    end
+
     test "gets a user's statuses without reblogs", %{user: user, conn: conn} do
       {:ok, %{id: post_id}} = CommonAPI.post(user, %{status: "HI!!!"})
       {:ok, _} = CommonAPI.repeat(post_id, user)
@@ -1815,7 +1979,10 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
     test "returns lists to which the account belongs" do
       %{user: user, conn: conn} = oauth_access(["read:lists"])
       other_user = insert(:user)
-      assert {:ok, %Pleroma.List{id: _list_id} = list} = Pleroma.List.create("Test List", user)
+
+      assert {:ok, %Pleroma.List{id: _list_id} = list} =
+               Pleroma.List.create(%{title: "Test List"}, user)
+
       {:ok, %{following: _following}} = Pleroma.List.follow(list, other_user)
 
       assert [%{"id" => _list_id, "title" => "Test List"}] =
@@ -1901,7 +2068,13 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
 
     {:ok, _user_relationships} = User.mute(user, other_user1)
     {:ok, _user_relationships} = User.mute(user, other_user2)
-    {:ok, _user_relationships} = User.mute(user, other_user3)
+    {:ok, _user_relationships} = User.mute(user, other_user3, %{duration: 24 * 60 * 60})
+
+    date =
+      DateTime.utc_now()
+      |> DateTime.add(24 * 60 * 60)
+      |> DateTime.truncate(:second)
+      |> DateTime.to_iso8601()
 
     result =
       conn
@@ -1937,6 +2110,17 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       |> json_response_and_validate_schema(200)
 
     assert [%{"id" => ^id3}] = result
+
+    result =
+      conn
+      |> get("/api/v1/mutes")
+      |> json_response_and_validate_schema(200)
+
+    assert [
+             %{"id" => ^id3, "mute_expires_at" => ^date},
+             %{"id" => ^id2, "mute_expires_at" => nil},
+             %{"id" => ^id1, "mute_expires_at" => nil}
+           ] = result
   end
 
   test "list of mutes with with_relationships parameter" do
@@ -1951,20 +2135,44 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
 
     {:ok, _} = User.mute(user, other_user1)
     {:ok, _} = User.mute(user, other_user2)
-    {:ok, _} = User.mute(user, other_user3)
+    {:ok, _} = User.mute(user, other_user3, %{duration: 24 * 60 * 60})
+
+    date =
+      DateTime.utc_now()
+      |> DateTime.add(24 * 60 * 60)
+      |> DateTime.truncate(:second)
+      |> DateTime.to_iso8601()
 
     assert [
              %{
                "id" => ^id3,
-               "pleroma" => %{"relationship" => %{"muting" => true, "followed_by" => true}}
+               "pleroma" => %{
+                 "relationship" => %{
+                   "muting" => true,
+                   "mute_expires_at" => ^date,
+                   "followed_by" => true
+                 }
+               }
              },
              %{
                "id" => ^id2,
-               "pleroma" => %{"relationship" => %{"muting" => true, "followed_by" => true}}
+               "pleroma" => %{
+                 "relationship" => %{
+                   "muting" => true,
+                   "mute_expires_at" => nil,
+                   "followed_by" => true
+                 }
+               }
              },
              %{
                "id" => ^id1,
-               "pleroma" => %{"relationship" => %{"muting" => true, "followed_by" => true}}
+               "pleroma" => %{
+                 "relationship" => %{
+                   "muting" => true,
+                   "mute_expires_at" => nil,
+                   "followed_by" => true
+                 }
+               }
              }
            ] =
              conn
@@ -1980,7 +2188,13 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
 
     {:ok, _user_relationship} = User.block(user, other_user1)
     {:ok, _user_relationship} = User.block(user, other_user3)
-    {:ok, _user_relationship} = User.block(user, other_user2)
+    {:ok, _user_relationship} = User.block(user, other_user2, %{duration: 24 * 60 * 60})
+
+    date =
+      DateTime.utc_now()
+      |> DateTime.add(24 * 60 * 60)
+      |> DateTime.truncate(:second)
+      |> DateTime.to_iso8601()
 
     result =
       conn
@@ -2045,6 +2259,18 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
       |> json_response_and_validate_schema(200)
 
     assert [%{"id" => ^id1}] = result
+
+    result =
+      conn
+      |> assign(:user, user)
+      |> get("/api/v1/blocks")
+      |> json_response_and_validate_schema(200)
+
+    assert [
+             %{"id" => ^id3, "block_expires_at" => nil},
+             %{"id" => ^id2, "block_expires_at" => ^date},
+             %{"id" => ^id1, "block_expires_at" => nil}
+           ] = result
   end
 
   test "list of blocks with with_relationships parameter" do
@@ -2059,20 +2285,44 @@ defmodule Pleroma.Web.MastodonAPI.AccountControllerTest do
 
     {:ok, _} = User.block(user, other_user1)
     {:ok, _} = User.block(user, other_user2)
-    {:ok, _} = User.block(user, other_user3)
+    {:ok, _} = User.block(user, other_user3, %{duration: 24 * 60 * 60})
+
+    date =
+      DateTime.utc_now()
+      |> DateTime.add(24 * 60 * 60)
+      |> DateTime.truncate(:second)
+      |> DateTime.to_iso8601()
 
     assert [
              %{
                "id" => ^id3,
-               "pleroma" => %{"relationship" => %{"blocking" => true, "followed_by" => false}}
+               "pleroma" => %{
+                 "relationship" => %{
+                   "blocking" => true,
+                   "block_expires_at" => ^date,
+                   "followed_by" => false
+                 }
+               }
              },
              %{
                "id" => ^id2,
-               "pleroma" => %{"relationship" => %{"blocking" => true, "followed_by" => false}}
+               "pleroma" => %{
+                 "relationship" => %{
+                   "blocking" => true,
+                   "block_expires_at" => nil,
+                   "followed_by" => false
+                 }
+               }
              },
              %{
                "id" => ^id1,
-               "pleroma" => %{"relationship" => %{"blocking" => true, "followed_by" => false}}
+               "pleroma" => %{
+                 "relationship" => %{
+                   "blocking" => true,
+                   "block_expires_at" => nil,
+                   "followed_by" => false
+                 }
+               }
              }
            ] =
              conn

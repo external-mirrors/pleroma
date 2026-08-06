@@ -81,10 +81,8 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
 
   plug(OAuthScopesPlug, %{scopes: ["write:accounts"]} when action in [:pin, :unpin])
 
-  # Note: scope not present in Mastodon: read:bookmarks
   plug(OAuthScopesPlug, %{scopes: ["read:bookmarks"]} when action == :bookmarks)
 
-  # Note: scope not present in Mastodon: write:bookmarks
   plug(
     OAuthScopesPlug,
     %{scopes: ["write:bookmarks"]} when action in [:bookmark, :unbookmark]
@@ -718,7 +716,10 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
     end
   end
 
-  defp put_application(params, %{assigns: %{token: %Token{user: %User{} = user} = token}} = _conn) do
+  defp put_application(
+         params,
+         %{assigns: %{token: %Token{} = token, user: %User{} = user}} = _conn
+       ) do
     if user.disclose_client do
       %{client_name: client_name, website: website} = Repo.preload(token, :app).app
       Map.put(params, :generator, %{type: "Application", name: client_name, url: website})
