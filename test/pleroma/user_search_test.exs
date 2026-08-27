@@ -317,6 +317,34 @@ defmodule Pleroma.UserSearchTest do
                User.search(profile_url, resolve: true, for_user: user)
     end
 
+    test "does not crash when the WebFinger response has no AP id but a matching profile URL" do
+      _user = insert(:user)
+      profile_url = "https://www.threads.example/@alice"
+
+      Tesla.Mock.mock(fn
+        %{url: "https://www.threads.example/.well-known/host-meta"} ->
+          {:ok, %Tesla.Env{status: 404}}
+
+        %{url: "https://www.threads.example/.well-known/webfinger?resource=acct:alice@www.threads.example"} ->
+          Tesla.Mock.json(%{
+            "subject" => "acct:alice@www.threads.example",
+            "links" => [
+              %{"rel" => "self", "type" => "application/activity+json", "href" => nil},
+              %{
+                "rel" => "http://webfinger.net/rel/profile-page",
+                "type" => "text/html",
+                "href" => profile_url
+              }
+            ]
+          })
+
+        %{url: ^profile_url} ->
+          {:ok, %Tesla.Env{status: 404}}
+      end)
+
+      assert {:error, _} = User.get_or_fetch(profile_url)
+    end
+
     test "does not resolve profile URLs through an unverified WebFinger profile-page link" do
       user = insert(:user)
       profile_url = "https://social.example/@alice"
