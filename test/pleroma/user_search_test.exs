@@ -353,6 +353,35 @@ defmodule Pleroma.UserSearchTest do
       refute_received :fetched_unverified_actor
     end
 
+    test "falls back to the actor fetch when WebFinger has no usable AP self link" do
+      profile_url = "https://social.example/@alice"
+
+      Tesla.Mock.mock(fn
+        %{url: "https://social.example/.well-known/host-meta"} ->
+          {:ok, %Tesla.Env{status: 404}}
+
+        %{
+          url: "https://social.example/.well-known/webfinger?resource=acct:alice@social.example"
+        } ->
+          Tesla.Mock.json(%{
+            "subject" => "acct:alice@social.example",
+            "links" => [
+              %{"rel" => "self", "type" => "application/activity+json", "href" => nil},
+              %{
+                "rel" => "http://webfinger.net/rel/profile-page",
+                "type" => "text/html",
+                "href" => profile_url
+              }
+            ]
+          })
+
+        %{url: ^profile_url} ->
+          {:ok, %Tesla.Env{status: 404}}
+      end)
+
+      assert {:error, _} = User.get_or_fetch(profile_url)
+    end
+
     test "verifies the WebFinger account when its advertised actor is cached" do
       profile_url = "https://evil.test/@mallory"
       actor_id = "https://legit.invalid/users/alice"

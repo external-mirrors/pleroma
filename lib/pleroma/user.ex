@@ -2361,6 +2361,7 @@ defmodule Pleroma.User do
             "profile_url" => profile_url,
             "subject" => "acct:" <> acct
           }} <- WebFinger.finger(account),
+         true <- is_binary(ap_id) and ap_id != "",
          true <- same_profile_url?(uri, profile_url) do
       ActivityPub.make_user_from_ap_id(ap_id, nickname_from_acct: acct)
     else
