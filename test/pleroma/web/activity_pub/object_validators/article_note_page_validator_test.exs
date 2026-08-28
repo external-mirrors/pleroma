@@ -178,6 +178,33 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidatorTest 
     refute content =~ "<script"
   end
 
+  test "a Misskey MFM note does not render MFM inside code elements" do
+    user = insert(:user, ap_id: "https://misskey.example/users/code")
+
+    note = %{
+      "id" => "https://misskey.example/notes/6",
+      "type" => "Note",
+      "actor" => user.ap_id,
+      "attributedTo" => user.ap_id,
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => [],
+      "content" => "original content",
+      "context" => Utils.generate_context_id(),
+      "source" => %{
+        "content" => "$[x2 big] `$[x2 small]`\n\n```\n$[spin.speed=1s block]\n```",
+        "mediaType" => "text/x.misskeymarkdown"
+      }
+    }
+
+    %{valid?: true, changes: %{content: content}} =
+      ArticleNotePageValidator.cast_and_validate(note)
+
+    assert content =~ ~s(<span class="mfm-x2">big</span>)
+    assert content =~ "<code class=\"inline\">$[x2 small]</code>"
+    assert content =~ "<pre><code>$[spin.speed=1s block]</code></pre>"
+    refute content =~ "mfm-spin"
+  end
+
   test "a Misskey MFM note resolves only cached AP mention tags" do
     remote_user = insert(:user, ap_id: "https://misskey.example/users/carol")
     local_user = insert(:user, nickname: "local_user")

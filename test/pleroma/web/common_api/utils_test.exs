@@ -161,6 +161,26 @@ defmodule Pleroma.Web.CommonAPI.UtilsTest do
       assert output ==
                ~s(<p><strong>hello world</strong></p><p><em>another <span class="h-card"><a class="u-url mention" data-user="#{user.id}" href="http://foo.com/user__test" rel="ugc">@<span>user__test</span></a></span> and <span class="h-card"><a class="u-url mention" data-user="#{user.id}" href="http://foo.com/user__test" rel="ugc">@<span>user__test</span></a></span> <a href="http://google.com" rel="ugc">google.com</a> paragraph</em></p>)
     end
+
+    test "does not render MFM inside code elements" do
+      text = "$[x2 big] `$[x2 small]`\n\n```\n$[spin.speed=1s block]\n```"
+
+      {output, [], []} = Utils.format_input(text, "text/x.misskeymarkdown")
+
+      assert output =~ ~s(<span class="mfm-x2">big</span>)
+      assert output =~ "<code class=\"inline\">$[x2 small]</code>"
+      assert output =~ "<pre><code>$[spin.speed=1s block]</code></pre>"
+      refute output =~ "mfm-spin"
+    end
+
+    test "MFM inside code elements does not break MFM outside of them" do
+      text = "```\n$[x2 unclosed\n```\n\n$[flip flipped]"
+
+      {output, [], []} = Utils.format_input(text, "text/x.misskeymarkdown")
+
+      assert output =~ ~s(<span class="mfm-flip">flipped</span>)
+      assert output =~ "$[x2 unclosed"
+    end
   end
 
   describe "format_input/3 with markdown" do

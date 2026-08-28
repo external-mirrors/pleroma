@@ -1,0 +1,1 @@
+Fix MFM being rendered inside <code> and <pre> elements; MFM syntax in quoted code is now shown verbatim, matching Misskey

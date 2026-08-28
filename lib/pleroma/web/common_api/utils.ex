@@ -338,14 +338,71 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     |> Formatter.html_escape("text/html")
   end
 
+  # <pre> and <code> elements are shielded from MFM parsing, mirroring how
+  # Misskey renders MFM: markup like `$[x2 text]` inside quoted code is shown
+  # verbatim instead of being turned into an MFM span.
+  @mfm_code_element ~r/<pre(?:\s[^>]*)?>.*?<\/pre>|<code(?:\s[^>]*)?>.*?<\/code>/is
+
   defp safe_mfm_to_html(html) do
-    html
+    {open_marker, close_marker} = mfm_code_markers(html)
+    {masked, segments} = mask_mfm_code_elements(html, open_marker, close_marker)
+
+    masked
     |> MfmParser.Parser.parse()
     |> MfmParser.Encoder.to_html()
+    |> unmask_mfm_code_elements(segments, open_marker, close_marker)
   rescue
     _ -> html
   catch
     _, _ -> html
+  end
+
+  # Code elements are replaced by placeholders built from two private-use
+  # codepoints that do not occur in the input, so a placeholder can never
+  # collide with user-provided text.
+  defp mfm_code_markers(html) do
+    used =
+      html
++      |> String.codepoints()
+      |> MapSet.new()
+
+    0xE000..0xF8FF
+    |> Enum.filter(fn codepoint -> not MapSet.member?(used, <<codepoint::utf8>>) end)
+    |> Enum.take(2)
+    |> case do
+      [open, close] -> {<<open::utf8>>, <<close::utf8>>}
+      _ -> {nil, nil}
+    end
+  end
+
+  defp mask_mfm_code_elements(html, nil, nil), do: {html, []}
+
+  defp mask_mfm_code_elements(html, open_marker, close_marker) do
+    {masked, segments} =
+      @mfm_code_element
+      |> Regex.split(html, include_captures: true)
+      |> Enum.with_index()
+      |> Enum.map_reduce([], fn
+        {part, index}, acc when rem(index, 2) == 1 ->
+          {open_marker <> Integer.to_string(length(acc)) <> close_marker, [part | acc]}
+
+        {part, _index}, acc ->
+          {part, acc}
+      end)
+
+    {IO.iodata_to_binary(masked), Enum.reverse(segments)}
+  end
+
+  defp unmask_mfm_code_elements(html, [], _open_marker, _close_marker), do: html
+
+  defp unmask_mfm_code_elements(html, segments, open_marker, close_marker) do
+    Enum.reduce(Enum.with_index(segments), html, fn {segment, index}, masked ->
+      String.replace(
+        masked,
+        open_marker <> Integer.to_string(index) <> close_marker,
+        segment
+      )
+    end)
   end
 
   def format_naive_asctime(date) do
