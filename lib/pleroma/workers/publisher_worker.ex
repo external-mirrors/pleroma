@@ -18,8 +18,17 @@ defmodule Pleroma.Workers.PublisherWorker do
   }
 
   @impl true
-  def perform(%Job{args: %{"op" => "publish", "activity_id" => activity_id}}) do
-    activity = Activity.get_by_id(activity_id)
+  def perform(%Job{args: %{"op" => "publish", "activity_id" => activity_id, "opts" => opts}}) do
+    unrestrict_deactivated = opts[:unrestrict_deactivated] || false
+
+    # Activity.get_by_id/2 by default filters out Activities from deactivated users.
+    # If we are in the process of deleting a user, the user is already deactivated
+    # before this job is executed.
+    activity =
+      if !unrestrict_deactivated,
+        do: Activity.get_by_id(activity_id),
+        else: Activity.get_by_id(activity_id, [])
+
     federator().perform(:publish, activity)
   end
 
