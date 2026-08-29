@@ -14,3 +14,11 @@
 +sbwt none
 +sbwtdcpu none
 +sbwtdio none
+
+## Give each application at most 30 seconds to terminate when the node is
+## shut down after the :pleroma application exits (e.g. a supervision tree
+## crash-looping past its max_restarts). Without it the shutdown waits
+## indefinitely for stuck application masters, leaving the beam process
+## alive with a dead application, so systemd never notices the crash and
+## never restarts the service.
+-kernel shutdown_timeout 30000

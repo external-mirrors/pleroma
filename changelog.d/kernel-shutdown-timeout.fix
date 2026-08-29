@@ -1,0 +1,1 @@
+OTP releases: Set a finite kernel shutdown_timeout so a stuck application master cannot keep the beam process alive after the pleroma application has exited, which prevented systemd from ever noticing the crash and restarting the service
