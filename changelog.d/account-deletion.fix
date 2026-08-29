@@ -1,0 +1,1 @@
+Fixed always failing outgoing federation jobs when a local user was deleted/deactivated
