@@ -113,36 +113,13 @@ defmodule Mix.Tasks.Pleroma.Database do
     Logger.info(log_message)
 
     if Keyword.get(options, :keep_threads) do
-      # We want to delete objects from threads where
-      # 1. the newest post is still old
-      # 2. none of the activities is local
-      # 3. none of the activities is bookmarked
-      # 4. optionally none of the posts is non-public
+      # Delete objects from threads that nobody local interacted with and that
+      # have been quiet for longer than the retention period, see Pleroma.Retention.
       deletable_context =
-        if Keyword.get(options, :keep_non_public) do
-          Pleroma.Activity
-          |> join(:left, [a], b in Pleroma.Bookmark, on: a.id == b.activity_id)
-          |> group_by([a], fragment("? ->> 'context'::text", a.data))
-          |> having(
-            [a],
-            not fragment(
-              # Posts (checked on Create Activity) is non-public
-              "bool_or((not(?->'to' \\? ? OR ?->'cc' \\? ?)) and ? ->> 'type' = 'Create')",
-              a.data,
-              ^Pleroma.Constants.as_public(),
-              a.data,
-              ^Pleroma.Constants.as_public(),
-              a.data
-            )
-          )
-        else
-          Pleroma.Activity
-          |> join(:left, [a], b in Pleroma.Bookmark, on: a.id == b.activity_id)
-          |> group_by([a], fragment("? ->> 'context'::text", a.data))
-        end
-        |> having([a], max(a.updated_at) < ^time_deadline)
-        |> having([a], not fragment("bool_or(?)", a.local))
-        |> having([_, b], fragment("max(?::text) is null", b.id))
+        time_deadline
+        |> Pleroma.Retention.evictable_contexts_query(
+          keep_non_public: Keyword.get(options, :keep_non_public)
+        )
         |> select([a], fragment("? ->> 'context'::text", a.data))
 
       Pleroma.Object
@@ -222,18 +199,7 @@ defmodule Mix.Tasks.Pleroma.Database do
       |> Repo.query([], timeout: :infinity)
     end
 
-    """
-    DELETE FROM hashtags AS ht
-    WHERE NOT EXISTS (
-      SELECT 1 FROM hashtags_objects hto
-      WHERE ht.id = hto.hashtag_id
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM user_follows_hashtag ufh
-      WHERE ht.id = ufh.hashtag_id
-    )
-    """
-    |> Repo.query()
+    Pleroma.Retention.delete_unused_hashtags()
 
     if Keyword.get(options, :vacuum) do
       Maintenance.vacuum("full")
