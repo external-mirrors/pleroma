@@ -8,6 +8,7 @@ defmodule Pleroma.ConfigDB do
   import Ecto.Changeset
   import Ecto.Query, only: [select: 3, from: 2]
   import Pleroma.Web.Gettext
+  import Pleroma.Web.Utils.Guards
 
   alias __MODULE__
   alias Pleroma.EctoType.Config.RateLimit
@@ -84,6 +85,7 @@ defmodule Pleroma.ConfigDB do
     |> validate_required([:key, :group, :value])
     |> unique_constraint(:key, name: :config_group_key_index)
     |> validate_rate_limit()
+    |> validate_frontend_config()
   end
 
   defp validate_rate_limit(changeset) do
@@ -135,6 +137,42 @@ defmodule Pleroma.ConfigDB do
   end
 
   defp normalize_rate_limit(_), do: {:error, {:rate_limit, "must be a keyword list"}}
+
+  defp validate_frontend_config(changeset) do
+    group = get_field(changeset, :group)
+    key = get_field(changeset, :key)
+
+    if group == :pleroma and key == :frontends do
+      value = get_field(changeset, :value)
+
+      if !frontend_entries_valid?(value) do
+        add_error(
+          changeset,
+          :value,
+          "invalid :frontends configuration, name or ref is missing"
+        )
+      else
+        changeset
+      end
+    else
+      changeset
+    end
+  end
+
+  defp frontend_entries_valid?(value) when is_list(value) do
+    Enum.all?(value, fn
+      {type, config} when type in [:primary, :admin] ->
+        name = config["name"]
+        ref = config["ref"]
+
+        not_empty_string(name) and not_empty_string(ref)
+
+      _ ->
+        false
+    end)
+  end
+
+  defp frontend_entries_valid?(_), do: false
 
   defp create(params) do
     %ConfigDB{}

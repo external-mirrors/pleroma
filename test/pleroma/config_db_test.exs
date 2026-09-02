@@ -574,4 +574,501 @@ defmodule Pleroma.ConfigDBTest do
              ]
     end
   end
+
+  describe "frontend config" do
+    test "works for primary frontend" do
+      assert {:ok, %{value: [primary: %{"name" => "pleroma-fe", "ref" => "develop"}]}} =
+               ConfigDB.update_or_create(%{
+                 group: ":pleroma",
+                 key: ":frontends",
+                 value: [
+                   %{
+                     "tuple" => [
+                       ":primary",
+                       %{"name" => "pleroma-fe", "ref" => "develop"}
+                     ]
+                   }
+                 ]
+               })
+    end
+
+    test "works for admin frontend" do
+      assert {:ok, %{value: [admin: %{"name" => "admin-fe", "ref" => "master"}]}} =
+               ConfigDB.update_or_create(%{
+                 group: ":pleroma",
+                 key: ":frontends",
+                 value: [
+                   %{
+                     "tuple" => [
+                       ":admin",
+                       %{"name" => "admin-fe", "ref" => "master"}
+                     ]
+                   }
+                 ]
+               })
+    end
+
+    test "works for both primary admin frontend" do
+      assert {:ok,
+              %{
+                value: [
+                  admin: %{"name" => "admin-fe", "ref" => "master"},
+                  primary: %{"name" => "pleroma-fe", "ref" => "develop"}
+                ]
+              }} =
+               ConfigDB.update_or_create(%{
+                 group: ":pleroma",
+                 key: ":frontends",
+                 value: [
+                   %{
+                     "tuple" => [
+                       ":admin",
+                       %{"name" => "admin-fe", "ref" => "master"}
+                     ]
+                   },
+                   %{
+                     "tuple" => [
+                       ":primary",
+                       %{"name" => "pleroma-fe", "ref" => "develop"}
+                     ]
+                   }
+                 ]
+               })
+    end
+  end
+
+  test "rejects primary frontend without ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects primary frontend with empty string ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe", "ref" => ""}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects primary frontend without name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects primary frontend with empty string name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "", "ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects admin frontend without ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects admin frontend with empty string ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe", "ref" => ""}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects admin frontend without name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"ref" => "master"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects admin frontend with empty string name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "", "ref" => "master"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when primary is correct and admin frontend is without ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe", "ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when primary is correct and admin frontend is with empty string ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe", "ref" => ""}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe", "ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when primary is correct and admin frontend is without name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"ref" => "master"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe", "ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when primary is correct and admin frontend is with empty string name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "", "ref" => ""}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe", "ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when admin is correct and primary frontend is without ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe", "ref" => "master"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when admin is correct and primary frontend is with empty string ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe", "ref" => "master"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe", "ref" => ""}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when admin is correct and primary frontend is without name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe", "ref" => "master"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when admin is correct and primary frontend is with empty string name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe", "ref" => "master"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "", "ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when admin and primary frontend is with empty string name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "", "ref" => "master"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "", "ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when admin and primary frontend is without name" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"ref" => "master"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"ref" => "develop"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when admin and primary frontend is with empty string ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe", "ref" => ""}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe", "ref" => ""}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when admin and primary frontend is without ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"name" => "admin-fe"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe"}
+                   ]
+                 }
+               ]
+             })
+  end
+
+  test "rejects when admin is without name and primary frontend is without ref" do
+    assert {:error,
+            %{errors: [value: {"invalid :frontends configuration, name or ref is missing", []}]}} =
+             ConfigDB.update_or_create(%{
+               group: ":pleroma",
+               key: ":frontends",
+               value: [
+                 %{
+                   "tuple" => [
+                     ":admin",
+                     %{"ref" => "master"}
+                   ]
+                 },
+                 %{
+                   "tuple" => [
+                     ":primary",
+                     %{"name" => "pleroma-fe"}
+                   ]
+                 }
+               ]
+             })
+  end
 end
