@@ -20,6 +20,38 @@ defmodule Pleroma.StatsTest do
     end
   end
 
+  describe "peers" do
+    test "calculate_peers/0 lists remote domains once" do
+      insert(:user, local: false, nickname: "a@remote.example")
+      insert(:user, local: false, nickname: "b@remote.example")
+      insert(:user, local: false, nickname: "c@other.example")
+      insert(:user)
+
+      assert Enum.sort(Stats.calculate_peers()) == ["other.example", "remote.example"]
+    end
+
+    test "calculate_stat_data/1 reuses the given peers" do
+      insert(:user, local: false, nickname: "a@remote.example")
+
+      assert %{peers: ["stale.example"], stats: %{domain_count: 1}} =
+               Stats.calculate_stat_data(["stale.example"])
+
+      assert %{peers: ["remote.example"], stats: %{domain_count: 1}} = Stats.calculate_stat_data()
+    end
+  end
+
+  describe "update ticks" do
+    test "the minute tick reuses peers, the hourly tick refreshes them" do
+      insert(:user, local: false, nickname: "a@remote.example")
+
+      assert {:noreply, %{peers: ["stale.example"]}} =
+               Stats.handle_info(:run_update, %{peers: ["stale.example"], stats: %{}})
+
+      assert {:noreply, %{peers: ["remote.example"]}} =
+               Stats.handle_info(:run_peers_update, %{peers: ["stale.example"], stats: %{}})
+    end
+  end
+
   describe "status visibility sum count" do
     test "on new status" do
       instance2 = "instance2.tld"

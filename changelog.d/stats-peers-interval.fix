@@ -1,0 +1,1 @@
+Stats: refresh the peers list hourly instead of every minute; on large instances that query scanned every remote user 1440 times a day.

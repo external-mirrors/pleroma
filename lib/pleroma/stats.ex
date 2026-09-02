@@ -12,6 +12,9 @@ defmodule Pleroma.Stats do
   alias Pleroma.User
 
   @interval :timer.seconds(60)
+  # The peers list needs a scan over every remote user, which is far too
+  # expensive to repeat every minute on a large instance and changes slowly.
+  @peers_interval :timer.hours(1)
 
   def start_link(_) do
     GenServer.start_link(
@@ -64,15 +67,19 @@ defmodule Pleroma.Stats do
           }
         }
   def calculate_stat_data do
-    peers =
-      from(
-        u in User,
-        select: fragment("distinct split_part(?, '@', 2)", u.nickname),
-        where: u.local != ^true
-      )
-      |> Repo.all()
-      |> Enum.filter(& &1)
+    calculate_stat_data(calculate_peers())
+  end
 
+  @doc "Calculates the stats, reusing an already computed peers list"
+  @spec calculate_stat_data(list()) :: %{
+          peers: list(),
+          stats: %{
+            domain_count: non_neg_integer(),
+            status_count: non_neg_integer(),
+            user_count: non_neg_integer()
+          }
+        }
+  def calculate_stat_data(peers) do
     domain_count = Enum.count(peers)
 
     status_count = Repo.aggregate(User.Query.build(%{local: true}), :sum, :note_count)
@@ -97,6 +104,18 @@ defmodule Pleroma.Stats do
     }
   end
 
+  @doc "Domains of all known remote users"
+  @spec calculate_peers() :: list(String.t())
+  def calculate_peers do
+    from(
+      u in User,
+      select: fragment("distinct split_part(?, '@', 2)", u.nickname),
+      where: u.local != ^true
+    )
+    |> Repo.all()
+    |> Enum.filter(& &1)
+  end
+
   @spec get_status_visibility_count(String.t() | nil) :: map()
   def get_status_visibility_count(instance \\ nil) do
     if is_nil(instance) do
@@ -112,6 +131,7 @@ defmodule Pleroma.Stats do
 
     unless Pleroma.Config.get(:env) == :test do
       Process.send_after(self(), :run_update, @interval)
+      Process.send_after(self(), :run_peers_update, @peers_interval)
     end
 
     {:noreply, stats}
@@ -129,9 +149,16 @@ defmodule Pleroma.Stats do
   end
 
   @impl true
-  def handle_info(:run_update, _) do
-    new_stats = calculate_stat_data()
+  def handle_info(:run_update, state) do
+    peers = if is_map(state), do: state.peers, else: calculate_peers()
+    new_stats = calculate_stat_data(peers)
     Process.send_after(self(), :run_update, @interval)
+    {:noreply, new_stats}
+  end
+
+  def handle_info(:run_peers_update, _) do
+    new_stats = calculate_stat_data()
+    Process.send_after(self(), :run_peers_update, @peers_interval)
     {:noreply, new_stats}
   end
 end
