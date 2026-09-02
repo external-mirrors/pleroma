@@ -1196,11 +1196,11 @@ A thread is never evicted if it contains a local post, reply, favourite, repeat 
 
 * `enabled`: Run the worker. Defaults to `false`.
 * `max_objects`: Optional watermark. When the `objects` table is estimated to hold more rows than this, the oldest unpinned remote threads are evicted regardless of age. Defaults to `nil` (age only).
-* `batch_size`: Maximum number of threads evicted per run. Defaults to `500`.
+* `batch_size`: Number of activities walked per run. Their threads are checked and, if unpinned, evicted. Defaults to `50000`.
 * `keep_non_public`: Also keep threads that contain a non-public post. Defaults to `false`.
 
 !!! note
-    Each run scans the `activities` table once to find quiet threads. On a very large database consider running the worker less often by overriding its `crontab` entry (see [`Oban`](#oban)). To make the initial cut on an instance that has been running unbounded for a long time, run `prune_objects --keep-threads --prune-orphaned-activities` once and let the worker keep it bounded from there. Space freed by eviction is reused by new rows; it is not handed back to the filesystem unless you `VACUUM FULL`.
+    The worker walks the `activities` table in id order, `batch_size` activities per run, up to the id that corresponds to the retention deadline, and remembers its position in the `retention_cursors` table. Each activity is visited once, when it becomes old enough, and only the threads it belongs to are checked through the context index. Over the `max_objects` watermark a second walk with its own cursor runs up to the present instead. The first run starts from the oldest activity; on an instance that never pruned this backlog takes many runs, so run `prune_objects --keep-threads --prune-orphaned-activities` once for the initial cut. Threads that were kept and later lost their pin (cleared notifications, removed bookmarks) are only revisited on a fresh walk: delete the row from `retention_cursors` to restart from the beginning. Space freed by eviction is reused by new rows; it is not handed back to the filesystem unless you `VACUUM FULL`.
 
 ## Pleroma.User.Backup
 
