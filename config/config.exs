@@ -611,7 +611,8 @@ config :pleroma, Oban,
   crontab: [
     {"0 0 * * 0", Pleroma.Workers.Cron.DigestEmailsWorker},
     {"0 0 * * *", Pleroma.Workers.Cron.NewUsersDigestWorker},
-    {"*/10 * * * *", Pleroma.Workers.Cron.AppCleanupWorker}
+    {"*/10 * * * *", Pleroma.Workers.Cron.AppCleanupWorker},
+    {"0 * * * *", Pleroma.Workers.Cron.RetentionWorker}
   ]
 
 config :pleroma, Pleroma.Formatter,
@@ -919,6 +920,12 @@ config :ex_aws, http_client: Pleroma.HTTP.ExAws
 config :web_push_encryption, http_client: Pleroma.HTTP.WebPush
 
 config :pleroma, :instances_favicons, enabled: false
+
+config :pleroma, :retention,
+  enabled: false,
+  max_objects: nil,
+  batch_size: 500,
+  keep_non_public: false
 
 config :floki, :html_parser, Floki.HTMLParser.FastHtml
 

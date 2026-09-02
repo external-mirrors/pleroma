@@ -3311,6 +3311,40 @@ config :pleroma, :config_description, [
     ]
   },
   %{
+    group: :pleroma,
+    key: :retention,
+    type: :group,
+    description:
+      "Bounded retention: continuously evict old remote threads nobody local interacted with." <>
+        " Local posts and threads with local interactions are always kept.",
+    children: [
+      %{
+        key: :enabled,
+        type: :boolean,
+        description: "Run the retention worker from the Oban crontab"
+      },
+      %{
+        key: :max_objects,
+        type: :integer,
+        description:
+          "Optional watermark. When the objects table is estimated to hold more rows than this," <>
+            " the oldest unpinned remote threads are evicted regardless of their age.",
+        suggestions: [nil, 1_000_000]
+      },
+      %{
+        key: :batch_size,
+        type: :integer,
+        description: "Maximum number of threads to evict per worker run. Default: 500.",
+        suggestions: [500]
+      },
+      %{
+        key: :keep_non_public,
+        type: :boolean,
+        description: "Also keep threads that contain non-public posts"
+      }
+    ]
+  },
+  %{
     group: :ex_aws,
     key: :s3,
     type: :group,
