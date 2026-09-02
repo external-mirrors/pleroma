@@ -894,13 +894,24 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       |> Repo.all()
 
     # Note: NO extra ordering should be done on "activities.id desc nulls last" for optimal plan
+    #
+    # A single tag is compared with `==`, not `in`. Observed on PostgreSQL 15:
+    # only then does the planner walk the (hashtag_id, object_id) primary key
+    # backwards for that tag and stop after `limit` matches; with an array it
+    # walks the global object_id index newest-first and filters, i.e. every
+    # tagged object on the instance until enough of this tag turn up.
     query =
       from(
         [_activity, object] in query,
         join: hto in "hashtags_objects",
-        on: hto.object_id == object.id,
-        where: hto.hashtag_id in ^hashtag_ids
+        on: hto.object_id == object.id
       )
+
+    query =
+      case hashtag_ids do
+        [hashtag_id] -> where(query, [..., hto], hto.hashtag_id == ^hashtag_id)
+        ids -> where(query, [..., hto], hto.hashtag_id in ^ids)
+      end
 
     if is_nil(query.distinct) do
       from([_activity, object] in query,

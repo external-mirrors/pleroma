@@ -1,0 +1,1 @@
+Hashtag timeline: compare a single tag with `=` so the planner walks that tag's objects newest-first instead of scanning every tagged object on the instance.
