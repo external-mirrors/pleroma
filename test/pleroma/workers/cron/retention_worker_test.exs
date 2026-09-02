@@ -10,6 +10,7 @@ defmodule Pleroma.Workers.Cron.RetentionWorkerTest do
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Workers.Cron.RetentionWorker
 
+  import Ecto.Query
   import Pleroma.Factory
 
   setup do
@@ -23,9 +24,13 @@ defmodule Pleroma.Workers.Cron.RetentionWorkerTest do
       |> NaiveDateTime.add(-200 * 86_400)
       |> NaiveDateTime.truncate(:second)
 
-    post
-    |> Ecto.Changeset.change(%{local: false, updated_at: old_date})
-    |> Repo.update!()
+    ms = old_date |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(:millisecond)
+    old_id = FlakeId.to_string(<<ms::integer-size(64), 1::integer-size(64)>>)
+
+    {1, _} =
+      Pleroma.Activity
+      |> where([a], a.id == ^post.id)
+      |> Repo.update_all(set: [id: old_id, local: false, updated_at: old_date])
 
     %{object_id: post.data["object"]}
   end

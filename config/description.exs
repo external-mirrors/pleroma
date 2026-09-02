@@ -3334,8 +3334,10 @@ config :pleroma, :config_description, [
       %{
         key: :batch_size,
         type: :integer,
-        description: "Maximum number of threads to evict per worker run. Default: 500.",
-        suggestions: [500]
+        description:
+          "Number of activities the worker walks per run; their threads are checked and evicted." <>
+            " Default: 50000.",
+        suggestions: [50_000]
       },
       %{
         key: :keep_non_public,

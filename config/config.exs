@@ -924,7 +924,7 @@ config :pleroma, :instances_favicons, enabled: false
 config :pleroma, :retention,
   enabled: false,
   max_objects: nil,
-  batch_size: 500,
+  batch_size: 50_000,
   keep_non_public: false
 
 config :floki, :html_parser, Floki.HTMLParser.FastHtml

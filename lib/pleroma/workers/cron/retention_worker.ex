@@ -7,7 +7,10 @@ defmodule Pleroma.Workers.Cron.RetentionWorker do
   Evicts one batch of old remote threads per run, see `Pleroma.Retention`.
   """
 
-  use Oban.Worker, queue: :background, max_attempts: 1
+  use Oban.Worker,
+    queue: :background,
+    max_attempts: 1,
+    unique: [period: :infinity, states: [:available, :scheduled, :executing]]
 
   alias Pleroma.Config
   alias Pleroma.Retention
