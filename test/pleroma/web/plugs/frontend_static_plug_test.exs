@@ -82,6 +82,34 @@ defmodule Pleroma.Web.Plugs.FrontendStaticPlugTest do
     end
   end
 
+  test "works with invalid frontend config (missing name)", %{conn: conn} do
+    clear_config([:frontends, :primary], %{"ref" => "#cofe"})
+
+    index = get(conn, "/index.html")
+    assert html_response(index, 200)
+  end
+
+  test "works with invalid frontend config (empty name)", %{conn: conn} do
+    clear_config([:frontends, :primary], %{"name" => "", "ref" => "#cofe"})
+
+    index = get(conn, "/index.html")
+    assert html_response(index, 200)
+  end
+
+  test "works with invalid frontend config (missing ref)", %{conn: conn} do
+    clear_config([:frontends, :primary], %{"name" => "and dreams"})
+
+    index = get(conn, "/index.html")
+    assert html_response(index, 200)
+  end
+
+  test "works with invalid frontend config (empty ref)", %{conn: conn} do
+    clear_config([:frontends, :primary], %{"name" => "and dreams", "ref" => ""})
+
+    index = get(conn, "/index.html")
+    assert html_response(index, 200)
+  end
+
   test "api routes are detected correctly" do
     # If this test fails we have probably added something
     # new that should be in /api/ instead

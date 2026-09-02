@@ -20,11 +20,14 @@ defmodule Pleroma.Web.Plugs.FrontendStatic do
 
   def file_path(path, frontend_type) when is_atom(frontend_type) do
     if configuration = Pleroma.Config.get([:frontends, frontend_type]) do
+      # name and ref are required configs, but user can still set an invalid config
+      # via prod.secret.exs. Instead of crashing on a nil value, default to nothing
+      # and serve likely the bundled FE.
       Path.join([
         instance_static_path(),
         "frontends",
-        configuration["name"],
-        configuration["ref"],
+        configuration["name"] || "",
+        configuration["ref"] || "",
         path
       ])
     else
