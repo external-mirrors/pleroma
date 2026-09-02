@@ -21,7 +21,7 @@ defmodule Pleroma.UserSearchTest do
       user = insert(:user, %{nickname: "no_relation", ap_id: "https://lain.com/users/lain"})
       _user = insert(:user, %{nickname: "com_user"})
 
-      [first_user, _second_user] = User.search("https://lain.com/users/lain", resolve: true)
+      [first_user] = User.search("https://lain.com/users/lain", resolve: true)
 
       assert first_user.id == user.id
     end
@@ -30,9 +30,38 @@ defmodule Pleroma.UserSearchTest do
       user = insert(:user, %{nickname: "no_relation", ap_id: "https://lain.com/users/lain"})
       _user = insert(:user, %{nickname: "com_user"})
 
-      [first_user, _second_user] = User.search("https://lain.com/users/lain")
+      [first_user] = User.search("https://lain.com/users/lain")
 
       assert first_user.id == user.id
+    end
+
+    test "finds a user by profile URL" do
+      user = insert(:user, %{nickname: "lain@lain.com"})
+
+      assert [%{id: id}] = User.search("https://lain.com/users/lain")
+      assert id == user.id
+      assert [%{id: ^id}] = User.search("https://lain.com/@lain")
+    end
+
+    test "finds a local user by profile URL" do
+      user = insert(:user, %{nickname: "alice"})
+      url = "#{Pleroma.Web.Endpoint.url()}/users/alice/"
+
+      assert [%{id: id}] = User.search(url)
+      assert id == user.id
+    end
+
+    test "tolerates unusable URLs" do
+      assert [] = User.search("http:///users/x")
+      assert [] = User.search("https://" <> String.duplicate("a", 64) <> ".com/@x")
+      assert [] = User.search("https://example.com")
+    end
+
+    test "does not text-search the fragments of a URL" do
+      insert(:user, %{nickname: "com_user"})
+      insert(:user, %{name: "lain"})
+
+      assert [] = User.search("https://lain.com/users/lain")
     end
 
     test "doesn't die if two users have the same uri" do
@@ -51,7 +80,7 @@ defmodule Pleroma.UserSearchTest do
 
       _user = insert(:user, %{nickname: "com_user"})
 
-      [first_user, _second_user] = User.search("https://lain.com/@lain")
+      [first_user] = User.search("https://lain.com/@lain")
 
       assert first_user.id == user.id
     end

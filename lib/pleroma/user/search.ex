@@ -31,6 +31,7 @@ defmodule Pleroma.User.Search do
       |> maybe_add_resolved(maybe_resolved)
       |> maybe_add_ap_id_match(query_string)
       |> maybe_add_uri_match(query_string)
+      |> maybe_add_profile_url_match(query_string)
 
     results =
       query_string
@@ -62,6 +63,28 @@ defmodule Pleroma.User.Search do
     else
       _ -> list
     end
+  end
+
+  # "https://host/users/name" or "https://host/@name" -> the user known as name@host
+  defp maybe_add_profile_url_match(list, "http" <> _ = query) do
+    with %URI{host: host, path: path}
+         when is_binary(host) and host != "" and is_binary(path) <- URI.parse(query),
+         [_ | _] = segments <- String.split(path, "/", trim: true),
+         segment when segment != "" <- segments |> List.last() |> String.trim_leading("@"),
+         %User{id: id} <- get_by_nickname(segment <> "@" <> host) do
+      [id | list]
+    else
+      _ -> list
+    end
+  end
+
+  defp maybe_add_profile_url_match(list, _), do: list
+
+  # :idna.encode/1 exits rather than raises on hosts it cannot encode
+  defp get_by_nickname(nickname) do
+    User.get_by_nickname(format_query(nickname))
+  catch
+    _, _ -> nil
   end
 
   defp format_query(query_string) do
@@ -106,6 +129,12 @@ defmodule Pleroma.User.Search do
       or_where: u.id in ^top_user_ids
     )
   end
+
+  # Clients search for URLs to resolve them. Those are matched exactly
+  # (ap_id, uri, resolve), and running the URL's fragments ("https", "de",
+  # "notice") through the text index would rank every account matching one
+  # of them, which on a large instance is tens of thousands of rows.
+  defp fts_search(query, "http" <> _), do: where(query, false)
 
   defp fts_search(query, query_string) do
     query_string = to_tsquery(query_string)

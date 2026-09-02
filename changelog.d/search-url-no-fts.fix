@@ -1,0 +1,1 @@
+User search: a URL query only returns exact matches (resolved account, ap_id, uri) instead of also text-searching the URL's fragments against every account.
