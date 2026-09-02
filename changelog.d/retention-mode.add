@@ -1,0 +1,1 @@
+Add a bounded retention mode (`config :pleroma, :retention`): a cron worker continuously evicts old remote threads nobody local interacted with, in small batches, so the database plateaus instead of growing forever. `prune_objects --keep-threads` now also keeps threads that mention a local user or contain a reported post.

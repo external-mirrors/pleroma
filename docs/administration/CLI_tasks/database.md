@@ -28,6 +28,9 @@ Replaces embedded objects with references to them in the `objects` table. Only n
 
 This will prune remote posts older than 90 days (configurable with [`config :pleroma, :instance, remote_post_retention_days`](../../configuration/cheatsheet.md#instance)) from the database. Pruned posts may be refetched in some cases.
 
+!!! tip
+    To keep the database bounded continuously instead of pruning in one go, see [`:retention`](../../configuration/cheatsheet.md#retention). It uses the same rules as `--keep-threads` but runs in small batches from a cron worker.
+
 !!! note
     The disk space will only be reclaimed after a proper vacuum. By default Postgresql does this for you on a regular basis, but if your instance has been running for a long time and there are many rows deleted, it may be advantageous to use `VACUUM FULL` (e.g. by using the `--vacuum` option).
 

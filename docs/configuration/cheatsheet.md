@@ -1185,6 +1185,23 @@ Control favicons for instances.
 
 * `enabled`: Allow/disallow displaying and getting instances favicons
 
+## :retention
+
+Bounded retention of remote content. Local posts are your data; remote posts are a cache of somebody else's, and this treats them that way. When enabled, a cron worker (`Pleroma.Workers.Cron.RetentionWorker`, hourly by default) evicts a batch of remote threads that nobody local has interacted with and that have been quiet for longer than `remote_post_retention_days` (see [`:instance`](#instance)). The database then plateaus instead of growing without limit.
+
+A thread is never evicted if it contains a local post, reply, favourite, repeat or reaction, a post bookmarked by a local user, a post that mentioned a local user (as long as the notification has not been cleared), or a post that was reported. Relationship activities (follows, blocks) and chat messages are never touched. Evicted posts are refetched on demand when somebody opens them again, as with `prune_objects`.
+
+!!! warning
+    A local quote post does not pin the post it quotes, since quotes do not share the quoted thread's context. Old quoted remote posts can be evicted and will be refetched when the quote is viewed.
+
+* `enabled`: Run the worker. Defaults to `false`.
+* `max_objects`: Optional watermark. When the `objects` table is estimated to hold more rows than this, the oldest unpinned remote threads are evicted regardless of age. Defaults to `nil` (age only).
+* `batch_size`: Maximum number of threads evicted per run. Defaults to `500`.
+* `keep_non_public`: Also keep threads that contain a non-public post. Defaults to `false`.
+
+!!! note
+    Each run scans the `activities` table once to find quiet threads. On a very large database consider running the worker less often by overriding its `crontab` entry (see [`Oban`](#oban)). To make the initial cut on an instance that has been running unbounded for a long time, run `prune_objects --keep-threads --prune-orphaned-activities` once and let the worker keep it bounded from there. Space freed by eviction is reused by new rows; it is not handed back to the filesystem unless you `VACUUM FULL`.
+
 ## Pleroma.User.Backup
 
 !!! note
