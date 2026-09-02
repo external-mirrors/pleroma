@@ -691,6 +691,15 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
     end
   end
 
+  test "it ignores tag_reject for tags nobody used" do
+    user = insert(:user)
+    {:ok, status} = CommonAPI.post(user, %{status: "a #tag"})
+
+    fetch = ActivityPub.fetch_activities([], %{type: "Create", tag_reject: ["nobodyusedthis"]})
+
+    assert Enum.map(fetch, & &1.id) == [status.id]
+  end
+
   describe "insertion" do
     test "drops activities beyond a certain limit" do
       limit = Config.get([:instance, :remote_limit])

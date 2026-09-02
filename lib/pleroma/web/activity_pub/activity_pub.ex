@@ -853,14 +853,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   defp restrict_embedded_tag_reject_any(query, _), do: query
 
-  defp object_ids_query_for_tags(tags) do
-    from(hto in "hashtags_objects")
-    |> join(:inner, [hto], ht in Pleroma.Hashtag, on: hto.hashtag_id == ht.id)
-    |> where([hto, ht], ht.name in ^tags)
-    |> select([hto], hto.object_id)
-    |> distinct([hto], true)
-  end
-
   defp restrict_hashtag_all(_query, %{tag_all: _tag, skip_preload: true}) do
     raise_on_missing_preload()
   end
@@ -931,10 +923,22 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   end
 
   defp restrict_hashtag_reject_any(query, %{tag_reject: [_ | _] = tags_reject}) do
-    from(
-      [_activity, object] in query,
-      where: object.id not in subquery(object_ids_query_for_tags(tags_reject))
-    )
+    hashtag_ids =
+      from(ht in Hashtag, where: ht.name in ^tags_reject, select: ht.id)
+      |> Repo.all()
+
+    # A correlated NOT EXISTS is planned as an anti-join probing the
+    # hashtags_objects primary key per row. `NOT IN (subselect)` becomes a
+    # hashed subplan whose build cost the planner charges on every rescan.
+    rejected =
+      from(hto in "hashtags_objects",
+        where: hto.hashtag_id in ^hashtag_ids and hto.object_id == parent_as(:object).id,
+        select: 1
+      )
+
+    if hashtag_ids == [],
+      do: query,
+      else: from([_activity, _object] in query, where: not exists(rejected))
   end
 
   defp restrict_hashtag_reject_any(query, %{tag_reject: tag_reject}) when is_binary(tag_reject) do

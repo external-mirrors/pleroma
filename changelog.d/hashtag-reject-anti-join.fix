@@ -1,0 +1,1 @@
+Use an anti-join instead of `NOT IN (subselect)` for the hashtag timeline's `tag_reject` filter, which the planner mis-costed per row.
