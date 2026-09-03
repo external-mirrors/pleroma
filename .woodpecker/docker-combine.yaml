@@ -18,7 +18,7 @@ labels:
 
 steps:
   docker-develop-combine:
-    image: git.fluffytail.org/phnt/wpc-docker-tagger:latest
+    image: &docker_image git.pleroma.social/phnt/wpc-docker-tagger:0.9.0
     when:
       - event: push
         branch: ${CI_REPO_DEFAULT_BRANCH}
@@ -38,7 +38,7 @@ steps:
         from_secret: pleroma-ci-password
 
   docker-stable-combine:
-    image: git.fluffytail.org/phnt/wpc-docker-tagger:latest
+    image: *docker_image
     when:
       - evaluate: 'CI_PIPELINE_EVENT == "manual" && CI_COMMIT_BRANCH == "stable" && CI_COMMIT_TAG == ""'
     settings:
@@ -49,7 +49,7 @@ steps:
         - ${CI_COMMIT_SHA:0:8}
 
   docker-stable-tag-combine:
-    image: git.fluffytail.org/phnt/wpc-docker-tagger:latest
+    image: *docker_image
     when:
       - event: tag
       - evaluate: 'CI_PIPELINE_EVENT == "manual" && CI_COMMIT_BRANCH == "stable" && CI_COMMIT_TAG != ""'
