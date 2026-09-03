@@ -524,6 +524,23 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
       test_relationship_rendering(user, other_user, expected)
     end
 
+    test "relationship does not indicate requested if a FollowingRelationship is missing" do
+      user = insert(:user)
+      other_user = insert(:user, local: false, is_locked: true)
+
+      assert {:ok, _, _, _} = CommonAPI.follow(other_user, user)
+
+      assert %{data: %{"state" => "pending"}} =
+               Pleroma.Web.ActivityPub.Utils.fetch_latest_follow(user, other_user)
+
+      # Simulate an unfollow that removed the row but never cancelled the Follow
+      assert {:ok, _} = Pleroma.Repo.delete(Pleroma.FollowingRelationship.get(user, other_user))
+
+      expected = Map.merge(@blank_response, %{id: to_string(other_user.id)})
+
+      test_relationship_rendering(user, other_user, expected)
+    end
+
     test "represent a relationship for the blocking and blocked user" do
       user = insert(:user)
       other_user = insert(:user)

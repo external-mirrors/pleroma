@@ -314,6 +314,34 @@ defmodule Pleroma.UserTest do
     refute User.following?(follower, followed)
   end
 
+  describe "get_follow_state/2" do
+    test "returns the state of the relationship row" do
+      follower = insert(:user)
+      followed = insert(:user, local: false, is_locked: true)
+
+      {:ok, _, _, _} = CommonAPI.follow(followed, follower)
+      assert User.get_follow_state(follower, followed) == :follow_pending
+
+      {:ok, _} = CommonAPI.accept_follow_request(follower, followed)
+      assert User.get_follow_state(follower, followed) == :follow_accept
+    end
+
+    test "ignores an accepted Follow activity when the relationship row is missing" do
+      follower = insert(:user)
+      followed = insert(:user, local: false, is_locked: true)
+
+      {:ok, _, _, _} = CommonAPI.follow(followed, follower)
+      {:ok, _} = CommonAPI.accept_follow_request(follower, followed)
+      Repo.delete!(Pleroma.FollowingRelationship.get(follower, followed))
+
+      assert %{data: %{"state" => "accept"}} =
+               Pleroma.Web.ActivityPub.Utils.fetch_latest_follow(follower, followed)
+
+      assert User.get_follow_state(follower, followed) == nil
+      assert User.get_follow_state(follower, followed, nil) == nil
+    end
+  end
+
   describe "unfollow/2" do
     setup do: clear_config([:instance, :external_user_synchronization])
 
@@ -357,6 +385,38 @@ defmodule Pleroma.UserTest do
       {:ok, user, _activity} = User.unfollow(user, followed)
 
       assert User.following(user) == [user.follower_address]
+    end
+
+    test "unfollow returns the stale Follow when the relationship row is missing" do
+      follower = insert(:user)
+      followed = insert(:user, local: false, is_locked: true)
+
+      {:ok, _, _, follow_activity} = CommonAPI.follow(followed, follower)
+      {:ok, _} = CommonAPI.accept_follow_request(follower, followed)
+      Repo.delete!(Pleroma.FollowingRelationship.get(follower, followed))
+
+      assert {:ok, ^follower, %Activity{id: activity_id}} = User.unfollow(follower, followed)
+      assert activity_id == follow_activity.id
+    end
+
+    test "unfollow fails when neither a relationship row nor a live Follow exists" do
+      follower = insert(:user)
+      followed = insert(:user, local: false)
+
+      assert {:error, "Not subscribed!"} = User.unfollow(follower, followed)
+    end
+
+    test "unfollow fails when the only Follow without a relationship row is cancelled" do
+      follower = insert(:user)
+      followed = insert(:user, local: false, is_locked: true)
+
+      {:ok, _, _, _} = CommonAPI.follow(followed, follower)
+      {:ok, _} = CommonAPI.unfollow(followed, follower)
+
+      assert %{data: %{"state" => "cancelled"}} =
+               Pleroma.Web.ActivityPub.Utils.fetch_latest_follow(follower, followed)
+
+      assert {:error, "Not subscribed!"} = User.unfollow(follower, followed)
     end
 
     test "unfollow doesn't unfollow yourself" do

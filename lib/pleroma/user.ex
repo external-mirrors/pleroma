@@ -1184,38 +1184,39 @@ defmodule Pleroma.User do
         FollowingRelationship.unfollow(follower, followed)
 
       nil ->
-        {:error, "Not subscribed!"}
+        if live_follow_activity?(follower, followed) do
+          # The relationship row is gone but the Follow activity was never
+          # cancelled. Let the caller undo it so the stale state gets cleared.
+          with {:ok, follower} <- update_following_count(follower) do
+            {:ok, follower, followed}
+          end
+        else
+          {:error, "Not subscribed!"}
+        end
     end
   end
 
-  @doc "Returns follow state as Pleroma.FollowingRelationship.State value"
+  defp live_follow_activity?(%User{} = follower, %User{} = followed) do
+    case Utils.fetch_latest_follow(follower, followed) do
+      %Activity{data: %{"state" => state}} when state in ["pending", "accept"] -> true
+      _ -> false
+    end
+  end
+
+  @doc """
+  Returns follow state as Pleroma.FollowingRelationship.State value.
+
+  Only the `following_relationships` table is consulted. Follow activities are
+  deliberately ignored: they can be left in an `accept` or `pending` state when
+  the relationship was removed, and timelines only trust the table.
+  """
   def get_follow_state(%User{} = follower, %User{} = following) do
     following_relationship = FollowingRelationship.get(follower, following)
     get_follow_state(follower, following, following_relationship)
   end
 
-  def get_follow_state(
-        %User{} = follower,
-        %User{} = following,
-        following_relationship
-      ) do
-    case {following_relationship, following.local} do
-      {nil, false} ->
-        case Utils.fetch_latest_follow(follower, following) do
-          %Activity{data: %{"state" => state}} when state in ["pending", "accept"] ->
-            FollowingRelationship.state_to_enum(state)
-
-          _ ->
-            nil
-        end
-
-      {%{state: state}, _} ->
-        state
-
-      {nil, _} ->
-        nil
-    end
-  end
+  def get_follow_state(%User{}, %User{}, %{state: state}), do: state
+  def get_follow_state(%User{}, %User{}, nil), do: nil
 
   def locked?(%User{} = user) do
     user.is_locked || false

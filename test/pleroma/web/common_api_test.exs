@@ -1557,6 +1557,36 @@ defmodule Pleroma.Web.CommonAPITest do
   end
 
   describe "unfollow/2" do
+    test "cancels a stale accepted Follow when the relationship row is missing" do
+      follower = insert(:user)
+      followed = insert(:user, local: false, is_locked: true)
+
+      {:ok, _, _, %{id: activity_id}} = CommonAPI.follow(followed, follower)
+      {:ok, _} = CommonAPI.accept_follow_request(follower, followed)
+      Repo.delete!(Pleroma.FollowingRelationship.get(follower, followed))
+
+      assert {:ok, %User{}} = CommonAPI.unfollow(followed, follower)
+
+      assert %{id: ^activity_id, data: %{"state" => "cancelled"}} =
+               Pleroma.Web.ActivityPub.Utils.fetch_latest_follow(follower, followed)
+
+      assert %{data: %{"type" => "Undo", "object" => %{"type" => "Follow"}}} =
+               Pleroma.Web.ActivityPub.Utils.fetch_latest_undo(follower)
+    end
+
+    test "cancels a stale pending Follow when the relationship row is missing" do
+      follower = insert(:user)
+      followed = insert(:user, local: false, is_locked: true)
+
+      {:ok, _, _, %{id: activity_id}} = CommonAPI.follow(followed, follower)
+      Repo.delete!(Pleroma.FollowingRelationship.get(follower, followed))
+
+      assert {:ok, %User{}} = CommonAPI.unfollow(followed, follower)
+
+      assert %{id: ^activity_id, data: %{"state" => "cancelled"}} =
+               Pleroma.Web.ActivityPub.Utils.fetch_latest_follow(follower, followed)
+    end
+
     test "also unsubscribes a user" do
       [follower, followed] = insert_pair(:user)
       {:ok, followed, follower, _} = CommonAPI.follow(followed, follower)

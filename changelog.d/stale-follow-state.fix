@@ -1,0 +1,1 @@
+Fixed follow state being derived from stale Follow activities when the following relationship row is missing; unfollowing now cancels such stale Follows instead of silently doing nothing.
