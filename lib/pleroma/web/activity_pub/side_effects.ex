@@ -12,6 +12,8 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   alias Pleroma.Activity
   alias Pleroma.Chat
   alias Pleroma.Chat.MessageReference
+  alias Pleroma.Conversation
+  alias Pleroma.Conversation.Participation
   alias Pleroma.FollowingRelationship
   alias Pleroma.Notification
   alias Pleroma.Object
@@ -242,6 +244,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
         meta
         |> add_notifications(notifications)
         |> add_stream_out(activity)
+        |> handle_conversation(activity)
 
       {:ok, activity, meta}
     else
@@ -471,19 +474,42 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
         meta[:object_data]
       end
 
-    if orig_object_data["type"] in Pleroma.Constants.updatable_object_types() do
-      {:ok, _, updated} =
-        Object.Updater.do_update_and_invalidate_cache(orig_object, updated_object)
+    with true <- orig_object_data["type"] in Pleroma.Constants.updatable_object_types(),
+         {:ok, _, true} <-
+           Object.Updater.do_update_and_invalidate_cache(orig_object, updated_object) do
+      {:ok, notifications} = Notification.create_notifications(object)
 
-      if updated do
-        object
-        |> Activity.normalize()
-        |> ActivityPub.notify_and_stream()
-      end
+      meta =
+        meta
+        |> add_notifications(notifications)
+        |> add_stream_out(Activity.normalize(object))
+        |> handle_conversation(Activity.get_create_by_object_ap_id_with_object(orig_object_ap_id))
+
+      {:ok, object, meta}
+    else
+      _ -> {:ok, object, meta}
     end
-
-    {:ok, object, meta}
   end
+
+  # Creates or bumps the conversation of a direct message, marks it as read for
+  # the author and queues the participations for streaming.
+  defp handle_conversation(meta, %Activity{} = activity) do
+    with {:ok, conversation} <- Conversation.create_or_bump_for(activity),
+         %User{} = author <- User.get_cached_by_ap_id(activity.actor) do
+      Participation.mark_as_read(author, conversation)
+
+      participations =
+        conversation
+        |> Repo.preload([participations: :user], force: true)
+        |> Map.get(:participations)
+
+      add_streamables(meta, [{"participation", participations}])
+    else
+      _ -> meta
+    end
+  end
+
+  defp handle_conversation(meta, _), do: meta
 
   def handle_object_creation(%{"type" => "ChatMessage"} = object, _activity, meta) do
     with {:ok, object, meta} <- Pipeline.common_pipeline(object, meta) do

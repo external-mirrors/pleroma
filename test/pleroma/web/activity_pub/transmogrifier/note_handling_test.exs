@@ -7,7 +7,9 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
   use Pleroma.DataCase
 
   alias Pleroma.Activity
+  alias Pleroma.Conversation.Participation
   alias Pleroma.Object
+  alias Pleroma.Repo
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.ActivityPub.Utils
@@ -41,6 +43,35 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
 
       assert "test" in Object.tags(object)
       assert Object.hashtags(object) == ["test"]
+    end
+
+    test "it creates a conversation and participations for incoming direct messages" do
+      recipient = insert(:user)
+
+      data =
+        File.read!("test/fixtures/mastodon-post-activity.json")
+        |> Jason.decode!()
+
+      object =
+        data["object"]
+        |> Map.put("to", [recipient.ap_id])
+        |> Map.put("cc", [])
+
+      data =
+        data
+        |> Map.put("to", [recipient.ap_id])
+        |> Map.put("cc", [])
+        |> Map.put("object", object)
+
+      {:ok, %Activity{} = activity} = Transmogrifier.handle_incoming(data)
+
+      assert [%Participation{read: false, conversation: conversation}] =
+               recipient |> Participation.for_user() |> Repo.preload(:conversation)
+
+      assert conversation.ap_id == Object.normalize(activity, fetch: false).data["context"]
+
+      sender = User.get_cached_by_ap_id(data["actor"])
+      assert [%Participation{read: true}] = Participation.for_user(sender)
     end
 
     test "it ignores an incoming notice if we already have it" do

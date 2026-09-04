@@ -9,6 +9,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
   alias Pleroma.Activity
   alias Pleroma.Chat
   alias Pleroma.Chat.MessageReference
+  alias Pleroma.Conversation.Participation
   alias Pleroma.Notification
   alias Pleroma.Object
   alias Pleroma.Repo
@@ -194,6 +195,37 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
                "content" => "edited content",
                "updated" => ^updated_time
              } = new_note.data
+    end
+
+    test "it streams out the update only after the transaction", %{
+      update: update,
+      updated_note: updated_note
+    } do
+      ActivityPubMock
+      |> expect(:stream_out, 0, fn _ -> nil end)
+
+      {:ok, update, meta} = SideEffects.handle(update, object_data: updated_note)
+
+      verify!()
+
+      update_id = update.id
+
+      ActivityPubMock
+      |> expect(:stream_out, fn %Activity{id: ^update_id, object: %Object{}} -> nil end)
+
+      SideEffects.handle_after_transaction(meta)
+    end
+
+    test "it does not stream out rejected updates", %{
+      update: update,
+      updated_note: updated_note
+    } do
+      ActivityPubMock
+      |> expect(:stream_out, 0, fn _ -> nil end)
+
+      updated_note = Map.delete(updated_note, "updated")
+      {:ok, _update, meta} = SideEffects.handle(update, object_data: updated_note)
+      SideEffects.handle_after_transaction(meta)
     end
 
     test "it rejects updates with no updated attribute in object", %{
@@ -823,6 +855,48 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
       |> expect(:stream_out, fn ^create_activity -> nil end)
 
       SideEffects.handle_after_transaction(meta)
+    end
+
+    test "it creates a conversation for direct messages and queues the participations for streaming",
+         %{author: author, mentioned: mentioned} do
+      {:ok, draft} =
+        ActivityDraft.create(author, %{
+          status: "hey @#{mentioned.nickname}",
+          visibility: "direct"
+        })
+
+      {:ok, note_data, _meta} = Builder.note(draft)
+
+      note_data =
+        note_data
+        |> Map.put("id", Utils.generate_object_id())
+        |> Map.put("published", Utils.make_date())
+
+      {:ok, create_data, _meta} = Builder.create(author, note_data["id"], note_data["to"])
+      {:ok, create_activity, _meta} = ActivityPub.persist(create_data, local: true)
+
+      {:ok, _create_activity, meta} =
+        SideEffects.handle(create_activity, local: true, object_data: note_data)
+
+      assert [%Participation{read: true}] = Participation.for_user(author)
+      assert [%Participation{read: false}] = Participation.for_user(mentioned)
+
+      assert [{"participation", participations}] = meta[:streamables]
+
+      assert Enum.map(participations, & &1.user.id) |> Enum.sort() ==
+               Enum.sort([author.id, mentioned.id])
+    end
+
+    test "it does not create a conversation for public posts", %{
+      create_activity: create_activity,
+      note_data: note_data,
+      author: author
+    } do
+      {:ok, _create_activity, meta} =
+        SideEffects.handle(create_activity, local: true, object_data: note_data)
+
+      assert [] == Participation.for_user(author)
+      refute meta[:streamables]
     end
   end
 
