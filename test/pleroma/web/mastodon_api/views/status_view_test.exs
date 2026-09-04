@@ -767,6 +767,22 @@ defmodule Pleroma.Web.MastodonAPI.StatusViewTest do
                %{name: "nextcloud", url: "http://localhost:4001/tag/nextcloud"}
              ]
     end
+
+    test "it handles AS2 Hashtag tags and their plain copies" do
+      object_tags = [
+        %{
+          "type" => "Hashtag",
+          "name" => "#Fediverse",
+          "href" => "https://example.com/tags/Fediverse"
+        },
+        "fediverse",
+        %{"type" => "Mention", "name" => "@lain", "href" => "https://example.com/users/lain"}
+      ]
+
+      assert StatusView.build_tags(object_tags) == [
+               %{name: "fediverse", url: "http://localhost:4001/tag/fediverse"}
+             ]
+    end
   end
 
   describe "rich media cards" do

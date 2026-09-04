@@ -783,14 +783,8 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
   """
   @spec build_tags(list(any())) :: list(map())
   def build_tags(object_tags) when is_list(object_tags) do
-    object_tags
-    |> Enum.map(fn
-      tag when is_binary(tag) -> tag
-      %{"type" => "Hashtag", "name" => "#" <> name} -> name
-      _ -> nil
-    end)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
+    %{"tag" => object_tags}
+    |> Object.object_data_hashtags()
     |> Enum.map(&%{name: &1, url: "#{Pleroma.Web.Endpoint.url()}/tag/#{URI.encode(&1)}"})
   end
 
