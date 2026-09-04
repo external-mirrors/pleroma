@@ -665,7 +665,7 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
 
       user = insert(:user)
 
-      {:ok, activity} = CommonAPI.listen(user, %{"title" => "lain radio episode 1"})
+      {:ok, activity} = CommonAPI.listen(user, %{title: "lain radio episode 1"})
 
       user_ap_id = user.ap_id
       activity_ap_id = activity.data["id"]

@@ -28,7 +28,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AudioImageVideoValidator do
     field(:title, :string)
     field(:artist, :string)
     field(:album, :string)
-    field(:length, :integer)
+    field(:length, Pleroma.EctoType.ActivityPub.ObjectValidators.Any)
     field(:externalLink, :string)
   end
 
@@ -118,10 +118,16 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AudioImageVideoValidator do
 
     struct
     |> cast(data, __schema__(:fields) -- [:attachment, :tag])
-    # Audio objects of Listen activities (scrobbles) have no attachment
-    |> cast_embed(:attachment, required: data["type"] != "Audio")
+    |> cast_embed(:attachment, required: not scrobble?(data))
     |> cast_embed(:tag)
   end
+
+  # Audio objects of Listen activities (scrobbles) have no attachment
+  defp scrobble?(%{"type" => "Audio"} = data) do
+    Map.has_key?(data, "title") or Map.has_key?(data, "artist")
+  end
+
+  defp scrobble?(_), do: false
 
   defp validate_data(data_cng) do
     data_cng
