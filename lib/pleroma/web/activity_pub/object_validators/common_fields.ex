@@ -68,9 +68,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFields do
       field(:likes, {:array, ObjectValidators.ObjectID}, default: [])
       field(:announcements, {:array, ObjectValidators.ObjectID}, default: [])
 
+      # Local-only fields, stripped from incoming payloads and outgoing objects
       field(:directMessage, :boolean)
-
-      # Local-only fields, stripped from incoming and outgoing objects
       field(:generator, :map)
       field(:listMessage, ObjectValidators.ObjectID)
     end

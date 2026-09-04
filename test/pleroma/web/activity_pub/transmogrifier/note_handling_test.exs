@@ -74,6 +74,23 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.NoteHandlingTest do
       assert [%Participation{read: true}] = Participation.for_user(sender)
     end
 
+    test "it ignores directMessage on incoming public notes" do
+      data =
+        File.read!("test/fixtures/mastodon-post-activity.json")
+        |> Jason.decode!()
+
+      object = Map.put(data["object"], "directMessage", true)
+      data = data |> Map.put("directMessage", true) |> Map.put("object", object)
+
+      {:ok, %Activity{} = activity} = Transmogrifier.handle_incoming(data)
+      object = Object.normalize(activity, fetch: false)
+
+      refute Map.has_key?(activity.data, "directMessage")
+      refute Map.has_key?(object.data, "directMessage")
+      assert Pleroma.Web.ActivityPub.Visibility.get_visibility(object) == "public"
+      assert Pleroma.Web.ActivityPub.Visibility.public?(activity)
+    end
+
     test "it ignores an incoming notice if we already have it" do
       activity = insert(:note_activity)
 

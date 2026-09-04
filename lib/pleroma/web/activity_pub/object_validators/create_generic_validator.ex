@@ -35,7 +35,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
     # Should be moved to object, done for CommonAPI.Utils.make_context
     field(:context, :string)
 
-    # Local-only fields set by CommonAPI
+    # Local-only fields set by CommonAPI, stripped from incoming payloads
     field(:directMessage, :boolean)
     field(:listMessage, ObjectValidators.ObjectID)
   end
