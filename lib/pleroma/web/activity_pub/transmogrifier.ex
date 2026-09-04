@@ -929,6 +929,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
     |> CommonFixes.maybe_add_content_map()
     |> strip_internal_fields
     |> strip_internal_tags
+    |> Map.drop(["bcc", "bto"])
     |> set_type
     |> maybe_process_history
   end
