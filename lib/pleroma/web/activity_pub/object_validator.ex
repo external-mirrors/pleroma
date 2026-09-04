@@ -35,6 +35,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   alias Pleroma.Web.ActivityPub.ObjectValidators.FlagValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.FollowValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.LikeValidator
+  alias Pleroma.Web.ActivityPub.ObjectValidators.MoveValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.UndoValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.UpdateValidator
@@ -83,6 +84,16 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
         meta
         |> Keyword.put(:object_data, undone_object.data)
 
+      {:ok, object, meta}
+    end
+  end
+
+  def validate(%{"type" => "Move"} = object, meta) do
+    with {:ok, object} <-
+           object
+           |> MoveValidator.cast_and_validate()
+           |> Ecto.Changeset.apply_action(:insert) do
+      object = stringify_keys(object)
       {:ok, object, meta}
     end
   end

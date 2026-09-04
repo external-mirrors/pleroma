@@ -12,7 +12,6 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
   alias Pleroma.Healthcheck
   alias Pleroma.User
   alias Pleroma.Utils.URIEncoding
-  alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.Auth.WrapperAuthenticator, as: Authenticator
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.Plugs.OAuthScopesPlug
@@ -162,7 +161,7 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
     case CommonAPI.Utils.confirm_current_password(user, body_params.password) do
       {:ok, user} ->
         with {:ok, target_user} <- find_or_fetch_user_by_nickname(body_params.target_account),
-             {:ok, _user} <- ActivityPub.move(user, target_user) do
+             {:ok, _activity} <- CommonAPI.move(user, target_user) do
           json(conn, %{status: "success"})
         else
           {:not_found, _} ->

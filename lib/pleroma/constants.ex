@@ -108,7 +108,8 @@ defmodule Pleroma.Constants do
       "Undo",
       "Flag",
       "EmojiReact",
-      "Listen"
+      "Listen",
+      "Move"
     ]
   )
 

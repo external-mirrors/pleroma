@@ -147,6 +147,20 @@ defmodule Pleroma.Web.ActivityPub.Builder do
      }, []}
   end
 
+  @spec move(User.t(), User.t()) :: {:ok, map(), keyword()}
+  def move(%User{} = origin, %User{} = target) do
+    {:ok,
+     %{
+       "id" => Utils.generate_activity_id(),
+       "type" => "Move",
+       "actor" => origin.ap_id,
+       "object" => origin.ap_id,
+       "target" => target.ap_id,
+       "to" => [origin.follower_address],
+       "published" => Utils.make_date()
+     }, []}
+  end
+
   @doc """
   Builds a Flag (report) activity. The report is only delivered to the
   reported account's instance when `forward` is not false.

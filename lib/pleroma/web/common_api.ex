@@ -148,6 +148,18 @@ defmodule Pleroma.Web.CommonAPI do
     end
   end
 
+  @spec move(User.t(), User.t()) :: {:ok, Activity.t()} | {:error, any()}
+  def move(%User{} = origin, %User{} = target) do
+    with true <- origin.ap_id in target.also_known_as,
+         {:ok, move_data, _meta} <- Builder.move(origin, target),
+         {:ok, activity, _meta} <- Pipeline.common_pipeline(move_data, local: true) do
+      {:ok, activity}
+    else
+      false -> {:error, "Target account must have the origin in `alsoKnownAs`"}
+      error -> unwrap_pipeline_error(error)
+    end
+  end
+
   @doc "Creates an Undo for the latest Follow of `follower` to `followed`."
   @spec undo_follow(User.t(), User.t()) :: {:ok, Activity.t()} | {:error, any()}
   def undo_follow(%User{} = follower, %User{} = followed) do

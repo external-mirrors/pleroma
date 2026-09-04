@@ -929,7 +929,7 @@ defmodule Pleroma.Web.MastodonAPI.NotificationControllerTest do
     %{user: follower, conn: conn} = oauth_access(["read:notifications"])
 
     User.follow(follower, old_user)
-    Pleroma.Web.ActivityPub.ActivityPub.move(old_user, new_user)
+    CommonAPI.move(old_user, new_user)
     Pleroma.Tests.ObanHelpers.perform_all()
 
     conn = get(conn, "/api/v1/notifications")

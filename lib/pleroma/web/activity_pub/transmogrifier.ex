@@ -15,7 +15,6 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   alias Pleroma.Object.Containment
   alias Pleroma.Repo
   alias Pleroma.User
-  alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.ObjectValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes
@@ -803,8 +802,10 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
        ) do
     with %User{} = origin_user <- User.get_cached_by_ap_id(origin_actor),
          {:ok, %User{} = target_user} <- User.get_or_fetch_by_ap_id(target_actor),
-         true <- origin_actor in target_user.also_known_as do
-      ActivityPub.move(origin_user, target_user, false)
+         true <- origin_actor in target_user.also_known_as,
+         {:ok, move_data, _meta} <- Builder.move(origin_user, target_user),
+         {:ok, activity, _meta} <- Pipeline.common_pipeline(move_data, local: false) do
+      {:ok, activity}
     else
       _e -> :error
     end

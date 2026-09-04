@@ -1,0 +1,1 @@
+Incoming Move activities are accepted again; they were rejected by the inbox guard since the early rejection of unknown activity types.

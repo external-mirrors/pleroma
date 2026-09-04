@@ -970,7 +970,7 @@ defmodule Pleroma.NotificationTest do
       User.follow(follower, old_user)
       User.follow(other_follower, old_user)
 
-      Pleroma.Web.ActivityPub.ActivityPub.move(old_user, new_user)
+      CommonAPI.move(old_user, new_user)
       ObanHelpers.perform_all()
 
       assert [

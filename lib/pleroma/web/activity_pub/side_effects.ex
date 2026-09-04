@@ -25,6 +25,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.Streamer
+  alias Pleroma.Workers.BackgroundWorker
   alias Pleroma.Workers.PollWorker
 
   require Pleroma.Constants
@@ -175,6 +176,32 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
     else
       _ ->
         {:ok, object, meta}
+    end
+  end
+
+  # Tasks this handles:
+  # - Notify the followers of the moved account
+  # - Move the following relationships in the background
+  @impl true
+  def handle(%{data: %{"type" => "Move", "object" => origin, "target" => target}} = object, meta) do
+    with %User{} = origin <- User.get_cached_by_ap_id(origin),
+         %User{} = target <- User.get_cached_by_ap_id(target) do
+      {:ok, notifications} = Notification.create_notifications(object)
+
+      BackgroundWorker.new(%{
+        "op" => "move_following",
+        "origin_id" => origin.id,
+        "target_id" => target.id
+      })
+      |> Oban.insert()
+
+      meta =
+        meta
+        |> add_notifications(notifications)
+
+      {:ok, object, meta}
+    else
+      _ -> {:error, :no_such_user}
     end
   end
 

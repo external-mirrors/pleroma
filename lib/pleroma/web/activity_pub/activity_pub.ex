@@ -8,11 +8,9 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   alias Pleroma.Config
   alias Pleroma.Constants
   alias Pleroma.Conversation
-  alias Pleroma.Conversation.Participation
   alias Pleroma.Filter
   alias Pleroma.Hashtag
   alias Pleroma.Maps
-  alias Pleroma.Notification
   alias Pleroma.Object
   alias Pleroma.Object.Containment
   alias Pleroma.Object.Fetcher
@@ -24,7 +22,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.Streamer
   alias Pleroma.Web.WebFinger
-  alias Pleroma.Workers.BackgroundWorker
 
   import Ecto.Query
   import Pleroma.Web.ActivityPub.Utils
@@ -175,25 +172,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     end
   end
 
-  def notify_and_stream(activity) do
-    {:ok, notifications} = Notification.create_notifications(activity)
-    Notification.stream(notifications)
-
-    original_activity =
-      case activity do
-        %{data: %{"type" => "Update"}, object: %{data: %{"id" => id}}} ->
-          Activity.get_create_by_object_ap_id_with_object(id)
-
-        _ ->
-          activity
-      end
-
-    conversation = create_or_bump_conversation(original_activity, original_activity.actor)
-    participations = get_participations(conversation)
-    stream_out(activity)
-    stream_out_participations(participations)
-  end
-
   defp maybe_create_activity_expiration(
          %{data: %{"expires_at" => %DateTime{} = expires_at}} = activity
        ) do
@@ -216,22 +194,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   end
 
   defp maybe_create_activity_expiration(activity), do: {:ok, activity}
-
-  defp create_or_bump_conversation(activity, actor) do
-    with {:ok, conversation} <- Conversation.create_or_bump_for(activity),
-         %User{} = user <- User.get_cached_by_ap_id(actor) do
-      Participation.mark_as_read(user, conversation)
-      {:ok, conversation}
-    end
-  end
-
-  defp get_participations({:ok, conversation}) do
-    conversation
-    |> Repo.preload(:participations, force: true)
-    |> Map.get(:participations)
-  end
-
-  defp get_participations(_), do: []
 
   def stream_out_participations(participations) do
     participations =
@@ -272,35 +234,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   @impl true
   def stream_out(_activity) do
     :noop
-  end
-
-  @spec move(User.t(), User.t(), boolean()) :: {:ok, Activity.t()} | {:error, any()}
-  def move(%User{} = origin, %User{} = target, local \\ true) do
-    params = %{
-      "type" => "Move",
-      "actor" => origin.ap_id,
-      "object" => origin.ap_id,
-      "target" => target.ap_id,
-      "to" => [origin.follower_address]
-    }
-
-    with true <- origin.ap_id in target.also_known_as,
-         {:ok, activity} <- insert(params, local),
-         _ <- notify_and_stream(activity) do
-      maybe_federate(activity)
-
-      BackgroundWorker.new(%{
-        "op" => "move_following",
-        "origin_id" => origin.id,
-        "target_id" => target.id
-      })
-      |> Oban.insert()
-
-      {:ok, activity}
-    else
-      false -> {:error, "Target account must have the origin in `alsoKnownAs`"}
-      err -> err
-    end
   end
 
   def fetch_activities_for_context_query(context, opts) do

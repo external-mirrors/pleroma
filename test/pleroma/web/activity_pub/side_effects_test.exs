@@ -916,6 +916,37 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
     end
   end
 
+  describe "Move objects" do
+    setup do
+      %{ap_id: old_ap_id} = old_user = insert(:user)
+      new_user = insert(:user, also_known_as: [old_ap_id])
+      follower = insert(:user)
+      User.follow(follower, old_user)
+
+      {:ok, move_data, _meta} = Builder.move(old_user, new_user)
+      {:ok, move, _meta} = ActivityPub.persist(move_data, local: true)
+
+      %{move: move, old_user: old_user, new_user: new_user, follower: follower}
+    end
+
+    test "it notifies the followers and schedules moving the follows", %{
+      move: move,
+      old_user: old_user,
+      new_user: new_user,
+      follower: follower
+    } do
+      {:ok, _move, meta} = SideEffects.handle(move)
+
+      assert [%Notification{user_id: follower_id, type: "move"}] = meta[:notifications]
+      assert follower_id == follower.id
+
+      assert_enqueued(
+        worker: Pleroma.Workers.BackgroundWorker,
+        args: %{"op" => "move_following", "origin_id" => old_user.id, "target_id" => new_user.id}
+      )
+    end
+  end
+
   describe "Listen objects" do
     test "it creates the Audio object" do
       user = insert(:user)

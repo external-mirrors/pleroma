@@ -2051,7 +2051,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       assert User.following?(follower, old_user)
       assert User.following?(follower_move_opted_out, old_user)
 
-      assert {:ok, %Activity{} = activity} = ActivityPub.move(old_user, new_user)
+      assert {:ok, %Activity{} = activity} = CommonAPI.move(old_user, new_user)
 
       assert %Activity{
                actor: ^old_ap_id,
@@ -2095,7 +2095,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       new_user = insert(:user)
 
       assert {:error, "Target account must have the origin in `alsoKnownAs`"} =
-               ActivityPub.move(old_user, new_user)
+               CommonAPI.move(old_user, new_user)
     end
 
     test "do not move remote user following relationships" do
@@ -2107,7 +2107,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
 
       assert User.following?(follower_remote, old_user)
 
-      assert {:ok, activity} = ActivityPub.move(old_user, new_user)
+      assert {:ok, activity} = CommonAPI.move(old_user, new_user)
 
       assert %Activity{
                actor: ^old_ap_id,

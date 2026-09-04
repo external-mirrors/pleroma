@@ -27,8 +27,9 @@ defmodule Pleroma.Builders.ActivityBuilder do
     activity = build(data, opts)
 
     case ActivityPub.insert(activity) do
-      ok = {:ok, activity} ->
-        ActivityPub.notify_and_stream(activity)
+      {:ok, activity} = ok ->
+        {:ok, _notifications} = Pleroma.Notification.create_notifications(activity)
+        ActivityPub.stream_out(activity)
         ok
 
       error ->
