@@ -690,23 +690,6 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     |> Maps.put_if_present("id", activity_id)
   end
 
-  #### Create-related helpers
-
-  def make_create_data(params, additional) do
-    published = params.published || make_date()
-
-    %{
-      "type" => "Create",
-      "to" => params.to |> Enum.uniq(),
-      "actor" => params.actor.ap_id,
-      "object" => params.object,
-      "published" => published,
-      "context" => params.context
-    }
-    |> Map.merge(additional)
-  end
-
-  #### Listen-related helpers
   #### Flag-related helpers
   @spec make_flag_data(map(), map()) :: map()
   def make_flag_data(
