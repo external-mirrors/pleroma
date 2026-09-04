@@ -749,14 +749,13 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
          %{
            "type" => "Undo",
            "object" => %{"type" => "Follow", "object" => followed},
-           "actor" => follower,
-           "id" => id
-         } = _data,
+           "actor" => follower
+         } = data,
          _options
        ) do
     with %User{local: true} = followed <- User.get_cached_by_ap_id(followed),
          {:ok, %User{} = follower} <- User.get_or_fetch_by_ap_id(follower),
-         {:ok, activity} <- ActivityPub.unfollow(follower, followed, id, false) do
+         {:ok, activity, _} <- Pipeline.common_pipeline(data, local: false) do
       User.unfollow(follower, followed)
       {:ok, activity}
     else
@@ -1072,7 +1071,24 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
     end
   end
 
+  # Undos of follows embed the Follow, since not every implementation can
+  # look it up by id.
+  def prepare_activity(%{"type" => "Undo", "object" => object_id} = data)
+      when is_binary(object_id) do
+    case Activity.get_by_ap_id(object_id) do
+      %Activity{data: %{"type" => "Follow"} = follow_data} ->
+        prepare_generic_activity(Map.put(data, "object", follow_data))
+
+      _ ->
+        prepare_generic_activity(data)
+    end
+  end
+
   def prepare_activity(%{"type" => _type} = data) do
+    prepare_generic_activity(data)
+  end
+
+  defp prepare_generic_activity(data) do
     data =
       data
       |> strip_internal_fields

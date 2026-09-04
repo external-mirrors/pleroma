@@ -5,7 +5,6 @@
 defmodule Pleroma.Web.ActivityPub.Relay do
   alias Pleroma.Activity
   alias Pleroma.User
-  alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI
   require Logger
@@ -34,7 +33,7 @@ defmodule Pleroma.Web.ActivityPub.Relay do
   def unfollow(target_instance, opts \\ %{}) do
     with %User{} = local_user <- get_actor(),
          {:ok, target_user} <- fetch_target_user(target_instance, opts),
-         {:ok, activity} <- ActivityPub.unfollow(local_user, target_user) do
+         {:ok, activity} <- CommonAPI.undo_follow(local_user, target_user) do
       case target_user.id do
         nil -> User.update_following_count(local_user)
         _ -> User.unfollow(local_user, target_user)

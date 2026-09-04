@@ -295,29 +295,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     end
   end
 
-  @spec unfollow(User.t(), User.t(), String.t() | nil, boolean()) ::
-          {:ok, Activity.t()} | nil | {:error, any()}
-  def unfollow(follower, followed, activity_id \\ nil, local \\ true) do
-    with {:ok, result} <-
-           Repo.transaction(fn -> do_unfollow(follower, followed, activity_id, local) end) do
-      result
-    end
-  end
-
-  defp do_unfollow(follower, followed, activity_id, local) do
-    with %Activity{} = follow_activity <- fetch_latest_follow(follower, followed),
-         {:ok, follow_activity} <- update_follow_state(follow_activity, "cancelled"),
-         unfollow_data <- make_unfollow_data(follower, followed, follow_activity, activity_id),
-         {:ok, activity} <- insert(unfollow_data, local),
-         _ <- notify_and_stream(activity),
-         :ok <- maybe_federate(activity) do
-      {:ok, activity}
-    else
-      nil -> nil
-      {:error, error} -> Repo.rollback(error)
-    end
-  end
-
   @spec flag(map()) :: {:ok, Activity.t()} | {:error, any()}
   def flag(params) do
     with {:ok, result} <- Repo.transaction(fn -> do_flag(params) end) do

@@ -622,6 +622,13 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
     end
   end
 
+  # The Follow is kept with a "cancelled" state instead of being deleted.
+  def handle_undoing(%{data: %{"type" => "Follow"}} = object) do
+    with {:ok, _} <- Utils.update_follow_state(object, "cancelled") do
+      :ok
+    end
+  end
+
   def handle_undoing(object), do: {:error, ["don't know how to handle", object]}
 
   @spec delete_object(Activity.t()) :: :ok | {:error, Ecto.Changeset.t()}

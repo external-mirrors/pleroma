@@ -47,10 +47,10 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       {:ok, %Activity{data: data, local: false}} = Transmogrifier.handle_incoming(data)
 
       assert data["type"] == "Undo"
-      assert data["object"]["type"] == "Follow"
-      assert data["object"]["object"] == user.ap_id
+      assert data["object"] == follow_data["id"]
       assert data["actor"] == "http://mastodon.example.org/users/admin"
 
+      assert %{data: %{"state" => "cancelled"}} = Activity.get_by_ap_id(follow_data["id"])
       refute User.following?(User.get_cached_by_ap_id(data["actor"]), user)
     end
 
@@ -525,6 +525,24 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       {:ok, modified} = Transmogrifier.prepare_activity(activity.data)
 
       assert modified["object"]["actor"] == modified["object"]["attributedTo"]
+    end
+
+    test "it embeds the Follow in Undos of follows" do
+      follower = insert(:user)
+      followed = insert(:user)
+
+      {:ok, _, _, follow} = CommonAPI.follow(followed, follower)
+      {:ok, undo} = CommonAPI.undo_follow(follower, followed)
+
+      assert is_binary(undo.data["object"])
+
+      {:ok, modified} = Transmogrifier.prepare_activity(undo.data)
+
+      assert %{"type" => "Follow", "id" => follow_id, "object" => followed_ap_id} =
+               modified["object"]
+
+      assert follow_id == follow.data["id"]
+      assert followed_ap_id == followed.ap_id
     end
 
     test "it strips internal hashtag data" do

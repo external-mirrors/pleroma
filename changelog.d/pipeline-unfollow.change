@@ -1,0 +1,1 @@
+Unfollowing (locally and from remote instances) now goes through the ActivityPub pipeline. The Undo activity references the Follow by id; it is still embedded when federated.

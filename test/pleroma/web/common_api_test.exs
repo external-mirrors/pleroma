@@ -1677,12 +1677,11 @@ defmodule Pleroma.Web.CommonAPITest do
       assert %{id: ^activity_id, data: %{"state" => "cancelled"}} =
                Pleroma.Web.ActivityPub.Utils.fetch_latest_follow(follower, followed)
 
-      assert %{
-               data: %{
-                 "type" => "Undo",
-                 "object" => %{"type" => "Follow", "state" => "cancelled"}
-               }
-             } = Pleroma.Web.ActivityPub.Utils.fetch_latest_undo(follower)
+      %{data: %{"id" => follow_ap_id}} =
+        Pleroma.Web.ActivityPub.Utils.fetch_latest_follow(follower, followed)
+
+      assert %{data: %{"type" => "Undo", "object" => ^follow_ap_id}} =
+               Pleroma.Web.ActivityPub.Utils.fetch_latest_undo(follower)
     end
 
     test "cancels a pending follow for a remote user" do
@@ -1699,12 +1698,11 @@ defmodule Pleroma.Web.CommonAPITest do
       assert %{id: ^activity_id, data: %{"state" => "cancelled"}} =
                Pleroma.Web.ActivityPub.Utils.fetch_latest_follow(follower, followed)
 
-      assert %{
-               data: %{
-                 "type" => "Undo",
-                 "object" => %{"type" => "Follow", "state" => "cancelled"}
-               }
-             } = Pleroma.Web.ActivityPub.Utils.fetch_latest_undo(follower)
+      %{data: %{"id" => follow_ap_id}} =
+        Pleroma.Web.ActivityPub.Utils.fetch_latest_follow(follower, followed)
+
+      assert %{data: %{"type" => "Undo", "object" => ^follow_ap_id}} =
+               Pleroma.Web.ActivityPub.Utils.fetch_latest_undo(follower)
     end
   end
 

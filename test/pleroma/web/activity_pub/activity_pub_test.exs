@@ -1634,19 +1634,21 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
   end
 
   describe "unfollowing" do
-    test "it reverts unfollow activity" do
+    test "it keeps the follow when the undo fails" do
       follower = insert(:user)
       followed = insert(:user)
 
       {:ok, _, _, follow_activity} = CommonAPI.follow(followed, follower)
 
-      with_mock(Utils, [:passthrough], maybe_federate: fn _ -> {:error, :reverted} end) do
-        assert {:error, :reverted} = ActivityPub.unfollow(follower, followed)
-      end
+      Pleroma.Web.ActivityPub.SideEffectsMock
+      |> Mox.expect(:handle, fn _, _ -> {:error, :reverted} end)
+
+      assert {:error, _} = CommonAPI.undo_follow(follower, followed)
 
       activity = Activity.get_by_id(follow_activity.id)
       assert activity.data["type"] == "Follow"
       assert activity.data["actor"] == follower.ap_id
+      assert activity.data["state"] == "accept"
 
       assert activity.data["object"] == followed.ap_id
     end
@@ -1656,16 +1658,14 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       followed = insert(:user)
 
       {:ok, _, _, follow_activity} = CommonAPI.follow(followed, follower)
-      {:ok, activity} = ActivityPub.unfollow(follower, followed)
+      {:ok, activity} = CommonAPI.undo_follow(follower, followed)
 
       assert activity.data["type"] == "Undo"
       assert activity.data["actor"] == follower.ap_id
+      assert activity.data["object"] == follow_activity.data["id"]
+      assert activity.data["to"] == [followed.ap_id]
 
-      embedded_object = activity.data["object"]
-      assert is_map(embedded_object)
-      assert embedded_object["type"] == "Follow"
-      assert embedded_object["object"] == followed.ap_id
-      assert embedded_object["id"] == follow_activity.data["id"]
+      assert %{data: %{"state" => "cancelled"}} = Activity.get_by_id(follow_activity.id)
     end
 
     test "creates an undo activity for a pending follow request" do
@@ -1673,16 +1673,20 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       followed = insert(:user, %{is_locked: true})
 
       {:ok, _, _, follow_activity} = CommonAPI.follow(followed, follower)
-      {:ok, activity} = ActivityPub.unfollow(follower, followed)
+      {:ok, activity} = CommonAPI.undo_follow(follower, followed)
 
       assert activity.data["type"] == "Undo"
       assert activity.data["actor"] == follower.ap_id
+      assert activity.data["object"] == follow_activity.data["id"]
 
-      embedded_object = activity.data["object"]
-      assert is_map(embedded_object)
-      assert embedded_object["type"] == "Follow"
-      assert embedded_object["object"] == followed.ap_id
-      assert embedded_object["id"] == follow_activity.data["id"]
+      assert %{data: %{"state" => "cancelled"}} = Activity.get_by_id(follow_activity.id)
+    end
+
+    test "returns an error when there is no follow activity" do
+      follower = insert(:user)
+      followed = insert(:user)
+
+      assert {:error, :not_found} = CommonAPI.undo_follow(follower, followed)
     end
   end
 

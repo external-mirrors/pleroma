@@ -150,10 +150,10 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.UndoHandlingTest do
     {:ok, %Activity{data: data, local: false}} = Transmogrifier.handle_incoming(data)
 
     assert data["type"] == "Undo"
-    assert data["object"]["type"] == "Follow"
-    assert data["object"]["object"] == user.ap_id
+    assert data["object"] == follow_data["id"]
     assert data["actor"] == "http://mastodon.example.org/users/admin"
 
+    assert %{data: %{"state" => "cancelled"}} = Activity.get_by_ap_id(follow_data["id"])
     refute User.following?(User.get_cached_by_ap_id(data["actor"]), user)
   end
 

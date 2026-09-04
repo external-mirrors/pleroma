@@ -78,7 +78,7 @@ defmodule Mix.Tasks.Pleroma.RelayTest do
 
       assert undo_activity.data["type"] == "Undo"
       assert undo_activity.data["actor"] == local_user.ap_id
-      assert undo_activity.data["object"]["id"] == cancelled_activity.data["id"]
+      assert undo_activity.data["object"] == cancelled_activity.data["id"]
       refute "#{target_instance}/followers" in User.following(local_user)
     end
 
@@ -152,7 +152,7 @@ defmodule Mix.Tasks.Pleroma.RelayTest do
 
       assert undo_activity.data["type"] == "Undo"
       assert undo_activity.data["actor"] == local_user.ap_id
-      assert undo_activity.data["object"]["id"] == cancelled_activity.data["id"]
+      assert undo_activity.data["object"] == cancelled_activity.data["id"]
       refute "#{target_instance}/followers" in User.following(local_user)
     end
   end

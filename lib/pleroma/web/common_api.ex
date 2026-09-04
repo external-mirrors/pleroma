@@ -141,10 +141,23 @@ defmodule Pleroma.Web.CommonAPI do
   @spec unfollow(User.t(), User.t()) :: {:ok, User.t()} | {:error, any()}
   def unfollow(unfollowed, follower) do
     with {:ok, follower, _follow_activity} <- User.unfollow(follower, unfollowed),
-         {:ok, _activity} <- ActivityPub.unfollow(follower, unfollowed),
+         {:ok, _activity} <- undo_follow(follower, unfollowed),
          {:ok, _subscription} <- User.unsubscribe(follower, unfollowed),
          {:ok, _endorsement} <- User.unendorse(follower, unfollowed) do
       {:ok, follower}
+    end
+  end
+
+  @doc "Creates an Undo for the latest Follow of `follower` to `followed`."
+  @spec undo_follow(User.t(), User.t()) :: {:ok, Activity.t()} | {:error, any()}
+  def undo_follow(%User{} = follower, %User{} = followed) do
+    with %Activity{} = follow_activity <- Utils.fetch_latest_follow(follower, followed),
+         {:ok, undo_data, _meta} <- Builder.undo(follower, follow_activity),
+         {:ok, activity, _meta} <- Pipeline.common_pipeline(undo_data, local: true) do
+      {:ok, activity}
+    else
+      nil -> {:error, :not_found}
+      error -> error
     end
   end
 

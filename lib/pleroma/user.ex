@@ -2107,14 +2107,14 @@ defmodule Pleroma.User do
     user
     |> get_followers()
     |> Enum.each(fn follower ->
-      ActivityPub.unfollow(follower, user)
+      CommonAPI.undo_follow(follower, user)
       unfollow(follower, user)
     end)
 
     user
     |> get_friends()
     |> Enum.each(fn followed ->
-      ActivityPub.unfollow(user, followed)
+      CommonAPI.undo_follow(user, followed)
       unfollow(user, followed)
     end)
 

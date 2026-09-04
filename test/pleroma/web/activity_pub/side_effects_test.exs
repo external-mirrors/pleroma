@@ -543,6 +543,15 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
   end
 
   describe "Undo objects" do
+    test "a follow undo marks the follow as cancelled", %{
+      follow_undo: follow_undo,
+      follow: follow
+    } do
+      {:ok, _, _} = SideEffects.handle(follow_undo)
+
+      assert %{data: %{"state" => "cancelled"}} = Activity.get_by_id(follow.id)
+    end
+
     setup do
       poster = insert(:user)
       user = insert(:user)
@@ -564,7 +573,13 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
       {:ok, undo_data, _meta} = Builder.undo(user, block)
       {:ok, block_undo, _meta} = ActivityPub.persist(undo_data, local: true)
 
+      {:ok, _, _, follow} = CommonAPI.follow(poster, user)
+      {:ok, undo_data, _meta} = Builder.undo(user, follow)
+      {:ok, follow_undo, _meta} = ActivityPub.persist(undo_data, local: true)
+
       %{
+        follow_undo: follow_undo,
+        follow: follow,
         like_undo: like_undo,
         post: post,
         like: like,
