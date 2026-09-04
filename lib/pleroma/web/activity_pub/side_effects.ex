@@ -546,7 +546,10 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
       {:ok, object, meta}
     else
-      _ -> {:ok, object, meta}
+      # not an updatable object, or nothing changed
+      false -> {:ok, object, meta}
+      {:ok, _, false} -> {:ok, object, meta}
+      {:error, _} = error -> error
     end
   end
 
