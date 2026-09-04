@@ -23,6 +23,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.MastodonAPI.AccountView
+  alias Pleroma.Web.MastodonAPI.FallbackController
   alias Pleroma.Web.MastodonAPI.ScheduledActivityView
   alias Pleroma.Web.OAuth.Token
   alias Pleroma.Web.Plugs.OAuthScopesPlug
@@ -225,6 +226,9 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
         conn
         |> put_status(:unprocessable_entity)
         |> json(%{error: message})
+
+      {:error, %Ecto.Changeset{}} = error ->
+        FallbackController.call(conn, error)
 
       {:error, message} ->
         conn

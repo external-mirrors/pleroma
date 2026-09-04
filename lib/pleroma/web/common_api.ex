@@ -169,7 +169,7 @@ defmodule Pleroma.Web.CommonAPI do
       {:ok, activity}
     else
       nil -> {:error, :not_found}
-      error -> error
+      error -> unwrap_pipeline_error(error)
     end
   end
 
@@ -719,7 +719,7 @@ defmodule Pleroma.Web.CommonAPI do
         {:error, :visibility_error}
 
       error ->
-        error
+        unwrap_pipeline_error(error)
     end
   end
 
