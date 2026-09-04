@@ -915,6 +915,45 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
     end
   end
 
+  describe "Flag objects" do
+    setup do
+      reporter = insert(:user)
+      moderator = insert(:user, is_moderator: true)
+      reported = insert(:user)
+      {:ok, post} = CommonAPI.post(reported, %{status: "bad post"})
+
+      {:ok, flag_data, _meta} =
+        Builder.flag(%{
+          actor: reporter,
+          context: Utils.generate_context_id(),
+          account: reported,
+          statuses: [post],
+          content: "please look at this"
+        })
+
+      {:ok, flag, _meta} = ActivityPub.persist(flag_data, local: true)
+
+      %{flag: flag, moderator: moderator, reporter: reporter, post: post}
+    end
+
+    test "it notifies the moderators after the transaction", %{
+      flag: flag,
+      moderator: moderator
+    } do
+      {:ok, _flag, meta} = SideEffects.handle(flag)
+
+      assert [%Notification{user_id: user_id}] = meta[:notifications]
+      assert user_id == moderator.id
+    end
+
+    test "it triggers the report webhooks", %{flag: flag} do
+      with_mock Pleroma.Webhook.Notify, [:passthrough], trigger_webhooks: fn _, _ -> nil end do
+        {:ok, flag, _meta} = SideEffects.handle(flag)
+        assert called(Pleroma.Webhook.Notify.trigger_webhooks(flag, :"report.created"))
+      end
+    end
+  end
+
   describe "announce objects" do
     setup do
       poster = insert(:user)

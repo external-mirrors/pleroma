@@ -1,0 +1,1 @@
+Reports (Flag activities), local and incoming, now go through the ActivityPub pipeline and are validated.

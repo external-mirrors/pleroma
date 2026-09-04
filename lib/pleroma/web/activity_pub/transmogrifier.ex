@@ -575,15 +575,18 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
          :ok <- reject_third_party_report(actor, account),
          # Remove the reported user from the object list.
          statuses <- Enum.filter(objects, fn ap_id -> ap_id != account.ap_id end) do
-      %{
-        actor: actor,
-        context: context,
-        account: account,
-        statuses: statuses,
-        content: content,
-        additional: %{"cc" => [account.ap_id]}
-      }
-      |> ActivityPub.flag()
+      {:ok, flag_data, _meta} =
+        Builder.flag(%{
+          actor: actor,
+          context: context,
+          account: account,
+          statuses: statuses,
+          content: content
+        })
+
+      with {:ok, activity, _meta} <- Pipeline.common_pipeline(flag_data, local: false) do
+        {:ok, activity}
+      end
     end
   end
 

@@ -32,6 +32,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   alias Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.EmojiReactValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.EventValidator
+  alias Pleroma.Web.ActivityPub.ObjectValidators.FlagValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.FollowValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.LikeValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator
@@ -83,6 +84,17 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
         |> Keyword.put(:object_data, undone_object.data)
 
       {:ok, object, meta}
+    end
+  end
+
+  def validate(%{"type" => "Flag", "object" => reported} = object, meta) do
+    with {:ok, flag} <-
+           object
+           |> FlagValidator.cast_and_validate()
+           |> Ecto.Changeset.apply_action(:insert) do
+      # The reported statuses are stored as given, they are part of the report.
+      flag = flag |> stringify_keys() |> Map.put("object", reported)
+      {:ok, flag, meta}
     end
   end
 

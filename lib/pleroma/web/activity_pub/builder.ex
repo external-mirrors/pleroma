@@ -147,6 +147,27 @@ defmodule Pleroma.Web.ActivityPub.Builder do
      }, []}
   end
 
+  @doc """
+  Builds a Flag (report) activity. The report is only delivered to the
+  reported account's instance when `forward` is not false.
+  """
+  @spec flag(map()) :: {:ok, map(), keyword()}
+  def flag(%{account: account} = params) do
+    forward? = params[:forward] != false
+
+    additional =
+      (params[:additional] || %{})
+      |> Map.merge(%{"to" => [], "cc" => if(forward?, do: [account.ap_id], else: [])})
+
+    data =
+      params
+      |> Utils.make_flag_data(additional)
+      |> Map.put("id", Utils.generate_activity_id())
+      |> Map.put("published", Utils.make_date())
+
+    {:ok, data, []}
+  end
+
   @spec delete(User.t(), String.t()) :: {:ok, map(), keyword()}
   def delete(actor, object_id) do
     object = Object.normalize(object_id, fetch: false)

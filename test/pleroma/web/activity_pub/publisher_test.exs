@@ -7,12 +7,21 @@ defmodule Pleroma.Web.ActivityPub.PublisherTest do
   use Pleroma.Web.ConnCase
 
   import Pleroma.Factory
+
+  defp flag(params) do
+    {:ok, flag_data, _meta} = Pleroma.Web.ActivityPub.Builder.flag(params)
+
+    with {:ok, activity, _meta} <-
+           Pleroma.Web.ActivityPub.Pipeline.common_pipeline(flag_data, local: true) do
+      {:ok, activity}
+    end
+  end
+
   import Tesla.Mock
 
   alias Pleroma.Activity
   alias Pleroma.Object
   alias Pleroma.Tests.ObanHelpers
-  alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Publisher
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.CommonAPI
@@ -584,7 +593,7 @@ defmodule Pleroma.Web.ActivityPub.PublisherTest do
       context = Utils.generate_context_id()
 
       {:ok, activity} =
-        ActivityPub.flag(%{
+        flag(%{
           actor: reporter,
           context: context,
           account: target_account,

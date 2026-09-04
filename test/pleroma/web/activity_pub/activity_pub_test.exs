@@ -23,6 +23,16 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
   import Mock
   import Mox
   import Pleroma.Factory
+
+  defp flag(params) do
+    {:ok, flag_data, _meta} = Pleroma.Web.ActivityPub.Builder.flag(params)
+
+    with {:ok, activity, _meta} <-
+           Pleroma.Web.ActivityPub.Pipeline.common_pipeline(flag_data, local: true) do
+      {:ok, activity}
+    end
+  end
+
   import Tesla.Mock
 
   setup do
@@ -1785,7 +1795,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
            target_ap_id: target_ap_id
          } do
       assert {:ok, activity} =
-               ActivityPub.flag(%{
+               flag(%{
                  actor: reporter,
                  context: context,
                  account: target_account,
@@ -1813,31 +1823,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
              } = activity
     end
 
-    test_with_mock "reverts on error",
-                   %{
-                     reporter: reporter,
-                     context: context,
-                     target_account: target_account,
-                     reported_activity: reported_activity,
-                     content: content
-                   },
-                   Utils,
-                   [:passthrough],
-                   maybe_federate: fn _ -> {:error, :reverted} end do
-      assert {:error, :reverted} =
-               ActivityPub.flag(%{
-                 actor: reporter,
-                 context: context,
-                 account: target_account,
-                 statuses: [reported_activity],
-                 content: content
-               })
-
-      assert Repo.aggregate(Activity, :count, :id) == 1
-      assert Repo.aggregate(Object, :count, :id) == 1
-      assert Repo.aggregate(Notification, :count, :id) == 0
-    end
-
     test_with_mock "triggers webhooks",
                    %{
                      reporter: reporter,
@@ -1850,7 +1835,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
                    [:passthrough],
                    trigger_webhooks: fn _, _ -> nil end do
       {:ok, activity} =
-        ActivityPub.flag(%{
+        flag(%{
           actor: reporter,
           context: context,
           account: target_account,

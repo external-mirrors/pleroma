@@ -19,6 +19,16 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
 
   import Mock
   import Pleroma.Factory
+
+  defp flag(params) do
+    {:ok, flag_data, _meta} = Pleroma.Web.ActivityPub.Builder.flag(params)
+
+    with {:ok, activity, _meta} <-
+           Pleroma.Web.ActivityPub.Pipeline.common_pipeline(flag_data, local: true) do
+      {:ok, activity}
+    end
+  end
+
   import ExUnit.CaptureLog
 
   setup_all do
@@ -872,7 +882,7 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       object_ap_id = reported_activity.object.data["id"]
 
       assert {:ok, activity} =
-               Pleroma.Web.ActivityPub.ActivityPub.flag(%{
+               flag(%{
                  actor: reporter,
                  context: context,
                  account: target_account,
@@ -903,7 +913,7 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       object_ap_id = reported_activity.object.data["id"]
 
       assert {:ok, activity} =
-               Pleroma.Web.ActivityPub.ActivityPub.flag(%{
+               flag(%{
                  actor: reporter,
                  context: context,
                  account: target_account,

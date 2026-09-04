@@ -686,16 +686,19 @@ defmodule Pleroma.Web.CommonAPI do
          {:ok, {content_html, _, _}} <- make_report_content_html(data[:comment]),
          {:ok, statuses} <- get_report_statuses(account, data),
          true <- check_statuses_visibility(user, statuses),
-         rules <- get_report_rules(Map.get(data, :rule_ids, nil)) do
-      ActivityPub.flag(%{
-        context: Utils.generate_context_id(),
-        actor: user,
-        account: account,
-        statuses: statuses,
-        content: content_html,
-        forward: Map.get(data, :forward, false),
-        rules: rules
-      })
+         rules <- get_report_rules(Map.get(data, :rule_ids, nil)),
+         {:ok, flag_data, _meta} <-
+           Builder.flag(%{
+             context: Utils.generate_context_id(),
+             actor: user,
+             account: account,
+             statuses: statuses,
+             content: content_html,
+             forward: Map.get(data, :forward, false),
+             rules: rules
+           }),
+         {:ok, activity, _meta} <- Pipeline.common_pipeline(flag_data, local: true) do
+      {:ok, activity}
     else
       false ->
         {:error, :visibility_error}

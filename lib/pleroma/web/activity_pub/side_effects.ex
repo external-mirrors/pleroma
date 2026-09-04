@@ -179,6 +179,23 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   end
 
   # Tasks this handles:
+  # - Notify the moderators
+  # - Trigger the report webhooks and send the report emails
+  @impl true
+  def handle(%{data: %{"type" => "Flag"}} = object, meta) do
+    {:ok, notifications} = Notification.create_notifications(object)
+
+    Pleroma.Webhook.Notify.trigger_webhooks(object, :"report.created")
+    send_report_emails(object)
+
+    meta =
+      meta
+      |> add_notifications(notifications)
+
+    {:ok, object, meta}
+  end
+
+  # Tasks this handles:
   # - Add like to object
   # - Set up notification
   @impl true
@@ -494,6 +511,32 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
       _ -> {:ok, object, meta}
     end
   end
+
+  defp send_report_emails(%{data: %{"actor" => actor, "object" => [account | statuses]}} = flag) do
+    with %User{} = reporter <- User.get_cached_by_ap_id(actor),
+         %User{} = account <- User.get_cached_by_ap_id(account) do
+      statuses = Enum.map(statuses, &reported_status/1)
+
+      User.all_users_with_privilege(:reports_manage_reports)
+      |> Enum.filter(fn user -> user.ap_id != actor end)
+      |> Enum.filter(fn user -> not is_nil(user.email) end)
+      |> Enum.each(fn privileged_user ->
+        privileged_user
+        |> Pleroma.Emails.AdminEmail.report(reporter, account, statuses, flag.data["content"])
+        |> Pleroma.Emails.Mailer.deliver_async()
+      end)
+    end
+  end
+
+  defp send_report_emails(_), do: :noop
+
+  # The emails link local statuses by their activity, as the reports used to
+  # be created from activities.
+  defp reported_status(%{"id" => ap_id} = status) do
+    Activity.get_create_by_object_ap_id(ap_id) || Activity.get_by_ap_id(ap_id) || status
+  end
+
+  defp reported_status(status), do: status
 
   # Creates or bumps the conversation of a direct message, marks it as read for
   # the author and queues the participations for streaming.

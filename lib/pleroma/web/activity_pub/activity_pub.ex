@@ -29,7 +29,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   import Ecto.Query
   import Pleroma.Web.ActivityPub.Utils
   import Pleroma.Web.ActivityPub.Visibility
-  import Pleroma.Webhook.Notify, only: [trigger_webhooks: 2]
 
   require Logger
   require Pleroma.Constants
@@ -292,56 +291,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
          _ <- notify_and_stream(activity),
          :ok <- maybe_federate(activity) do
       {:ok, activity}
-    end
-  end
-
-  @spec flag(map()) :: {:ok, Activity.t()} | {:error, any()}
-  def flag(params) do
-    with {:ok, result} <- Repo.transaction(fn -> do_flag(params) end) do
-      result
-    end
-  end
-
-  defp do_flag(
-         %{
-           actor: actor,
-           context: _context,
-           account: account,
-           statuses: statuses,
-           content: content
-         } = params
-       ) do
-    # only accept false as false value
-    local = !(params[:local] == false)
-    forward = !(params[:forward] == false)
-
-    additional = params[:additional] || %{}
-
-    additional =
-      if forward do
-        Map.merge(additional, %{"to" => [], "cc" => [account.ap_id]})
-      else
-        Map.merge(additional, %{"to" => [], "cc" => []})
-      end
-
-    with flag_data <- make_flag_data(params, additional),
-         {:ok, activity} <- insert(flag_data, local),
-         _ <- notify_and_stream(activity),
-         _ <- trigger_webhooks(activity, :"report.created"),
-         :ok <-
-           maybe_federate(activity) do
-      User.all_users_with_privilege(:reports_manage_reports)
-      |> Enum.filter(fn user -> user.ap_id != actor end)
-      |> Enum.filter(fn user -> not is_nil(user.email) end)
-      |> Enum.each(fn privileged_user ->
-        privileged_user
-        |> Pleroma.Emails.AdminEmail.report(actor, account, statuses, content)
-        |> Pleroma.Emails.Mailer.deliver_async()
-      end)
-
-      {:ok, activity}
-    else
-      {:error, error} -> Repo.rollback(error)
     end
   end
 
