@@ -268,8 +268,8 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   defp to_and_cc(%__MODULE__{} = draft) do
     {to, cc} = Utils.get_to_and_cc(draft)
 
-    # Objects must be addressed to someone. Direct messages without mentions
-    # are addressed to their author, who is a recipient anyway.
+    # The validators require objects to be addressed to someone. Direct
+    # messages without mentions are addressed to their author.
     cc = if to == [] and cc == [], do: [draft.user.ap_id], else: cc
 
     %{draft | to: to, cc: cc}

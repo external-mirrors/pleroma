@@ -171,24 +171,6 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   def maybe_create_context(context), do: context || generate_id("contexts")
 
   @doc """
-  Enqueues an activity for federation if it's local
-  """
-  @spec maybe_federate(any()) :: :ok
-  def maybe_federate(%Activity{local: true, data: %{"type" => type}} = activity) do
-    outgoing_blocks = Config.get([:activitypub, :outgoing_blocks])
-
-    with true <- Config.get!([:instance, :federating]),
-         true <- type != "Block" || outgoing_blocks,
-         false <- Visibility.local_public?(activity) do
-      Pleroma.Web.Federator.publish(activity)
-    end
-
-    :ok
-  end
-
-  def maybe_federate(_), do: :ok
-
-  @doc """
   Adds an id and a published data if they aren't there,
   also adds it to an included object
   """
