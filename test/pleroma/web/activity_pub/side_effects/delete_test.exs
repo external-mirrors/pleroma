@@ -77,12 +77,21 @@ defmodule Pleroma.Web.ActivityPub.SideEffects.DeleteTest do
       user_id = user.id
 
       ActivityPubMock
+      |> expect(:stream_out, 0, fn _ -> nil end)
+      |> expect(:stream_out_participations, 0, fn _, _ -> nil end)
+
+      {:ok, _delete, meta} = SideEffects.handle(delete)
+
+      verify!()
+
+      ActivityPubMock
       |> expect(:stream_out, fn ^delete -> nil end)
       |> expect(:stream_out_participations, fn %Object{id: ^object_id}, %User{id: ^user_id} ->
         nil
       end)
 
-      {:ok, _delete, _} = SideEffects.handle(delete)
+      SideEffects.handle_after_transaction(meta)
+
       user = User.get_cached_by_ap_id(object.data["actor"])
 
       object = Object.get_by_id(object.id)
@@ -109,12 +118,21 @@ defmodule Pleroma.Web.ActivityPub.SideEffects.DeleteTest do
       user_id = user.id
 
       ActivityPubMock
+      |> expect(:stream_out, 0, fn _ -> nil end)
+      |> expect(:stream_out_participations, 0, fn _, _ -> nil end)
+
+      {:ok, _delete, meta} = SideEffects.handle(delete)
+
+      verify!()
+
+      ActivityPubMock
       |> expect(:stream_out, fn ^delete -> nil end)
       |> expect(:stream_out_participations, fn %Object{id: ^object_id}, %User{id: ^user_id} ->
         nil
       end)
 
-      {:ok, _delete, _} = SideEffects.handle(delete)
+      SideEffects.handle_after_transaction(meta)
+
       user = User.get_cached_by_ap_id(object.data["actor"])
 
       object = Object.get_by_id(object.id)

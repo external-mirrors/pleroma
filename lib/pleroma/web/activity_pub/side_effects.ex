@@ -241,8 +241,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
       meta =
         meta
         |> add_notifications(notifications)
-
-      ap_streamer().stream_out(activity)
+        |> add_stream_out(activity)
 
       {:ok, activity, meta}
     else
@@ -263,11 +262,10 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
     {:ok, notifications} = Notification.create_notifications(object)
 
-    if !User.internal?(user), do: ap_streamer().stream_out(object)
-
     meta =
       meta
       |> add_notifications(notifications)
+      |> maybe_add_stream_out(object, !User.internal?(user))
 
     {:ok, object, meta}
   end
@@ -330,9 +328,12 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
             MessageReference.delete_for_object(deleted_object)
 
-            ap_streamer().stream_out(object)
-            ap_streamer().stream_out_participations(deleted_object, user)
-            :ok
+            meta =
+              meta
+              |> add_stream_out(object)
+              |> add_stream_out_participations(deleted_object, user)
+
+            {:ok, meta}
           else
             {:actor, _} ->
               @logger.error("The object doesn't have an actor: #{inspect(deleted_object)}")
@@ -352,19 +353,21 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
         %User{} ->
           with {:ok, _} <- User.delete(deleted_object) do
-            :ok
+            {:ok, meta}
           end
       end
 
-    if result == :ok do
-      # Only remove from index when deleting actual objects, not users or anything else
-      with %Pleroma.Object{} <- deleted_object do
-        Pleroma.Search.remove_from_index(deleted_object)
-      end
+    case result do
+      {:ok, meta} ->
+        # Only remove from index when deleting actual objects, not users or anything else
+        with %Pleroma.Object{} <- deleted_object do
+          Pleroma.Search.remove_from_index(deleted_object)
+        end
 
-      {:ok, object, meta}
-    else
-      {:error, result}
+        {:ok, object, meta}
+
+      error ->
+        {:error, error}
     end
   end
 
@@ -612,6 +615,34 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
     meta
   end
 
+  defp stream_out_activities(meta) do
+    Keyword.get(meta, :stream_out, [])
+    |> Enum.each(fn activity -> ap_streamer().stream_out(activity) end)
+
+    meta
+  end
+
+  defp stream_out_participations(meta) do
+    Keyword.get(meta, :stream_out_participations, [])
+    |> Enum.each(fn {object, user} -> ap_streamer().stream_out_participations(object, user) end)
+
+    meta
+  end
+
+  # Streaming is deferred until after the transaction commits, so that the
+  # streamer processes (which use their own database connections) can see the
+  # persisted activity and its side effects.
+  defp add_stream_out(meta, activity) do
+    Keyword.update(meta, :stream_out, [activity], &(&1 ++ [activity]))
+  end
+
+  defp maybe_add_stream_out(meta, activity, true), do: add_stream_out(meta, activity)
+  defp maybe_add_stream_out(meta, _activity, false), do: meta
+
+  defp add_stream_out_participations(meta, object, user) do
+    Keyword.update(meta, :stream_out_participations, [{object, user}], &(&1 ++ [{object, user}]))
+  end
+
   defp add_streamables(meta, streamables) do
     existing = Keyword.get(meta, :streamables, [])
 
@@ -629,7 +660,9 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   @impl true
   def handle_after_transaction(meta) do
     meta
+    |> stream_out_activities()
     |> stream_notifications()
     |> send_streamables()
+    |> stream_out_participations()
   end
 end

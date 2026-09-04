@@ -15,6 +15,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
+  alias Pleroma.Web.ActivityPub.ActivityPubMock
   alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.SideEffects
   alias Pleroma.Web.ActivityPub.Utils
@@ -22,6 +23,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
   alias Pleroma.Web.CommonAPI.ActivityDraft
 
   import Mock
+  import Mox
   import Pleroma.Factory
 
   defp get_announces_of_object(%{data: %{"id" => id}} = _object) do
@@ -777,6 +779,53 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
     end
   end
 
+  describe "creation of Notes" do
+    setup do
+      author = insert(:user, local: true)
+      mentioned = insert(:user, local: true)
+
+      {:ok, draft} = ActivityDraft.create(author, %{status: "hey @#{mentioned.nickname}"})
+      {:ok, note_data, _meta} = Builder.note(draft)
+
+      note_data =
+        note_data
+        |> Map.put("id", Utils.generate_object_id())
+        |> Map.put("published", Utils.make_date())
+
+      {:ok, create_data, _meta} = Builder.create(author, note_data["id"], note_data["to"])
+      {:ok, create_activity, _meta} = ActivityPub.persist(create_data, local: true)
+
+      %{
+        author: author,
+        mentioned: mentioned,
+        note_data: note_data,
+        create_activity: create_activity
+      }
+    end
+
+    test "it streams out the activity only after the transaction", %{
+      create_activity: create_activity,
+      note_data: note_data,
+      mentioned: mentioned
+    } do
+      ActivityPubMock
+      |> expect(:stream_out, 0, fn _ -> nil end)
+
+      {:ok, create_activity, meta} =
+        SideEffects.handle(create_activity, local: true, object_data: note_data)
+
+      verify!()
+
+      assert [notification] = meta[:notifications]
+      assert notification.user_id == mentioned.id
+
+      ActivityPubMock
+      |> expect(:stream_out, fn ^create_activity -> nil end)
+
+      SideEffects.handle_after_transaction(meta)
+    end
+  end
+
   describe "announce objects" do
     setup do
       poster = insert(:user)
@@ -825,6 +874,36 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
     test "creates a notification", %{announce: announce, poster: poster} do
       {:ok, announce, _} = SideEffects.handle(announce)
       assert Repo.get_by(Notification, user_id: poster.id, activity_id: announce.id)
+    end
+
+    test "streams out the announce only after the transaction", %{announce: announce} do
+      ActivityPubMock
+      |> expect(:stream_out, 0, fn _ -> nil end)
+
+      {:ok, announce, meta} = SideEffects.handle(announce)
+
+      verify!()
+
+      ActivityPubMock
+      |> expect(:stream_out, fn ^announce -> nil end)
+
+      SideEffects.handle_after_transaction(meta)
+    end
+
+    test "does not stream out announces by internal actors", %{poster: poster} do
+      internal_actor = Pleroma.Web.ActivityPub.InternalFetchActor.get_actor()
+      {:ok, post} = CommonAPI.post(poster, %{status: "hey"})
+
+      {:ok, announce_data, _meta} =
+        Builder.announce(internal_actor, post.object, visibility: "public")
+
+      {:ok, announce, _meta} = ActivityPub.persist(announce_data, local: true)
+
+      ActivityPubMock
+      |> expect(:stream_out, 0, fn _ -> nil end)
+
+      {:ok, _announce, meta} = SideEffects.handle(announce)
+      SideEffects.handle_after_transaction(meta)
     end
   end
 
