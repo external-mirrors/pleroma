@@ -84,7 +84,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     |> to_and_cc()
     |> context()
     |> listen_object()
-    |> with_valid(&changes/1)
+    |> with_valid(&listen_changes/1)
     |> validate()
   end
 
@@ -263,6 +263,11 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
 
   defp to_and_cc(%__MODULE__{} = draft) do
     {to, cc} = Utils.get_to_and_cc(draft)
+
+    # Objects must be addressed to someone. Direct messages without mentions
+    # are addressed to their author, who is a recipient anyway.
+    cc = if to == [] and cc == [], do: [draft.user.ap_id], else: cc
+
     %{draft | to: to, cc: cc}
   end
 
@@ -328,6 +333,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
         "mediaType" => media_type
       })
       |> maybe_put("htmlMfm", true, media_type == "text/x.misskeymarkdown")
+      |> maybe_put("directMessage", true, draft.visibility == "direct")
       |> Map.put("generator", draft.params[:generator])
       |> Map.put("language", draft.language)
 
@@ -342,23 +348,50 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     %{draft | preview?: preview?}
   end
 
+  # Builds the Create activity for the pipeline.
   defp changes(%__MODULE__{} = draft) do
-    direct? = draft.visibility == "direct"
-    additional = %{"cc" => draft.cc, "directMessage" => direct?}
+    {:ok, create_data, _meta} = Builder.create(draft.user, draft.object, draft.to)
 
-    additional =
-      case draft.expires_at do
-        %DateTime{} = expires_at -> Map.put(additional, "expires_at", expires_at)
-        _ -> additional
-      end
+    changes =
+      create_data
+      |> Map.put("cc", draft.cc)
+      |> Map.put("directMessage", draft.visibility == "direct")
+      |> maybe_put_expires_at(draft.expires_at)
+      |> maybe_add_list_data(draft.user, draft.visibility)
 
+    %{draft | changes: changes}
+  end
+
+  defp maybe_put_expires_at(data, %DateTime{} = expires_at),
+    do: Map.put(data, "expires_at", DateTime.to_iso8601(expires_at))
+
+  defp maybe_put_expires_at(data, _), do: data
+
+  defp maybe_add_list_data(data, user, {:list, list_id}) do
+    case Pleroma.List.get(list_id, user) do
+      %Pleroma.List{ap_id: list_ap_id} ->
+        data
+        |> Map.put("bcc", [list_ap_id])
+        |> Map.put("listMessage", list_ap_id)
+        |> put_in(["object", "bcc"], [list_ap_id])
+        |> put_in(["object", "listMessage"], list_ap_id)
+
+      _ ->
+        data
+    end
+  end
+
+  defp maybe_add_list_data(data, _user, _visibility), do: data
+
+  # Builds the params for ActivityPub.listen/1.
+  defp listen_changes(%__MODULE__{} = draft) do
     changes =
       %{
         to: draft.to,
         actor: draft.user,
         context: draft.context,
         object: draft.object,
-        additional: additional
+        additional: %{"cc" => draft.cc, "directMessage" => draft.visibility == "direct"}
       }
       |> Utils.maybe_add_list_data(draft.user, draft.visibility)
 

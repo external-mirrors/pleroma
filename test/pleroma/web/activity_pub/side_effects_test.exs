@@ -942,7 +942,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
     } do
       {:ok, announce, _} = SideEffects.handle(announce)
       object = Object.get_by_ap_id(announce.data["object"])
-      assert object.data["announcement_count"] == nil
+      assert Map.get(object.data, "announcement_count", 0) == 0
     end
 
     test "creates a notification", %{announce: announce, poster: poster} do
@@ -1067,7 +1067,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
         {:ok, draft} = ActivityDraft.create(poster, %{status: "#{mentions} hey"})
 
         create_activity_data =
-          Utils.make_create_data(draft.changes |> Map.put(:published, nil), %{})
+          draft.changes
           |> put_in(["object", "id"], "https://example.com/object")
           |> put_in(["id"], "https://example.com/activity")
 

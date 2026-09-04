@@ -202,8 +202,15 @@ defmodule Pleroma.Web.CommonAPITest do
           Notification.for_user_and_activity(recipient, activity)
           |> Repo.preload(:activity)
 
-        assert called(Pleroma.Web.Push.send(notification))
-        assert called(Pleroma.Web.Streamer.stream(["user", "user:notification"], notification))
+        assert called(Pleroma.Web.Push.send(:meck.is(&(&1.id == notification.id))))
+
+        assert called(
+                 Pleroma.Web.Streamer.stream(
+                   ["user", "user:notification"],
+                   :meck.is(&(&1.id == notification.id))
+                 )
+               )
+
         assert called(Pleroma.Web.Streamer.stream(["user", "user:pleroma_chat"], :_))
 
         assert activity
@@ -576,7 +583,8 @@ defmodule Pleroma.Web.CommonAPITest do
 
     object = Object.normalize(activity, fetch: false)
 
-    assert Object.tags(object) == ["2hu"]
+    assert Object.hashtags(object) == ["2hu"]
+    assert [%{"type" => "Hashtag", "name" => "#2hu"}, "2hu"] = Object.tags(object)
   end
 
   test "zwnj is treated as word character" do
@@ -585,7 +593,7 @@ defmodule Pleroma.Web.CommonAPITest do
 
     object = Object.normalize(activity, fetch: false)
 
-    assert Object.tags(object) == ["ساٴين‌س"]
+    assert Object.hashtags(object) == ["ساٴين‌س"]
   end
 
   test "allows lang attribute" do
@@ -614,6 +622,80 @@ defmodule Pleroma.Web.CommonAPITest do
     {:ok, activity} = CommonAPI.post(user, %{status: ":firefox:"})
 
     assert Object.normalize(activity, fetch: false).data["emoji"]["firefox"]
+  end
+
+  describe "posting through the pipeline" do
+    test "it streams out the activity only after the transaction" do
+      user = insert(:user)
+
+      Pleroma.Web.ActivityPub.ActivityPubMock
+      |> expect(:stream_out, fn %Activity{data: %{"type" => "Create"}} -> nil end)
+
+      assert {:ok, %Activity{object: %Object{}}} = CommonAPI.post(user, %{status: "hey"})
+    end
+
+    test "it addresses direct messages without mentions to the author" do
+      user = insert(:user)
+
+      {:ok, activity} = CommonAPI.post(user, %{status: "note to self", visibility: "direct"})
+      object = Object.normalize(activity, fetch: false)
+
+      assert activity.data["to"] == []
+      assert activity.data["cc"] == [user.ap_id]
+      assert object.data["cc"] == [user.ap_id]
+      assert activity.data["directMessage"] == true
+      assert Visibility.get_visibility(object) == "direct"
+      assert activity.recipients == [user.ap_id]
+    end
+
+    test "it keeps the application and list information of local posts" do
+      user = insert(:user)
+      {:ok, list} = Pleroma.List.create(%{title: "foo"}, user)
+
+      {:ok, activity} =
+        CommonAPI.post(user, %{
+          status: "for the list",
+          visibility: "list:#{list.id}",
+          generator: %{
+            "type" => "Application",
+            "name" => "PleromaFE",
+            "url" => "https://pleroma.social"
+          }
+        })
+
+      object = Object.normalize(activity, fetch: false)
+
+      assert activity.data["listMessage"] == list.ap_id
+      assert activity.data["bcc"] == [list.ap_id]
+      assert object.data["listMessage"] == list.ap_id
+      assert object.data["generator"]["name"] == "PleromaFE"
+      assert list.ap_id in activity.recipients
+    end
+
+    test "it returns a preview without persisting anything" do
+      user = insert(:user)
+
+      assert {:ok, %Activity{id: "pleroma:fakeid"} = activity} =
+               CommonAPI.post(user, %{status: "preview me", preview: true})
+
+      assert activity.data["object"]["content"] == "preview me"
+      assert Repo.aggregate(Activity, :count, :id) == 0
+      assert Repo.aggregate(Object, :count, :id) == 0
+    end
+
+    test "it returns MRF rejections and pipeline errors in the legacy shape" do
+      clear_config([:mrf_keyword, :reject], ["GNO"])
+      clear_config([:mrf, :policies], [Pleroma.Web.ActivityPub.MRF.KeywordPolicy])
+      user = insert(:user)
+
+      assert {:error, {:reject, "[KeywordPolicy] Matches with rejected keyword"}} =
+               CommonAPI.post(user, %{status: "GNO is not unix"})
+
+      clear_config([Pleroma.Workers.PurgeExpiredActivity, :enabled], false)
+
+      assert {:error, :expired_activities_disabled} =
+               CommonAPI.post(user, %{status: "gone soon", expires_in: 100_000})
+    end
   end
 
   describe "posting" do
@@ -805,7 +887,7 @@ defmodule Pleroma.Web.CommonAPITest do
       {:ok, activity} = CommonAPI.post(user, %{status: "foobar", visibility: "list:#{list.id}"})
 
       assert activity.data["bcc"] == [list.ap_id]
-      assert activity.recipients == [list.ap_id, user.ap_id]
+      assert Enum.sort(activity.recipients) == Enum.sort([list.ap_id, user.ap_id])
       assert activity.data["listMessage"] == list.ap_id
     end
 
@@ -2128,8 +2210,7 @@ defmodule Pleroma.Web.CommonAPITest do
       local_user: local_user,
       remote_one: remote_user
     } do
-      {:ok, activity} =
-        CommonAPI.post(remote_user, %{status: "I like turtles!"})
+      activity = insert(:note_activity, user: remote_user)
 
       {:ok, %{id: favorite_id} = _favorite} =
         CommonAPI.favorite(activity.id, local_user)
@@ -2176,8 +2257,7 @@ defmodule Pleroma.Web.CommonAPITest do
       {:ok, _, _} = Pleroma.User.follow(remote_one, local_user)
       {:ok, _, _} = Pleroma.User.follow(remote_two, local_user)
 
-      {:ok, activity} =
-        CommonAPI.post(remote_one, %{status: "This is an unpleasant post"})
+      activity = insert(:note_activity, user: remote_one)
 
       {:ok, %{id: repeat_id} = _repeat} =
         CommonAPI.repeat(activity.id, local_user)
@@ -2224,8 +2304,7 @@ defmodule Pleroma.Web.CommonAPITest do
       {:ok, _, _} = Pleroma.User.follow(remote_one, local_user)
       {:ok, _, _} = Pleroma.User.follow(remote_two, local_user)
 
-      {:ok, %{id: activity_id}} =
-        CommonAPI.post(remote_one, %{status: "Gang gang!!!!"})
+      %{id: activity_id} = insert(:note_activity, user: remote_one)
 
       {:ok, %{id: react_id} = _react} =
         CommonAPI.react_with_emoji(activity_id, local_user, "👍")

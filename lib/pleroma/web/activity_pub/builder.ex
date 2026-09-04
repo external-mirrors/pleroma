@@ -14,6 +14,7 @@ defmodule Pleroma.Web.ActivityPub.Builder do
   alias Pleroma.Object
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.Relay
+  alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI.ActivityDraft
@@ -197,7 +198,9 @@ defmodule Pleroma.Web.ActivityPub.Builder do
   def note(%ActivityDraft{} = draft) do
     data =
       %{
+        "id" => Utils.generate_object_id(),
         "type" => "Note",
+        "published" => Utils.make_date(),
         "to" => draft.to,
         "cc" => draft.cc,
         "content" => draft.content_html,
@@ -206,7 +209,11 @@ defmodule Pleroma.Web.ActivityPub.Builder do
         "context" => draft.context,
         "attachment" => draft.attachments,
         "actor" => draft.user.ap_id,
-        "tag" => Keyword.values(draft.tags) |> Enum.uniq()
+        "tag" =>
+          draft.tags
+          |> Keyword.values()
+          |> Enum.uniq()
+          |> Enum.map(&Transmogrifier.build_hashtag_tag/1)
       }
       |> add_in_reply_to(draft.in_reply_to)
       |> add_quote(draft.quote_post)

@@ -722,7 +722,12 @@ defmodule Pleroma.Web.MastodonAPI.StatusController do
        ) do
     if user.disclose_client do
       %{client_name: client_name, website: website} = Repo.preload(token, :app).app
-      Map.put(params, :generator, %{type: "Application", name: client_name, url: website})
+
+      Map.put(params, :generator, %{
+        "type" => "Application",
+        "name" => client_name,
+        "url" => website
+      })
     else
       Map.put(params, :generator, nil)
     end

@@ -855,81 +855,36 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       [user: insert(:user)]
     end
 
-    test "it reverts create", %{user: user} do
-      with_mock(Utils, [:passthrough], maybe_federate: fn _ -> {:error, :reverted} end) do
-        assert {:error, :reverted} =
-                 ActivityPub.create(%{
-                   to: ["user1", "user2"],
-                   actor: user,
-                   context: "",
-                   object: %{
-                     "to" => ["user1", "user2"],
-                     "type" => "Note",
-                     "content" => "testing"
-                   }
-                 })
-      end
-
-      assert Repo.aggregate(Activity, :count, :id) == 0
-      assert Repo.aggregate(Object, :count, :id) == 0
-    end
-
     test "creates activity if expiration is not configured and expires_at is not passed", %{
       user: user
     } do
       clear_config([Pleroma.Workers.PurgeExpiredActivity, :enabled], false)
 
-      assert {:ok, _} =
-               ActivityPub.create(%{
-                 to: ["user1", "user2"],
-                 actor: user,
-                 context: "",
-                 object: %{
-                   "to" => ["user1", "user2"],
-                   "type" => "Note",
-                   "content" => "testing"
-                 }
-               })
+      assert {:ok, _} = CommonAPI.post(user, %{status: "testing"})
     end
 
     test "rejects activity if expires_at present but expiration is not configured", %{user: user} do
       clear_config([Pleroma.Workers.PurgeExpiredActivity, :enabled], false)
 
       assert {:error, :expired_activities_disabled} =
-               ActivityPub.create(%{
-                 to: ["user1", "user2"],
-                 actor: user,
-                 context: "",
-                 object: %{
-                   "to" => ["user1", "user2"],
-                   "type" => "Note",
-                   "content" => "testing"
-                 },
-                 additional: %{
-                   "expires_at" => DateTime.utc_now()
-                 }
-               })
+               CommonAPI.post(user, %{status: "testing", expires_in: 100_000})
 
       assert Repo.aggregate(Activity, :count, :id) == 0
       assert Repo.aggregate(Object, :count, :id) == 0
     end
 
     test "removes doubled 'to' recipients", %{user: user} do
+      other_user = insert(:user)
+
       {:ok, activity} =
-        ActivityPub.create(%{
-          to: ["user1", "user1", "user2"],
-          actor: user,
-          context: "",
-          object: %{
-            "to" => ["user1", "user1", "user2"],
-            "type" => "Note",
-            "content" => "testing"
-          }
+        CommonAPI.post(user, %{
+          status: "@#{other_user.nickname} @#{other_user.nickname} testing",
+          visibility: "direct"
         })
 
-      assert activity.data["to"] == ["user1", "user2"]
+      assert activity.data["to"] == [other_user.ap_id]
       assert activity.actor == user.ap_id
-      assert activity.recipients == ["user1", "user2", user.ap_id]
+      assert Enum.sort(activity.recipients) == Enum.sort([other_user.ap_id, user.ap_id])
     end
 
     test "increases user note count only for public activities", %{user: user} do

@@ -106,7 +106,7 @@ defmodule Pleroma.StatsTest do
       end)
 
       Enum.each(1..20, fn _ ->
-        CommonAPI.post(user2, %{
+        post_as_remote(user2, %{
           visibility: "private",
           status: "hey"
         })

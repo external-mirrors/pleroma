@@ -16,7 +16,11 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContentTest do
 
   test "adds mentions to post content" do
     [lain, coolboymew, dielan, hakui, fence] = [
-      insert(:user, ap_id: "https://lain.com/users/lain", nickname: "lain@lain.com", local: false),
+      insert(:user,
+        ap_id: "https://lain.com/users/lain",
+        nickname: "lain@lain.com",
+        local: false
+      ),
       insert(:user,
         ap_id: "https://shitposter.club/users/coolboymew",
         nickname: "coolboymew@shitposter.club",
@@ -279,7 +283,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ForceMentionsInContentTest do
       )
     ]
 
-    {:ok, post} = CommonAPI.post(rogerick, %{status: "eugh"})
+    {:ok, post} = post_as_remote(rogerick, %{status: "eugh"})
 
     inline_mentions = [
       "<span class=\"h-card\"><a class=\"u-url mention\" data-user=\"#{rogerick.id}\" href=\"#{rogerick.ap_id}\" rel=\"ugc\">@<span>rogerick</span></a></span>",

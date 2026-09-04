@@ -556,9 +556,9 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       # as we don't have a Token to derive it from, otherwise it will
       # be nil and the test will pass
       assert %{
-               type: "Application",
-               name: "TestClient",
-               url: "https://pleroma.social"
+               "type" => "Application",
+               "name" => "TestClient",
+               "url" => "https://pleroma.social"
              } == activity.object.data["generator"]
 
       {:ok, modified} = Transmogrifier.prepare_activity(activity.data)

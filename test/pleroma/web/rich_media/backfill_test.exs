@@ -123,9 +123,10 @@ defmodule Pleroma.Web.RichMedia.BackfillTest do
        }}
     end)
 
-    # CommonAPI federation processing will stream out once as a new post
+    # The new post is streamed out once when it is created and once more when
+    # the rich media backfill for it completes
     Pleroma.Web.ActivityPub.ActivityPubMock
-    |> expect(:stream_out, 1, fn _ -> :ok end)
+    |> expect(:stream_out, 2, fn _ -> :ok end)
 
     {:ok, activity} = CommonAPI.post(user, %{status: "#cofe #{url}"})
     ObanHelpers.perform_all()
@@ -154,9 +155,10 @@ defmodule Pleroma.Web.RichMedia.BackfillTest do
        }}
     end)
 
-    # CommonAPI federation processing will stream out once as a new post
+    # The new post is streamed out once when it is created and once more when
+    # the rich media backfill for it completes
     Pleroma.Web.ActivityPub.ActivityPubMock
-    |> expect(:stream_out, 1, fn _ -> :ok end)
+    |> expect(:stream_out, 2, fn _ -> :ok end)
 
     {:ok, activity} = CommonAPI.post(user, %{status: "#cofe #{url}"})
     ObanHelpers.perform_all()

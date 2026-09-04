@@ -283,7 +283,7 @@ defmodule Pleroma.Web.Feed.UserControllerTest do
     test "returns 404 when the user is remote", %{conn: conn} do
       user = insert(:user, local: false)
 
-      {:ok, _} = CommonAPI.post(user, %{status: "test"})
+      {:ok, _} = post_as_remote(user, %{status: "test"})
 
       assert conn
              |> put_req_header("accept", "application/atom+xml")
@@ -347,7 +347,7 @@ defmodule Pleroma.Web.Feed.UserControllerTest do
     test "with html format, it falls back to frontend when user is remote", %{conn: conn} do
       user = insert(:user, local: false)
 
-      {:ok, _} = CommonAPI.post(user, %{status: "test"})
+      {:ok, _} = post_as_remote(user, %{status: "test"})
 
       response =
         conn

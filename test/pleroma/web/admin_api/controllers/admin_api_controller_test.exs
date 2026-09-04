@@ -1085,8 +1085,8 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
       user2 = insert(:user, %{ap_id: "https://#{instance2}/@actor"})
 
       CommonAPI.post(user1, %{visibility: "public", status: "hey"})
-      CommonAPI.post(user2, %{visibility: "unlisted", status: "hey"})
-      CommonAPI.post(user2, %{visibility: "private", status: "hey"})
+      post_as_remote(user2, %{visibility: "unlisted", status: "hey"})
+      post_as_remote(user2, %{visibility: "private", status: "hey"})
 
       response =
         conn

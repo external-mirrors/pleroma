@@ -10,6 +10,26 @@ defmodule Pleroma.Tests.Helpers do
 
   require Logger
 
+  @doc """
+  Creates a post for a user whose `ap_id` is on another host, as if it had
+  been received from that host. `CommonAPI.post/2` only works for local users,
+  since the pipeline validates that the actor and the object share a host.
+  """
+  def post_as_remote(%Pleroma.User{ap_id: ap_id} = user, params) do
+    %URI{scheme: scheme, host: host} = URI.parse(ap_id)
+    base = "#{scheme}://#{host}"
+
+    with {:ok, draft} <- Pleroma.Web.CommonAPI.ActivityDraft.create(user, params),
+         changes =
+           draft.changes
+           |> Map.put("id", "#{base}/activities/#{Ecto.UUID.generate()}")
+           |> put_in(["object", "id"], "#{base}/objects/#{Ecto.UUID.generate()}"),
+         {:ok, activity, _meta} <-
+           Pleroma.Web.ActivityPub.Pipeline.common_pipeline(changes, local: false) do
+      {:ok, activity}
+    end
+  end
+
   @doc "Accepts two URLs/URIs and sorts the query parameters before comparing"
   def uri_equal?(a, b) do
     a_sorted = uri_query_sort(a)
@@ -96,7 +116,8 @@ defmodule Pleroma.Tests.Helpers do
       import Pleroma.Tests.Helpers,
         only: [
           clear_config: 1,
-          clear_config: 2
+          clear_config: 2,
+          post_as_remote: 2
         ]
 
       def time_travel(entity, seconds) do

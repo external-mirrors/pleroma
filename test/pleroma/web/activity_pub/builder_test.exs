@@ -36,13 +36,23 @@ defmodule Pleroma.Web.ActivityPub.BuilderTest do
         "context" => "2hu",
         "sensitive" => false,
         "summary" => "test summary",
-        "tag" => ["jimm"],
+        "tag" => [
+          %{
+            "href" => Pleroma.Web.Endpoint.url() <> "/tags/jimm",
+            "name" => "#jimm",
+            "type" => "Hashtag"
+          }
+        ],
         "to" => [user2.ap_id],
         "type" => "Note",
         "custom_tag" => "test"
       }
 
-      assert {:ok, ^expected, []} = Builder.note(draft)
+      assert {:ok, %{"id" => "http" <> _, "published" => published} = data, []} =
+               Builder.note(draft)
+
+      assert {:ok, _, _} = DateTime.from_iso8601(published)
+      assert Map.drop(data, ["id", "published"]) == expected
     end
 
     test "quote post" do
@@ -71,7 +81,8 @@ defmodule Pleroma.Web.ActivityPub.BuilderTest do
         "to" => []
       }
 
-      assert {:ok, ^expected, []} = Builder.note(draft)
+      assert {:ok, %{"id" => "http" <> _, "published" => _} = data, []} = Builder.note(draft)
+      assert Map.drop(data, ["id", "published"]) == expected
     end
   end
 end

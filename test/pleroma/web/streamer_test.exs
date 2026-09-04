@@ -480,7 +480,7 @@ defmodule Pleroma.Web.StreamerTest do
         insert(:user, %{ap_id: "https://hecking-lewd-place.com/user/friend"})
 
       {:ok, user} = User.block_domain(user, "hecking-lewd-place.com")
-      {:ok, activity} = CommonAPI.post(followed, %{status: "still a friend"})
+      {:ok, activity} = post_as_remote(followed, %{status: "still a friend"})
 
       assert Streamer.filtered_by_user?(user, activity)
 

@@ -25,7 +25,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   alias Pleroma.Web.Streamer
   alias Pleroma.Web.WebFinger
   alias Pleroma.Workers.BackgroundWorker
-  alias Pleroma.Workers.PollWorker
 
   import Ecto.Query
   import Pleroma.Web.ActivityPub.Utils
@@ -86,28 +85,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     if public?(object), do: User.update_last_status_at(actor), else: {:ok, actor}
   end
 
-  defp increase_replies_count_if_reply(%{
-         "object" => %{"inReplyTo" => reply_ap_id} = object,
-         "type" => "Create"
-       }) do
-    if public?(object) do
-      Object.increase_replies_count(reply_ap_id)
-    end
-  end
-
-  defp increase_replies_count_if_reply(_create_data), do: :noop
-
-  defp increase_quotes_count_if_quote(%{
-         "object" => %{"quoteUrl" => quote_ap_id} = object,
-         "type" => "Create"
-       }) do
-    if public?(object) do
-      Object.increase_quotes_count(quote_ap_id)
-    end
-  end
-
-  defp increase_quotes_count_if_quote(_create_data), do: :noop
-
   @object_types ~w[ChatMessage Question Answer Audio Video Image Event Article Note Page]
   @impl true
   def persist(%{"type" => type} = object, meta) when type in @object_types do
@@ -127,7 +104,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
              recipients: recipients,
              actor: object["actor"]
            }),
-         # TODO: add tests for expired activities, when Note type will be supported in new pipeline
          {:ok, _} <- maybe_create_activity_expiration(activity) do
       {:ok, activity, meta}
     end
@@ -233,6 +209,13 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     end
   end
 
+  defp maybe_create_activity_expiration(%{data: %{"expires_at" => expires_at}} = activity)
+       when is_binary(expires_at) do
+    with {:ok, expires_at, _} <- DateTime.from_iso8601(expires_at) do
+      maybe_create_activity_expiration(put_in(activity.data["expires_at"], expires_at))
+    end
+  end
+
   defp maybe_create_activity_expiration(activity), do: {:ok, activity}
 
   defp create_or_bump_conversation(activity, actor) do
@@ -290,55 +273,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   @impl true
   def stream_out(_activity) do
     :noop
-  end
-
-  @spec create(map(), boolean()) :: {:ok, Activity.t()} | {:error, any()}
-  def create(params, fake \\ false) do
-    with {:ok, result} <- Repo.transaction(fn -> do_create(params, fake) end) do
-      result
-    end
-  end
-
-  defp do_create(%{to: to, actor: actor, context: context, object: object} = params, fake) do
-    additional = params[:additional] || %{}
-    # only accept false as false value
-    local = !(params[:local] == false)
-    published = params[:published]
-    quick_insert? = Config.get([:env]) == :benchmark
-
-    create_data =
-      make_create_data(
-        %{to: to, actor: actor, published: published, context: context, object: object},
-        additional
-      )
-
-    with {:ok, activity} <- insert(create_data, local, fake),
-         {:fake, false, activity} <- {:fake, fake, activity},
-         _ <- increase_replies_count_if_reply(create_data),
-         _ <- increase_quotes_count_if_quote(create_data),
-         {:quick_insert, false, activity} <- {:quick_insert, quick_insert?, activity},
-         {:ok, _actor} <- increase_note_count_if_public(actor, activity),
-         {:ok, _actor} <- update_last_status_at_if_public(actor, activity),
-         _ <- notify_and_stream(activity),
-         :ok <- maybe_schedule_poll_notifications(activity),
-         :ok <- maybe_handle_group_posts(activity),
-         :ok <- maybe_federate(activity) do
-      {:ok, activity}
-    else
-      {:quick_insert, true, activity} ->
-        {:ok, activity}
-
-      {:fake, true, activity} ->
-        {:ok, activity}
-
-      {:error, message} ->
-        Repo.rollback(message)
-    end
-  end
-
-  defp maybe_schedule_poll_notifications(activity) do
-    PollWorker.schedule_poll_end(activity)
-    :ok
   end
 
   @spec listen(map()) :: {:ok, Activity.t()} | {:error, any()}

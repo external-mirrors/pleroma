@@ -438,7 +438,14 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
         end
       end)
 
-    Map.put(object, "emoji", emoji)
+    # Incoming objects have their internal "emoji" field stripped, so this only
+    # keeps the emoji of locally built objects.
+    existing_emoji =
+      (object["emoji"] || %{})
+      |> Enum.filter(fn {name, url} -> is_binary(name) and valid_http_url?(url) end)
+      |> Map.new()
+
+    Map.put(object, "emoji", Map.merge(existing_emoji, emoji))
   end
 
   def fix_emoji(%{"tag" => %{"type" => "Emoji", "name" => name} = tag} = object)
@@ -1097,19 +1104,21 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
       (object["tag"] || [])
       |> Enum.map(fn
         # Expand internal representation tags into AS2 tags.
-        tag when is_binary(tag) ->
-          %{
-            "href" => Pleroma.Web.Endpoint.url() <> "/tags/#{tag}",
-            "name" => "##{tag}",
-            "type" => "Hashtag"
-          }
-
+        tag when is_binary(tag) -> build_hashtag_tag(tag)
         # Do not process tags which are already AS2 tag objects.
-        tag when is_map(tag) ->
-          tag
+        tag when is_map(tag) -> tag
       end)
+      |> Enum.uniq()
 
     Map.put(object, "tag", tags)
+  end
+
+  def build_hashtag_tag(name) when is_binary(name) do
+    %{
+      "href" => Pleroma.Web.Endpoint.url() <> "/tags/#{name}",
+      "name" => "##{name}",
+      "type" => "Hashtag"
+    }
   end
 
   # TODO These should be added on our side on insertion, it doesn't make much

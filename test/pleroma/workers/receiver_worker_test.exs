@@ -10,7 +10,6 @@ defmodule Pleroma.Workers.ReceiverWorkerTest do
   import Pleroma.Factory
 
   alias Pleroma.User
-  alias Pleroma.Web.CommonAPI
   alias Pleroma.Workers.ReceiverWorker
 
   defp signature_headers_for(%User{} = signer) do
@@ -269,7 +268,7 @@ defmodule Pleroma.Workers.ReceiverWorkerTest do
       user = insert(:user)
       remote_user = insert(:user, local: false, ap_id: "https://example.com/users/remote")
       {:ok, _, _} = Pleroma.User.follow(user, remote_user)
-      {:ok, activity} = CommonAPI.post(remote_user, %{status: "Test post"})
+      {:ok, activity} = post_as_remote(remote_user, %{status: "Test post"})
 
       %{
         user: user,

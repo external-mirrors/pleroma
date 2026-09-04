@@ -157,9 +157,9 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.QuestionHandlingTest do
   test "returns same activity if received a second time" do
     data = File.read!("test/fixtures/mastodon-question-activity.json") |> Jason.decode!()
 
-    assert {:ok, %Activity{local: false} = activity} = Transmogrifier.handle_incoming(data)
+    assert {:ok, %Activity{local: false, id: id}} = Transmogrifier.handle_incoming(data)
 
-    assert {:ok, ^activity} = Transmogrifier.handle_incoming(data)
+    assert {:ok, %Activity{id: ^id}} = Transmogrifier.handle_incoming(data)
   end
 
   test "accepts a Question with no content" do

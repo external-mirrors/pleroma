@@ -28,10 +28,15 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
       end
     end
 
+    field(:published, ObjectValidators.DateTime)
     field(:expires_at, ObjectValidators.DateTime)
 
     # Should be moved to object, done for CommonAPI.Utils.make_context
     field(:context, :string)
+
+    # Local-only fields set by CommonAPI
+    field(:directMessage, :boolean)
+    field(:listMessage, ObjectValidators.ObjectID)
   end
 
   def cast_data(data, meta \\ []) do

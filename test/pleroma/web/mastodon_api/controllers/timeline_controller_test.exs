@@ -327,7 +327,7 @@ defmodule Pleroma.Web.MastodonAPI.TimelineControllerTest do
       {:ok, %{id: activity_id} = activity} = CommonAPI.post(friend, %{status: "hey!"})
 
       {:ok, reply_from_blockee} =
-        CommonAPI.post(blockee, %{status: "heya", in_reply_to_status_id: activity})
+        post_as_remote(blockee, %{status: "heya", in_reply_to_status_id: activity})
 
       {:ok, _reply_from_friend} =
         CommonAPI.post(friend, %{status: "status", in_reply_to_status_id: reply_from_blockee})
@@ -343,7 +343,7 @@ defmodule Pleroma.Web.MastodonAPI.TimelineControllerTest do
       insert(:note_activity, local: false)
       insert(:note_activity, local: false)
 
-      {:ok, _} = CommonAPI.post(user, %{status: "test"})
+      {:ok, _} = post_as_remote(user, %{status: "test"})
 
       conn = get(conn, "/api/v1/timelines/public?instance=lain.com")
 

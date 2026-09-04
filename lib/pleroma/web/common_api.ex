@@ -449,10 +449,15 @@ defmodule Pleroma.Web.CommonAPI do
   def check_expiry_date({:ok, in_seconds}) do
     expiry = DateTime.add(DateTime.utc_now(), in_seconds)
 
-    if Pleroma.Workers.PurgeExpiredActivity.expires_late_enough?(expiry) do
-      {:ok, expiry}
-    else
-      {:error, "Expiry date is too soon"}
+    cond do
+      not Pleroma.Config.get([Pleroma.Workers.PurgeExpiredActivity, :enabled], false) ->
+        {:error, :expired_activities_disabled}
+
+      not Pleroma.Workers.PurgeExpiredActivity.expires_late_enough?(expiry) ->
+        {:error, "Expiry date is too soon"}
+
+      true ->
+        {:ok, expiry}
     end
   end
 
@@ -471,9 +476,34 @@ defmodule Pleroma.Web.CommonAPI do
   @spec post(User.t(), map()) :: {:ok, Activity.t()} | {:error, any()}
   def post(user, %{status: _} = data) do
     with {:ok, draft} <- ActivityDraft.create(user, data) do
-      ActivityPub.create(draft.changes, draft.preview?)
+      create_status(draft)
     end
   end
+
+  defp create_status(%ActivityDraft{preview?: true, changes: changes}) do
+    ActivityPub.insert(changes, _local = true, _fake = true)
+  end
+
+  defp create_status(%ActivityDraft{changes: changes}) do
+    case Pipeline.common_pipeline(changes, local: true) do
+      {:ok, activity, _meta} -> {:ok, activity}
+      error -> unwrap_pipeline_error(error)
+    end
+  end
+
+  # Callers of post/2 expect the error shape of the old ActivityPub.create/2:
+  # `{:error, {:reject, reason}}` for MRF rejections and `{:error, reason}`
+  # otherwise, without the pipeline stage wrapping.
+  @pipeline_stages [:validate, :mrf, :persist, :side_effects, :federation]
+
+  defp unwrap_pipeline_error({:reject, reason}), do: {:error, {:reject, reason}}
+
+  defp unwrap_pipeline_error({:error, {stage, error}}) when stage in @pipeline_stages,
+    do: unwrap_pipeline_error(error)
+
+  defp unwrap_pipeline_error({:error, {:error, _} = error}), do: unwrap_pipeline_error(error)
+  defp unwrap_pipeline_error({:error, _} = error), do: error
+  defp unwrap_pipeline_error(error), do: {:error, error}
 
   @spec update(Activity.t(), User.t(), map()) :: {:ok, Activity.t()} | {:error, nil}
   def update(orig_activity, %User{} = user, changes) do

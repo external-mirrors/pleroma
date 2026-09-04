@@ -1,0 +1,1 @@
+Local posts are now created through the ActivityPub pipeline (validation, MRF, side effects, federation) like every other activity. Hashtags of local posts are stored as ActivityStreams `Hashtag` tags, and replies and quotes only count public and unlisted posts for remote posts too.

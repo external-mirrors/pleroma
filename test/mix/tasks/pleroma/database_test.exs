@@ -152,14 +152,14 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
 
       # Old remote non-public reply (should be kept)
       {:ok, old_remote_post1_activity} =
-        CommonAPI.post(remote_user1, %{status: "some thing", local: false})
+        post_as_remote(remote_user1, %{status: "some thing", local: false})
 
       old_remote_post1_activity
       |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
       |> Repo.update!()
 
       {:ok, old_remote_non_public_reply_activity} =
-        CommonAPI.post(remote_user2, %{
+        post_as_remote(remote_user2, %{
           status: "some reply",
           in_reply_to_status_id: old_remote_post1_activity.id
         })
@@ -174,7 +174,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
 
       # Old remote non-public Announce (should be removed)
       {:ok, old_remote_post2_activity = %{data: %{"object" => old_remote_post2_id}}} =
-        CommonAPI.post(remote_user1, %{status: "some thing", local: false})
+        post_as_remote(remote_user1, %{status: "some thing", local: false})
 
       old_remote_post2_activity
       |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
@@ -205,10 +205,10 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
       remote_user2 = insert(:user, local: false)
 
       {:ok, remote_post_activity} =
-        CommonAPI.post(remote_user, %{status: "some thing", local: false})
+        post_as_remote(remote_user, %{status: "some thing", local: false})
 
       {:ok, remote_post_reply_activity} =
-        CommonAPI.post(remote_user2, %{
+        post_as_remote(remote_user2, %{
           status: "some reply",
           in_reply_to_status_id: remote_post_activity.id
         })
@@ -235,14 +235,14 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
       remote_user2 = insert(:user, local: false)
 
       {:ok, old_remote_post_activity} =
-        CommonAPI.post(remote_user, %{status: "some thing", local: false})
+        post_as_remote(remote_user, %{status: "some thing", local: false})
 
       old_remote_post_activity
       |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
       |> Repo.update!()
 
       {:ok, old_remote_post_reply_activity} =
-        CommonAPI.post(remote_user2, %{
+        post_as_remote(remote_user2, %{
           status: "some reply",
           in_reply_to_status_id: old_remote_post_activity.id
         })
@@ -279,7 +279,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
 
       # local reply
       {:ok, old_remote_post1_activity} =
-        CommonAPI.post(remote_user, %{status: "some thing", local: false})
+        post_as_remote(remote_user, %{status: "some thing", local: false})
 
       old_remote_post1_activity
       |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
@@ -297,7 +297,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
 
       # local Like
       {:ok, old_remote_post3_activity} =
-        CommonAPI.post(remote_user, %{status: "some thing", local: false})
+        post_as_remote(remote_user, %{status: "some thing", local: false})
 
       old_remote_post3_activity
       |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
@@ -311,7 +311,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
 
       # local Announce
       {:ok, old_remote_post4_activity} =
-        CommonAPI.post(remote_user, %{status: "some thing", local: false})
+        post_as_remote(remote_user, %{status: "some thing", local: false})
 
       old_remote_post4_activity
       |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
@@ -337,7 +337,7 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
       local_user = insert(:user, local: true)
 
       {:ok, old_remote_post_activity} =
-        CommonAPI.post(remote_user, %{status: "some thing", local: false})
+        post_as_remote(remote_user, %{status: "some thing", local: false})
 
       old_remote_post_activity
       |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})

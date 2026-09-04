@@ -87,7 +87,7 @@ defmodule Pleroma.ConversationTest do
            end)
 
     {:ok, activity} =
-      CommonAPI.post(jafnhar, %{
+      post_as_remote(jafnhar, %{
         status: "Hey @#{har.nickname}",
         visibility: "direct",
         in_reply_to_status_id: activity.id,

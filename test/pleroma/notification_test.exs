@@ -744,7 +744,7 @@ defmodule Pleroma.NotificationTest do
 
       {:ok, other_user} = User.block_domain(other_user, blocked_domain)
 
-      {:ok, activity} = CommonAPI.post(user, %{status: "hey @#{other_user.nickname}!"})
+      {:ok, activity} = post_as_remote(user, %{status: "hey @#{other_user.nickname}!"})
 
       enabled_receivers = Notification.get_notified_from_activity(activity)
 
@@ -759,7 +759,7 @@ defmodule Pleroma.NotificationTest do
       {:ok, other_user} = User.block_domain(other_user, blocked_domain)
       {:ok, other_user, user} = User.follow(other_user, user)
 
-      {:ok, activity} = CommonAPI.post(user, %{status: "hey @#{other_user.nickname}!"})
+      {:ok, activity} = post_as_remote(user, %{status: "hey @#{other_user.nickname}!"})
 
       enabled_receivers = Notification.get_notified_from_activity(activity)
 
@@ -1036,8 +1036,8 @@ defmodule Pleroma.NotificationTest do
       {:ok, user, followed} = User.follow(user, followed)
       {:ok, user} = User.block_domain(user, blocked_domain)
 
-      {:ok, _} = CommonAPI.post(stranger, %{status: "hey @#{user.nickname}"})
-      {:ok, followed_activity} = CommonAPI.post(followed, %{status: "hey @#{user.nickname}"})
+      {:ok, _} = post_as_remote(stranger, %{status: "hey @#{user.nickname}"})
+      {:ok, followed_activity} = post_as_remote(followed, %{status: "hey @#{user.nickname}"})
 
       assert [%{activity: %{id: followed_id}}] = Notification.for_user(user)
       assert followed_id == followed_activity.id
@@ -1047,7 +1047,7 @@ defmodule Pleroma.NotificationTest do
       blocked = insert(:user, ap_id: "http://some-domain.com")
       {:ok, user} = User.block_domain(user, "some-domain.com")
 
-      {:ok, _activity} = CommonAPI.post(blocked, %{status: "hey @#{user.nickname}"})
+      {:ok, _activity} = post_as_remote(blocked, %{status: "hey @#{user.nickname}"})
 
       assert Notification.for_user(user) == []
     end
@@ -1059,7 +1059,7 @@ defmodule Pleroma.NotificationTest do
       {:ok, user} = User.block_domain(user, "some-domain.com")
       {:ok, _, _} = User.follow(user, blocked)
 
-      {:ok, _activity} = CommonAPI.post(blocked, %{status: "hey @#{user.nickname}"})
+      {:ok, _activity} = post_as_remote(blocked, %{status: "hey @#{user.nickname}"})
 
       assert length(Notification.for_user(user)) == 1
     end
@@ -1099,7 +1099,7 @@ defmodule Pleroma.NotificationTest do
       blocked = insert(:user, ap_id: "http://some-domain.com")
       {:ok, user} = User.block_domain(user, "some-domain.com")
 
-      {:ok, _activity} = CommonAPI.post(blocked, %{status: "hey @#{user.nickname}"})
+      {:ok, _activity} = post_as_remote(blocked, %{status: "hey @#{user.nickname}"})
 
       assert Enum.empty?(Notification.for_user(user, %{with_muted: true}))
     end

@@ -23,6 +23,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.Pipeline
   alias Pleroma.Web.ActivityPub.Utils
+  alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.Streamer
   alias Pleroma.Workers.PollWorker
 
@@ -207,23 +208,26 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   def handle(%{data: %{"type" => "Create"}} = activity, meta) do
     with {:ok, object, meta} <- handle_object_creation(meta[:object_data], activity, meta),
          %User{} = user <- User.get_cached_by_ap_id(activity.data["actor"]) do
+      activity = Map.put(activity, :object, object)
       {:ok, notifications} = Notification.create_notifications(activity)
       {:ok, _user} = ActivityPub.increase_note_count_if_public(user, object)
       {:ok, _user} = ActivityPub.update_last_status_at_if_public(user, object)
 
-      if in_reply_to = object.data["type"] != "Answer" && object.data["inReplyTo"] do
-        Object.increase_replies_count(in_reply_to)
-      end
+      if Visibility.public?(object) do
+        if in_reply_to = object.data["type"] != "Answer" && object.data["inReplyTo"] do
+          Object.increase_replies_count(in_reply_to)
+        end
 
-      if quote_url = object.data["quoteUrl"] do
-        Object.increase_quotes_count(quote_url)
+        if quote_url = object.data["quoteUrl"] do
+          Object.increase_quotes_count(quote_url)
+        end
       end
 
       reply_depth = (meta[:depth] || 0) + 1
 
       # FIXME: Force inReplyTo to replies
-      if Pleroma.Web.Federator.allowed_thread_distance?(reply_depth) and
-           object.data["replies"] != nil do
+      if object.data["replies"] not in [nil, []] and
+           Pleroma.Web.Federator.allowed_thread_distance?(reply_depth) do
         for reply_id <- object.data["replies"] do
           Pleroma.Workers.RemoteFetcherWorker.new(%{
             "op" => "fetch_remote",
@@ -236,7 +240,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
       Pleroma.Web.RichMedia.Card.get_by_activity(activity)
 
-      Pleroma.Search.add_to_index(Map.put(activity, :object, object))
+      Pleroma.Search.add_to_index(activity)
 
       Utils.maybe_handle_group_posts(activity)
 

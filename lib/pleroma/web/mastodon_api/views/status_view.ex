@@ -691,7 +691,9 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
     %{ancestors: ancestors, descendants: descendants} =
       activities
       |> Enum.reverse()
-      |> Enum.group_by(fn %{id: id} -> if id < activity.id, do: :ancestors, else: :descendants end)
+      |> Enum.group_by(fn %{id: id} ->
+        if id < activity.id, do: :ancestors, else: :descendants
+      end)
       |> Map.put_new(:ancestors, [])
       |> Map.put_new(:descendants, [])
 
@@ -782,7 +784,13 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
   @spec build_tags(list(any())) :: list(map())
   def build_tags(object_tags) when is_list(object_tags) do
     object_tags
-    |> Enum.filter(&is_binary/1)
+    |> Enum.map(fn
+      tag when is_binary(tag) -> tag
+      %{"type" => "Hashtag", "name" => "#" <> name} -> name
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
     |> Enum.map(&%{name: &1, url: "#{Pleroma.Web.Endpoint.url()}/tag/#{URI.encode(&1)}"})
   end
 

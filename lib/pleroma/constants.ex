@@ -23,7 +23,8 @@ defmodule Pleroma.Constants do
       "rules",
       "language",
       "voters",
-      "assigned_account"
+      "assigned_account",
+      "listMessage"
     ]
   )
 

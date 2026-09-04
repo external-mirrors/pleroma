@@ -154,13 +154,13 @@ defmodule Pleroma.User.BackupTest do
     %{ap_id: other_ap_id} = other_user = insert(:user)
 
     {:ok, %{object: %{data: %{"id" => id1}}} = status1} =
-      CommonAPI.post(user, %{status: "status1"})
+      post_as_remote(user, %{status: "status1"})
 
     {:ok, %{object: %{data: %{"id" => id2}}} = status2} =
-      CommonAPI.post(user, %{status: "status2"})
+      post_as_remote(user, %{status: "status2"})
 
     {:ok, %{object: %{data: %{"id" => id3}}} = status3} =
-      CommonAPI.post(user, %{status: "status3"})
+      post_as_remote(user, %{status: "status3"})
 
     CommonAPI.favorite(status1.id, user)
     CommonAPI.favorite(status2.id, user)
@@ -270,7 +270,7 @@ defmodule Pleroma.User.BackupTest do
     user = insert(:user, %{nickname: "cofe", name: "Cofe", ap_id: "http://cofe.io/users/cofe"})
 
     Enum.map(1..120, fn i ->
-      {:ok, status} = CommonAPI.post(user, %{status: "status #{i}"})
+      {:ok, status} = post_as_remote(user, %{status: "status #{i}"})
       CommonAPI.favorite(status.id, user)
       Bookmark.create(user.id, status.id)
     end)
@@ -300,9 +300,9 @@ defmodule Pleroma.User.BackupTest do
 
       user = insert(:user, %{nickname: "cofe", name: "Cofe", ap_id: "http://cofe.io/users/cofe"})
 
-      {:ok, status1} = CommonAPI.post(user, %{status: "status1"})
-      {:ok, status2} = CommonAPI.post(user, %{status: "status2"})
-      {:ok, status3} = CommonAPI.post(user, %{status: "status3"})
+      {:ok, status1} = post_as_remote(user, %{status: "status1"})
+      {:ok, status2} = post_as_remote(user, %{status: "status2"})
+      {:ok, status3} = post_as_remote(user, %{status: "status3"})
       CommonAPI.favorite(status1.id, user)
       CommonAPI.favorite(status2.id, user)
       Bookmark.create(user.id, status2.id)
