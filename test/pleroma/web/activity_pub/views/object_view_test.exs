@@ -144,9 +144,9 @@ defmodule Pleroma.Web.ActivityPub.ObjectViewTest do
     assert result["to"] == listen_activity.data["to"]
     assert result["type"] == "Listen"
     assert result["object"]["album"] == audio.data["album"]
-    assert result["object"]["artist"] == listen_activity.data["artist"]
-    assert result["object"]["length"] == listen_activity.data["length"]
-    assert result["object"]["title"] == listen_activity.data["title"]
+    assert result["object"]["artist"] == audio.data["artist"]
+    assert result["object"]["length"] == audio.data["length"]
+    assert result["object"]["title"] == audio.data["title"]
     assert result["object"]["type"] == "Audio"
     assert result["@context"]
   end
