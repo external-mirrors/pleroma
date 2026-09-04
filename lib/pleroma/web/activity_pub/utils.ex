@@ -707,20 +707,6 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   end
 
   #### Listen-related helpers
-  def make_listen_data(params, additional) do
-    published = params.published || make_date()
-
-    %{
-      "type" => "Listen",
-      "to" => params.to |> Enum.uniq(),
-      "actor" => params.actor.ap_id,
-      "object" => params.object,
-      "published" => published,
-      "context" => params.context
-    }
-    |> Map.merge(additional)
-  end
-
   #### Flag-related helpers
   @spec make_flag_data(map(), map()) :: map()
   def make_flag_data(

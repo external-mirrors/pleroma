@@ -5,6 +5,7 @@
 # Code based on CreateChatMessageValidator
 # NOTES
 # - doesn't embed, will only get the object id
+# - also used for Listen activities, which have the same shape
 defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
   use Ecto.Schema
 
@@ -89,7 +90,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CreateGenericValidator do
 
     cng
     |> validate_required([:actor, :type, :object, :to, :cc])
-    |> validate_inclusion(:type, ["Create"])
+    |> validate_inclusion(:type, ["Create", "Listen"])
     |> CommonValidations.validate_actor_presence()
     |> validate_actors_match(object)
     |> validate_context_match(object)

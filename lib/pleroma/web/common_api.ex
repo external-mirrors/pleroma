@@ -482,7 +482,10 @@ defmodule Pleroma.Web.CommonAPI do
   @spec listen(User.t(), map()) :: {:ok, Activity.t()} | {:error, any()}
   def listen(user, data) do
     with {:ok, draft} <- ActivityDraft.listen(user, data) do
-      ActivityPub.listen(draft.changes)
+      case Pipeline.common_pipeline(draft.changes, local: true) do
+        {:ok, activity, _meta} -> {:ok, activity}
+        error -> unwrap_pipeline_error(error)
+      end
     end
   end
 

@@ -8,6 +8,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   alias Pleroma.Language.LanguageDetector
   alias Pleroma.Object
   alias Pleroma.Web.ActivityPub.Builder
+  alias Pleroma.Web.ActivityPub.Utils, as: ActivityPubUtils
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.CommonAPI.Utils
@@ -94,10 +95,13 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
       |> Map.take([:album, :artist, :title, :length])
       |> Map.put(:externalLink, Map.get(draft.params, :external_link))
       |> Map.new(fn {key, value} -> {to_string(key), value} end)
+      |> Map.put("id", ActivityPubUtils.generate_object_id())
       |> Map.put("type", "Audio")
+      |> Map.put("published", ActivityPubUtils.make_date())
       |> Map.put("to", draft.to)
       |> Map.put("cc", draft.cc)
       |> Map.put("actor", draft.user.ap_id)
+      |> Map.put("context", draft.context)
 
     %{draft | object: object}
   end
@@ -383,17 +387,15 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
 
   defp maybe_add_list_data(data, _user, _visibility), do: data
 
-  # Builds the params for ActivityPub.listen/1.
+  # Builds the Listen activity for the pipeline.
   defp listen_changes(%__MODULE__{} = draft) do
+    {:ok, listen_data, _meta} = Builder.listen(draft.user, draft.object, draft.to)
+
     changes =
-      %{
-        to: draft.to,
-        actor: draft.user,
-        context: draft.context,
-        object: draft.object,
-        additional: %{"cc" => draft.cc, "directMessage" => draft.visibility == "direct"}
-      }
-      |> Utils.maybe_add_list_data(draft.user, draft.visibility)
+      listen_data
+      |> Map.put("cc", draft.cc)
+      |> Map.put("directMessage", draft.visibility == "direct")
+      |> maybe_add_list_data(draft.user, draft.visibility)
 
     %{draft | changes: changes}
   end

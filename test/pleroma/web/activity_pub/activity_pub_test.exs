@@ -829,21 +829,15 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       user = insert(:user)
 
       {:ok, activity} =
-        ActivityPub.listen(%{
-          to: ["https://www.w3.org/ns/activitystreams#Public"],
-          actor: user,
-          context: "",
-          object: %{
-            "actor" => user.ap_id,
-            "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-            "artist" => "lain",
-            "title" => "lain radio episode 1",
-            "length" => 180_000,
-            "type" => "Audio"
-          }
+        CommonAPI.listen(user, %{
+          artist: "lain",
+          title: "lain radio episode 1",
+          length: 180_000
         })
 
       assert activity.actor == user.ap_id
+      assert activity.data["type"] == "Listen"
+      assert %{"type" => "Audio", "title" => "lain radio episode 1"} = activity.object.data
 
       user = User.get_cached_by_id(user.id)
       assert user.note_count == 0

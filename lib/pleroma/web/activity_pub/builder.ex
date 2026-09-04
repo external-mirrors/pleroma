@@ -215,6 +215,13 @@ defmodule Pleroma.Web.ActivityPub.Builder do
      |> Pleroma.Maps.put_if_present("context", context), []}
   end
 
+  @spec listen(User.t(), map(), [String.t()]) :: {:ok, map(), keyword()}
+  def listen(actor, object, recipients) do
+    with {:ok, data, meta} <- create(actor, object, recipients) do
+      {:ok, Map.put(data, "type", "Listen"), meta}
+    end
+  end
+
   @spec note(ActivityDraft.t()) :: {:ok, map(), keyword()}
   def note(%ActivityDraft{} = draft) do
     data =

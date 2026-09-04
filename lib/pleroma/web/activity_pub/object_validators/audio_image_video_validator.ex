@@ -23,6 +23,13 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AudioImageVideoValidator do
         status_object_fields()
       end
     end
+
+    # Audio objects of Listen activities (scrobbles)
+    field(:title, :string)
+    field(:artist, :string)
+    field(:album, :string)
+    field(:length, :integer)
+    field(:externalLink, :string)
   end
 
   def cast_and_apply(data) do
@@ -111,7 +118,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AudioImageVideoValidator do
 
     struct
     |> cast(data, __schema__(:fields) -- [:attachment, :tag])
-    |> cast_embed(:attachment, required: true)
+    # Audio objects of Listen activities (scrobbles) have no attachment
+    |> cast_embed(:attachment, required: data["type"] != "Audio")
     |> cast_embed(:tag)
   end
 

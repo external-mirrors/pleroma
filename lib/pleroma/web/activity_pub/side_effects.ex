@@ -274,6 +274,17 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   end
 
   # Tasks this handles:
+  # - Create the listened Audio object
+  @impl true
+  def handle(%{data: %{"type" => "Listen"}} = activity, meta) do
+    with {:ok, object, meta} <- handle_object_creation(meta[:object_data], activity, meta) do
+      {:ok, Map.put(activity, :object, object), meta}
+    else
+      e -> Repo.rollback(e)
+    end
+  end
+
+  # Tasks this handles:
   # - Add announce to object
   # - Set up notification
   # - Stream out the announce

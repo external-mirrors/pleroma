@@ -608,22 +608,17 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
       Map.put(data, "actor", actor)
       |> fix_addressing
 
-    with {:ok, %User{} = user} <- User.get_or_fetch_by_ap_id(data["actor"]) do
+    with {:ok, %User{}} <- User.get_or_fetch_by_ap_id(data["actor"]) do
       reply_depth = (options[:depth] || 0) + 1
       options = Keyword.put(options, :depth, reply_depth)
       object = fix_object(object, options)
 
-      params = %{
-        to: data["to"],
-        object: object,
-        actor: user,
-        context: nil,
-        local: false,
-        published: data["published"],
-        additional: Map.take(data, ["cc", "id"])
-      }
-
-      ActivityPub.listen(params)
+      with {:ok, activity, _meta} <-
+             data
+             |> Map.put("object", object)
+             |> Pipeline.common_pipeline(local: false) do
+        {:ok, activity}
+      end
     else
       _e -> :error
     end

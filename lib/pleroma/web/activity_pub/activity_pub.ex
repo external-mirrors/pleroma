@@ -274,26 +274,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     :noop
   end
 
-  @spec listen(map()) :: {:ok, Activity.t()} | {:error, any()}
-  def listen(%{to: to, actor: actor, context: context, object: object} = params) do
-    additional = params[:additional] || %{}
-    # only accept false as false value
-    local = !(params[:local] == false)
-    published = params[:published]
-
-    listen_data =
-      make_listen_data(
-        %{to: to, actor: actor, published: published, context: context, object: object},
-        additional
-      )
-
-    with {:ok, activity} <- insert(listen_data, local),
-         _ <- notify_and_stream(activity),
-         :ok <- maybe_federate(activity) do
-      {:ok, activity}
-    end
-  end
-
   @spec move(User.t(), User.t(), boolean()) :: {:ok, Activity.t()} | {:error, any()}
   def move(%User{} = origin, %User{} = target, local \\ true) do
     params = %{

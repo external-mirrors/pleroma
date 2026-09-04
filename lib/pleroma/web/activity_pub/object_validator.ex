@@ -143,6 +143,24 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
     end
   end
 
+  def validate(
+        %{"type" => "Listen", "object" => %{"type" => "Audio"} = object} = listen_activity,
+        meta
+      ) do
+    with {:ok, object_data} <-
+           object
+           |> CommonFixes.maybe_set_attributed_to_from_activity(listen_activity)
+           |> cast_and_apply_and_stringify_with_history(),
+         meta = Keyword.put(meta, :object_data, object_data),
+         {:ok, listen_activity} <-
+           listen_activity
+           |> CreateGenericValidator.cast_and_validate(meta)
+           |> Ecto.Changeset.apply_action(:insert) do
+      listen_activity = stringify_keys(listen_activity)
+      {:ok, listen_activity, meta}
+    end
+  end
+
   def validate(%{"type" => type} = object, meta)
       when type in ~w[Event Question Audio Video Image Article Note Page] do
     validator =

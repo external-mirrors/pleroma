@@ -18,6 +18,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.ActivityPubMock
   alias Pleroma.Web.ActivityPub.Builder
+  alias Pleroma.Web.ActivityPub.ObjectValidator
   alias Pleroma.Web.ActivityPub.SideEffects
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.CommonAPI
@@ -912,6 +913,30 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
 
       assert [] == Participation.for_user(author)
       refute meta[:streamables]
+    end
+  end
+
+  describe "Listen objects" do
+    test "it creates the Audio object" do
+      user = insert(:user)
+
+      {:ok, draft} =
+        Pleroma.Web.CommonAPI.ActivityDraft.listen(user, %{
+          title: "lain radio episode 1",
+          artist: "lain",
+          length: 180_000
+        })
+
+      {:ok, listen, meta} = ObjectValidator.validate(draft.changes, local: true)
+      {:ok, listen, _meta} = ActivityPub.persist(listen, local: true)
+
+      {:ok, %Activity{object: %Object{} = object}, _meta} = SideEffects.handle(listen, meta)
+
+      assert object.data["type"] == "Audio"
+      assert object.data["title"] == "lain radio episode 1"
+      assert object.data["artist"] == "lain"
+      assert object.data["length"] == 180_000
+      assert Object.get_by_ap_id(listen.data["object"])
     end
   end
 
