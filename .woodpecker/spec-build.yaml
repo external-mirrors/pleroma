@@ -17,7 +17,7 @@ variables:
 
 steps:
   build-spec:
-    image: docker.io/hexpm/elixir-amd64:1.17.3-erlang-27.3.4.2-alpine-3.22.1
+    image: docker.io/hexpm/elixir:1.17.3-erlang-27.3.4.17-alpine-3.22.5
     environment:
       MIX_ENV: prod
       VIX_COMPILATION_MODE: PLATFORM_PROVIDED_LIBVIPS
