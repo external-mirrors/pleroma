@@ -7,7 +7,7 @@ labels:
   platform: linux/amd64
 
 variables:
-  artifacts_uploader_image: &artifacts_uploader_image docker.io/woodpeckercommunity/plugin-gitea-package:0.5.0
+  artifacts_uploader_image: &artifacts_uploader_image docker.io/woodpeckercommunity/plugin-gitea-package:0.5.1
   artifacts_uploader_settings: &artifacts_uploader_settings
     user:
       from_secret: pleroma-ci-user
