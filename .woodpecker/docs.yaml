@@ -13,12 +13,12 @@ skip_clone: true
 
 variables:
   trigger_settings: &trigger_settings
-      deploy: 'docs'
-      last-successful: true
-      token:
-        from_secret: pleroma-ci-woodpecker-token
-      repositories:
-        - pleroma/docs@master
+    deploy: 'docs'
+    last-successful: true
+    token:
+      from_secret: pleroma-ci-woodpecker-token
+    repositories:
+      - pleroma/docs@master
   docker_image: &docker_image docker.io/woodpeckerci/plugin-trigger:1.1.1
 
 steps:
