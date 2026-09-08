@@ -18,7 +18,7 @@ labels:
 
 steps:
   docker-develop-combine:
-    image: &docker_image git.pleroma.social/phnt/wpc-docker-tagger:0.9.0
+    image: &docker_image git.pleroma.social/phnt/wpc-docker-tagger:0.9.1
     when:
       - event: push
         branch: ${CI_REPO_DEFAULT_BRANCH}
@@ -31,7 +31,7 @@ steps:
       tags:
         - latest
         - develop
-        - ${CI_COMMIT_SHA:0:8}
+        - "${CI_COMMIT_SHA:0:8}"
       username:
         from_secret: pleroma-ci-user
       password:
@@ -46,7 +46,7 @@ steps:
       tags: &stable_docker_tags
         - latest
         - stable
-        - ${CI_COMMIT_SHA:0:8}
+        - "${CI_COMMIT_SHA:0:8}"
 
   docker-stable-tag-combine:
     image: *docker_image
@@ -57,4 +57,4 @@ steps:
       <<: *docker_settings
       tags:
         - <<: *stable_docker_tags
-        - ${CI_COMMIT_TAG}
+        - "${CI_COMMIT_TAG}"
