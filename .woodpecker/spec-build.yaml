@@ -50,6 +50,9 @@ steps:
       - mix local.rebar --force
       - mix deps.get --only prod
       - mix pleroma.openapi_spec spec.json
+      - |
+        printf 'BRANCH=stable\nSPEC_VERSION=%s\n' "$${CI_COMMIT_SHA}" > trigger-deploy-stable.params
+        printf 'BRANCH=develop\nSPEC_VERSION=%s\n' "$${CI_COMMIT_SHA}" > trigger-deploy-develop.params
 
   upload-spec:
     image: *artifacts_uploader_image
@@ -86,8 +89,7 @@ steps:
     settings:
       <<: *trigger_settings
       params:
-        - BRANCH=stable
-        - SPEC_VERSION=${CI_COMMIT_SHA}
+        - trigger-deploy-stable.params
 
   trigger-deploy-develop:
     when:
@@ -98,5 +100,4 @@ steps:
     settings:
       <<: *trigger_settings
       params:
-        - BRANCH=develop
-        - SPEC_VERSION=${CI_COMMIT_SHA}
+        - trigger-deploy-develop.params
