@@ -1,0 +1,1 @@
+Do not decrement public reply or quote counts when deleting private responses; retain counting for public and unlisted responses.

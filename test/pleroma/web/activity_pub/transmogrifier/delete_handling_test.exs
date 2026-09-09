@@ -11,12 +11,63 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.DeleteHandlingTest do
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.Transmogrifier
+  alias Pleroma.Web.ActivityPub.Visibility
+  alias Pleroma.Web.CommonAPI
 
   import Pleroma.Factory
 
   setup_all do
     Tesla.Mock.mock_global(fn env -> apply(HttpRequestMock, :request, [env]) end)
     :ok
+  end
+
+  for {param, field, count} <- [
+        {:in_reply_to_status_id, "inReplyTo", "repliesCount"},
+        {:quoted_status_id, "quoteUrl", "quotesCount"}
+      ],
+      visibility <- ["public", "unlisted", "private", "direct"] do
+    test "deleting a remote #{visibility} #{field} preserves the remaining #{count}" do
+      user = insert(:user)
+      {:ok, parent} = CommonAPI.post(user, %{status: "parent"})
+      params = Map.put(%{status: "visible response"}, unquote(param), parent.id)
+      {:ok, _visible_response} = CommonAPI.post(user, params)
+
+      data = File.read!("test/fixtures/mastodon-post-activity.json") |> Jason.decode!()
+      {:ok, remote} = User.get_or_fetch_by_ap_id(data["actor"])
+
+      {to, cc} =
+        case unquote(visibility) do
+          "public" -> {["https://www.w3.org/ns/activitystreams#Public"], [user.ap_id]}
+          "unlisted" -> {[user.ap_id], ["https://www.w3.org/ns/activitystreams#Public"]}
+          "private" -> {[remote.follower_address], [user.ap_id]}
+          "direct" -> {[user.ap_id], []}
+        end
+
+      object =
+        data["object"]
+        |> Map.put("to", to)
+        |> Map.put("cc", cc)
+        |> Map.put(unquote(field), parent.object.data["id"])
+
+      data = data |> Map.put("to", to) |> Map.put("cc", cc) |> Map.put("object", object)
+      {:ok, incoming} = Transmogrifier.handle_incoming(data)
+      assert Visibility.get_visibility(incoming) == unquote(visibility)
+
+      expected_count = if unquote(visibility) in ["public", "unlisted"], do: 2, else: 1
+      assert Object.get_by_ap_id(parent.object.data["id"]).data[unquote(count)] == expected_count
+
+      {:ok, _delete} =
+        Transmogrifier.handle_incoming(%{
+          "id" => incoming.data["id"] <> "/delete",
+          "type" => "Delete",
+          "actor" => incoming.actor,
+          "object" => incoming.data["object"],
+          "to" => to,
+          "cc" => cc
+        })
+
+      assert Object.get_by_ap_id(parent.object.data["id"]).data[unquote(count)] == 1
+    end
   end
 
   test "it works for incoming deletes" do
