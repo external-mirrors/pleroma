@@ -935,6 +935,39 @@ defmodule Pleroma.Web.CommonAPITest do
                })
     end
 
+    test "it preserves uploaded media IDs when creating and editing a post" do
+      user = insert(:user)
+
+      file = %Plug.Upload{
+        content_type: "image/jpeg",
+        path: Path.absname("test/fixtures/image.jpg"),
+        filename: "image.jpg"
+      }
+
+      {:ok, upload} = ActivityPub.upload(file, actor: user.ap_id)
+      {:ok, activity} = CommonAPI.post(user, %{status: "photo", media_ids: [upload.id]})
+
+      rendered =
+        Pleroma.Web.MastodonAPI.StatusView.render("show.json", activity: activity, for: user)
+
+      assert [%{id: media_id}] = rendered.media_attachments
+      assert media_id == to_string(upload.id)
+
+      {:ok, updated} =
+        CommonAPI.update(activity, user, %{status: "edited photo", media_ids: [media_id]})
+
+      assert [%{"id" => attachment_id}] = Object.normalize(updated).data["attachment"]
+      assert attachment_id == upload.data["id"]
+
+      rendered =
+        Pleroma.Web.MastodonAPI.StatusView.render("show.json",
+          activity: Activity.get_by_id_with_object(activity.id),
+          for: user
+        )
+
+      assert [%{id: ^media_id}] = rendered.media_attachments
+    end
+
     test "it can handle activities that expire" do
       user = insert(:user)
 

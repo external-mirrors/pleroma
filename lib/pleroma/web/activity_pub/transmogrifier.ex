@@ -355,6 +355,7 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
               "url" => [attachment_url],
               "type" => data["type"] || "Document"
             }
+            |> Maps.put_if_present("id", data["id"])
             |> Maps.put_if_present("mediaType", media_type)
             |> Maps.put_if_present("name", data["name"])
             |> Maps.put_if_present("blurhash", data["blurhash"])

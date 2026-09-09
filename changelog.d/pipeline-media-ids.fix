@@ -1,0 +1,1 @@
+Preserve uploaded media IDs through post validation so clients can reuse attachments when editing statuses.
