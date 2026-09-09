@@ -27,6 +27,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator do
       end
     end
 
+    field(:source, :map)
     field(:closed, ObjectValidators.DateTime)
     field(:votersCount, :integer)
     field(:voters, {:array, ObjectValidators.ObjectID}, default: [])

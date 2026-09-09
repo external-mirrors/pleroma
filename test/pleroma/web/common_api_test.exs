@@ -54,6 +54,25 @@ defmodule Pleroma.Web.CommonAPITest do
   setup do: clear_config([:instance, :max_pinned_statuses])
 
   describe "posting polls" do
+    for content_type <- ["text/plain", "text/markdown"] do
+      test "it preserves the source of a #{content_type} poll" do
+        user = insert(:user)
+
+        {:ok, activity} =
+          CommonAPI.post(user, %{
+            status: "**choose**",
+            content_type: unquote(content_type),
+            poll: %{expires_in: 600, options: ["a", "b"]}
+          })
+
+        activity = Activity.get_by_id_with_object(activity.id)
+        source = Pleroma.Web.MastodonAPI.StatusView.render("source.json", activity: activity)
+
+        assert source.text == "**choose**"
+        assert source.content_type == unquote(content_type)
+      end
+    end
+
     test "it posts a poll" do
       user = insert(:user)
 
