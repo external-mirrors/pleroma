@@ -27,7 +27,7 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Status do
         nullable: true,
         properties: %{
           name: %Schema{type: :string},
-          website: %Schema{type: :string, format: :uri}
+          website: %Schema{type: :string, format: :uri, nullable: true}
         }
       },
       bookmarked: %Schema{type: :boolean, description: "Have you bookmarked this status?"},

@@ -462,6 +462,30 @@ defmodule Pleroma.Web.MastodonAPI.StatusControllerTest do
              } = json_response_and_validate_schema(result, 200)
     end
 
+    test "discloses application metadata when its website is unset" do
+      user = insert(:user, disclose_client: true)
+      app = insert(:oauth_app, website: nil)
+
+      token =
+        insert(:oauth_token, user: user, app: app, scopes: ["write:statuses", "read:statuses"])
+
+      %{conn: conn} = oauth_access(token.scopes, user: user, oauth_token: token)
+      expected = %{"name" => app.client_name, "website" => nil}
+
+      result =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/v1/statuses", %{"status" => "cofe is my copilot"})
+
+      assert %{"id" => id, "application" => ^expected} =
+               json_response_and_validate_schema(result, 200)
+
+      assert %{"application" => ^expected} =
+               conn
+               |> get("/api/v1/statuses/#{id}")
+               |> json_response_and_validate_schema(200)
+    end
+
     test "hides application metadata when disabled" do
       user = insert(:user, disclose_client: false)
       %{user: _user, token: _token, conn: conn} = oauth_access(["write:statuses"], user: user)
