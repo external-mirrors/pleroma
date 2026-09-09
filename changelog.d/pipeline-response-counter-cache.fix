@@ -1,0 +1,1 @@
+Refresh cached objects after reply and quote counter updates, preventing subsequent poll votes from overwriting those counts with stale data.

@@ -30,6 +30,27 @@ defmodule Pleroma.ObjectTest do
     assert object == found_object
   end
 
+  for {function, field, expected} <- [
+        {:increase_replies_count, "repliesCount", 3},
+        {:decrease_replies_count, "repliesCount", 1},
+        {:increase_quotes_count, "quotesCount", 3},
+        {:decrease_quotes_count, "quotesCount", 1}
+      ] do
+    test "#{function} returns and caches the updated object" do
+      object = insert(:note, data: %{unquote(field) => 2})
+      ap_id = object.data["id"]
+      assert Object.get_cached_by_ap_id(ap_id).data[unquote(field)] == 2
+
+      assert {:ok, updated} = apply(Object, unquote(function), [ap_id])
+      assert updated.data[unquote(field)] == unquote(expected)
+      assert Object.get_by_ap_id(ap_id) == updated
+      assert Object.get_cached_by_ap_id(ap_id) == updated
+
+      assert {:error, "Not found"} =
+               apply(Object, unquote(function), ["https://example.com/missing-object"])
+    end
+  end
+
   describe "generic changeset" do
     test "it ensures uniqueness of the id" do
       object = insert(:note)

@@ -53,6 +53,49 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.AnswerHandlingTest do
            )
   end
 
+  for {multiple, options_key} <- [{false, "oneOf"}, {true, "anyOf"}] do
+    test "incoming vote preserves existing reply and quote counts for #{options_key} polls" do
+      user = insert(:user)
+
+      {:ok, poll} =
+        CommonAPI.post(user, %{
+          status: "suya...",
+          poll: %{
+            options: ["suya", "suya.", "suya.."],
+            expires_in: 600,
+            multiple: unquote(multiple)
+          }
+        })
+
+      ap_id = poll.object.data["id"]
+      Object.get_cached_by_ap_id(ap_id)
+
+      {:ok, _reply} =
+        CommonAPI.post(user, %{status: "a real reply", in_reply_to_status_id: poll.id})
+
+      {:ok, _quote} = CommonAPI.post(user, %{status: "a quote", quoted_status_id: poll.id})
+      assert %{"repliesCount" => 1, "quotesCount" => 1} = Object.get_by_ap_id(ap_id).data
+
+      data =
+        File.read!("test/fixtures/mastodon-vote.json")
+        |> Jason.decode!()
+        |> put_in(["to"], user.ap_id)
+        |> put_in(["object", "to"], user.ap_id)
+        |> put_in(["object", "inReplyTo"], ap_id)
+
+      {:ok, %Activity{local: false}} = Transmogrifier.handle_incoming(data)
+      updated = Object.get_by_ap_id(ap_id)
+
+      assert %{"repliesCount" => 1, "quotesCount" => 1, "votersCount" => 1} = updated.data
+      assert data["actor"] in updated.data["voters"]
+
+      option = Enum.find(updated.data[unquote(options_key)], &(&1["name"] == "suya.."))
+      assert option["replies"]["totalItems"] == 1
+
+      assert Object.get_cached_by_ap_id(ap_id) == updated
+    end
+  end
+
   for public_field <- ["to", "cc"] do
     test "deleting a vote with Public in #{public_field} preserves the poll's reply count" do
       user = insert(:user)

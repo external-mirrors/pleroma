@@ -277,6 +277,7 @@ defmodule Pleroma.Object do
           )
       ]
     )
+    |> select([o], o)
     |> Repo.update_all([])
     |> case do
       {1, [object]} -> set_cache(object)
@@ -304,6 +305,7 @@ defmodule Pleroma.Object do
           )
       ]
     )
+    |> select([o], o)
     |> Repo.update_all([])
     |> case do
       {1, [object]} -> set_cache(object)
@@ -327,6 +329,7 @@ defmodule Pleroma.Object do
           )
       ]
     )
+    |> select([o], o)
     |> Repo.update_all([])
     |> case do
       {1, [object]} -> set_cache(object)
@@ -350,6 +353,7 @@ defmodule Pleroma.Object do
           )
       ]
     )
+    |> select([o], o)
     |> Repo.update_all([])
     |> case do
       {1, [object]} -> set_cache(object)
