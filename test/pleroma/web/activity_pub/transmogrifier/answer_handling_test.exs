@@ -53,6 +53,52 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.AnswerHandlingTest do
            )
   end
 
+  for public_field <- ["to", "cc"] do
+    test "deleting a vote with Public in #{public_field} preserves the poll's reply count" do
+      user = insert(:user)
+
+      {:ok, poll} =
+        CommonAPI.post(user, %{
+          status: "suya...",
+          poll: %{options: ["suya", "suya.", "suya.."], expires_in: 600}
+        })
+
+      recipients =
+        %{"to" => [user.ap_id], "cc" => []}
+        |> Map.put(unquote(public_field), ["https://www.w3.org/ns/activitystreams#Public"])
+
+      data =
+        File.read!("test/fixtures/mastodon-vote.json")
+        |> Jason.decode!()
+        |> Map.merge(recipients)
+        |> update_in(["object"], &Map.merge(&1, recipients))
+        |> put_in(["object", "inReplyTo"], poll.object.data["id"])
+
+      {:ok, %Activity{local: false} = answer} = Transmogrifier.handle_incoming(data)
+      assert Object.normalize(answer).data["type"] == "Answer"
+      assert Pleroma.Web.ActivityPub.Visibility.public?(Object.normalize(answer))
+
+      {:ok, reply} =
+        CommonAPI.post(user, %{status: "a real reply", in_reply_to_status_id: poll.id})
+
+      assert Object.get_by_ap_id(poll.object.data["id"]).data["repliesCount"] == 1
+
+      {:ok, _delete} =
+        Transmogrifier.handle_incoming(%{
+          "id" => answer.data["id"] <> "/delete",
+          "type" => "Delete",
+          "actor" => answer.actor,
+          "object" => answer.data["object"]
+        })
+
+      refute Activity.get_by_id(answer.id)
+      assert Object.get_by_ap_id(poll.object.data["id"]).data["repliesCount"] == 1
+
+      {:ok, _delete} = CommonAPI.delete(reply.id, user)
+      assert Object.get_by_ap_id(poll.object.data["id"]).data["repliesCount"] == 0
+    end
+  end
+
   test "outgoing, rewrites Answer to Note" do
     user = insert(:user)
 

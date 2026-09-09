@@ -381,7 +381,8 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
             {:ok, user} = ActivityPub.decrease_note_count_if_public(user, deleted_object)
 
             if Visibility.public?(deleted_object) do
-              if in_reply_to = deleted_object.data["inReplyTo"] do
+              if in_reply_to =
+                   deleted_object.data["type"] != "Answer" && deleted_object.data["inReplyTo"] do
                 Object.decrease_replies_count(in_reply_to)
               end
 

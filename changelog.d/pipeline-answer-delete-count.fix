@@ -1,0 +1,1 @@
+Do not decrement a poll's reply count when deleting a poll vote (Answer), matching vote creation behavior.
