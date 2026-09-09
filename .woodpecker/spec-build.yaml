@@ -1,10 +1,20 @@
 when:
+  - event: push
+    branch: ${CI_REPO_DEFAULT_BRANCH}
+    path:
+      - ".woodpecker/spec-build.yaml"
+      - "mix.exs"
+      - "mix.lock"
+      - "lib/pleroma/web.ex"
+      - "lib/pleroma/web/**/*.ex"
   - event: tag
   - event: manual
-    branch: stable
+    evaluate: 'CI_COMMIT_BRANCH == "stable" || CI_COMMIT_BRANCH == CI_REPO_DEFAULT_BRANCH'
 
 labels:
   platform: linux/amd64
+
+concurrency: 1
 
 variables:
   artifacts_uploader_image: &artifacts_uploader_image docker.io/woodpeckercommunity/plugin-gitea-package:0.5.1
@@ -14,6 +24,18 @@ variables:
     password:
       from_secret: pleroma-ci-password
     owner: 'pleroma'
+    package_name: api-docs-spec
+    file_source: ./spec.json
+    file_name: spec.json
+    update: 'true'
+  trigger_image: &trigger_image docker.io/woodpeckerci/plugin-trigger:1.1.1
+  trigger_settings: &trigger_settings
+    deploy: 'api-docs'
+    last-successful: true
+    token:
+      from_secret: pleroma-ci-woodpecker-token
+    repositories:
+      - pleroma/api-docs@master
 
 steps:
   build-spec:
@@ -33,21 +55,48 @@ steps:
     image: *artifacts_uploader_image
     settings:
       <<: *artifacts_uploader_settings
-      package_name: api-docs-spec
-      package_version: stable
-      file_source: ./spec.json
-      file_name: spec.json
-      update: 'true'
+      package_version: ${CI_COMMIT_SHA}
 
-  trigger-deploy:
-    image: docker.io/woodpeckerci/plugin-trigger:1.1.1
+  upload-spec-stable:
+    when:
+      - event: tag
+      - event: manual
+        branch: stable
+    image: *artifacts_uploader_image
     settings:
+      <<: *artifacts_uploader_settings
+      package_version: stable
+
+  upload-spec-develop:
+    when:
+      - event: push
+      - event: manual
+        branch: ${CI_REPO_DEFAULT_BRANCH}
+    image: *artifacts_uploader_image
+    settings:
+      <<: *artifacts_uploader_settings
+      package_version: develop
+
+  trigger-deploy-stable:
+    when:
+      - event: tag
+      - event: manual
+        branch: stable
+    image: *trigger_image
+    settings:
+      <<: *trigger_settings
       params:
         - BRANCH=stable
-      deploy: 'api-docs'
-      last-successful: true
-      token:
-        from_secret:
-          pleroma-ci-woodpecker-token
-      repositories:
-        - pleroma/api-docs@master
+        - SPEC_VERSION=${CI_COMMIT_SHA}
+
+  trigger-deploy-develop:
+    when:
+      - event: push
+      - event: manual
+        branch: ${CI_REPO_DEFAULT_BRANCH}
+    image: *trigger_image
+    settings:
+      <<: *trigger_settings
+      params:
+        - BRANCH=develop
+        - SPEC_VERSION=${CI_COMMIT_SHA}
