@@ -36,12 +36,23 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicy do
     expires_at = DateTime.utc_now() |> Timex.shift(days: days)
 
     with %{"expires_at" => existing_expires_at} <- activity,
+         {:ok, existing_expires_at} <- parse_expiration(existing_expires_at),
          :lt <- DateTime.compare(existing_expires_at, expires_at) do
       activity
     else
       _ -> Map.put(activity, "expires_at", expires_at)
     end
   end
+
+  defp parse_expiration(%DateTime{} = datetime), do: {:ok, datetime}
+
+  defp parse_expiration(datetime) when is_binary(datetime) do
+    with {:ok, datetime, _offset} <- DateTime.from_iso8601(datetime) do
+      {:ok, datetime}
+    end
+  end
+
+  defp parse_expiration(_), do: :error
 
   @impl true
   def config_description do

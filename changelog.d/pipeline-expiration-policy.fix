@@ -1,0 +1,1 @@
+Accept ISO8601 explicit expiration times in ActivityExpirationPolicy without crashing, while retaining the earlier user or policy deadline.

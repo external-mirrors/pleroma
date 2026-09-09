@@ -1001,6 +1001,20 @@ defmodule Pleroma.Web.CommonAPITest do
       )
     end
 
+    test "it schedules explicit expiration with ActivityExpirationPolicy enabled" do
+      clear_config([:mrf, :policies], [Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicy])
+      user = insert(:user)
+      expires_at = DateTime.add(DateTime.utc_now(), 1_000_000)
+
+      assert {:ok, activity} = CommonAPI.post(user, %{status: "chai", expires_in: 1_000_000})
+
+      assert_enqueued(
+        worker: Pleroma.Workers.PurgeExpiredActivity,
+        args: %{activity_id: activity.id},
+        scheduled_at: expires_at
+      )
+    end
+
     test "it allows quote posting" do
       user = insert(:user)
 

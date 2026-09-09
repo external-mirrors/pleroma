@@ -49,6 +49,32 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicyTest do
     assert Timex.diff(expires_at, DateTime.utc_now(), :days) == 364
   end
 
+  test "keeps an earlier ISO8601 expiration" do
+    expires_at = DateTime.utc_now() |> Timex.shift(days: 1) |> DateTime.to_iso8601()
+
+    assert {:ok, %{"expires_at" => ^expires_at}} =
+             ActivityExpirationPolicy.filter(%{
+               "actor" => @local_actor,
+               "type" => "Create",
+               "expires_at" => expires_at,
+               "object" => %{"type" => "Note"}
+             })
+  end
+
+  test "caps a later ISO8601 expiration at the policy setting" do
+    expires_at = DateTime.utc_now() |> Timex.shift(years: 2) |> DateTime.to_iso8601()
+
+    assert {:ok, %{"expires_at" => capped}} =
+             ActivityExpirationPolicy.filter(%{
+               "actor" => @local_actor,
+               "type" => "Create",
+               "expires_at" => expires_at,
+               "object" => %{"type" => "Note"}
+             })
+
+    assert Timex.diff(capped, DateTime.utc_now(), :days) == 364
+  end
+
   test "ignores remote activities" do
     assert {:ok, activity} =
              ActivityExpirationPolicy.filter(%{
