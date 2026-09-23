@@ -165,6 +165,31 @@ defmodule Pleroma.RetentionTest do
       assert Object.get_by_ap_id(post.data["object"])
     end
 
+    test "keeps old remote posts addressed to a local user after notifications are cleared", %{
+      old_date: old_date
+    } do
+      remote_user = insert(:user, local: false)
+      local_user = insert(:user)
+
+      {:ok, dm} =
+        CommonAPI.post(remote_user, %{
+          status: "psst @#{local_user.nickname}",
+          visibility: "direct"
+        })
+
+      {:ok, mention} = CommonAPI.post(remote_user, %{status: "hey @#{local_user.nickname}"})
+
+      Pleroma.Notification.clear(local_user)
+
+      for post <- [dm, mention] do
+        make_remote_and_old(post, old_date)
+      end
+
+      assert %{contexts: 0} = Retention.run()
+      assert Object.get_by_ap_id(dm.data["object"])
+      assert Object.get_by_ap_id(mention.data["object"])
+    end
+
     test "keeps an old remote post that was reported", %{old_date: old_date} do
       remote_user = insert(:user, local: false)
       local_user = insert(:user)
@@ -347,8 +372,9 @@ defmodule Pleroma.RetentionTest do
     } do
       local_user = insert(:user)
       {:ok, post} = CommonAPI.post(local_user, %{status: "mine, honestly"})
-      # Pretend the Create activity federated in from elsewhere
-      make_remote_and_old(post, old_date)
+      # Pretend the Create activity federated in from elsewhere, addressed to
+      # nobody local (the local followers collection would pin the thread)
+      age(post, old_date, %{local: false, recipients: []})
 
       assert %{contexts: 1, objects: 0} = Retention.run()
       assert Object.get_by_ap_id(post.data["object"])

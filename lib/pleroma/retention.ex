@@ -17,7 +17,8 @@ defmodule Pleroma.Retention do
     * is local (posts, replies, favourites, repeats and reactions by local
       users all carry the thread's context),
     * is bookmarked by a local user,
-    * still has a notification for a local user (mentions),
+    * is addressed to a local user (direct messages and mentions),
+    * still has a notification for a local user,
     * is a report (Flag),
 
   or if any object in it is referenced by a report.
@@ -228,6 +229,15 @@ defmodule Pleroma.Retention do
     |> having([a], not fragment("bool_or(?)", a.local))
     |> having([_, b], fragment("max(?::text) is null", b.id))
     |> having([_, _, n], fragment("max(?) is null", n.id))
+    |> having(
+      [a],
+      not fragment(
+        "bool_or(EXISTS (SELECT 1 FROM unnest(?) AS r WHERE left(r, ?) = ?))",
+        a.recipients,
+        ^local_prefix_length(),
+        ^local_prefix()
+      )
+    )
     |> maybe_keep_non_public(Keyword.get(opts, :keep_non_public, false) == true)
   end
 
