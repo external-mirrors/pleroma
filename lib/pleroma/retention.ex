@@ -9,8 +9,8 @@ defmodule Pleroma.Retention do
   Local content is data; remote content is a cache of somebody else's data.
   This module treats it that way: a remote thread is evictable when nobody
   local has interacted with it and it has been quiet for longer than
-  `remote_post_retention_days`, or when the objects table has grown past the
-  configured watermark. Local posts are never evicted.
+  `remote_post_retention_days`, or for a day when the objects table has grown
+  past the configured watermark. Local posts are never evicted.
 
   A thread is pinned (never evicted) if any activity in it
 
@@ -40,7 +40,7 @@ defmodule Pleroma.Retention do
   A thread that was kept because an activity's `updated_at` was bumped
   after insertion is only re-checked on the next full walk, i.e. after a
   cursor reset. Over the object watermark a second walk, with its own
-  cursor, runs up to the present instead of the deadline.
+  cursor, runs up to a day ago instead of the deadline.
 
   The first run starts from the oldest activity, which doubles as the
   initial cut on an instance that never pruned. `prune_objects --keep-threads`
@@ -69,6 +69,9 @@ defmodule Pleroma.Retention do
   @empty_stats %{contexts: 0, objects: 0, activities: 0}
 
   @default_batch_size 50_000
+  # Over the watermark a thread must still have been quiet this long, so
+  # posts people are reading right now are not evicted from under them.
+  @watermark_min_age 86_400
   # Activities per verification chunk; the cursor is persisted after each.
   @chunk 5_000
 
@@ -89,21 +92,20 @@ defmodule Pleroma.Retention do
   """
   @spec run(keyword()) :: stats()
   def run(config \\ Config.get(:retention, [])) do
-    deadline = deadline()
-    over_watermark = over_watermark?(config[:max_objects])
     budget = config[:batch_size] || @default_batch_size
 
-    # Over the watermark every unpinned thread is fair game, so a separate
-    # walk goes right up to the present. It must not share the cursor with
-    # the age-based walk, or that one would be left behind the deadline.
-    {cursor, boundary} =
-      if over_watermark,
-        do: {"activities_watermark", id_at(NaiveDateTime.utc_now())},
-        else: {"activities", id_at(deadline)}
+    # Over the watermark every unpinned thread older than a day is fair game,
+    # so a separate walk goes up to that point. It must not share the cursor
+    # with the age-based walk, or that one would be left behind the deadline.
+    {cursor, deadline} =
+      if over_watermark?(config[:max_objects]),
+        do: {"activities_watermark", watermark_deadline()},
+        else: {"activities", deadline()}
+
+    boundary = id_at(deadline)
 
     opts = [
       keep_non_public: config[:keep_non_public],
-      ignore_deadline: over_watermark,
       skip_reported: reported_contexts()
     ]
 
@@ -192,6 +194,12 @@ defmodule Pleroma.Retention do
     NaiveDateTime.add(NaiveDateTime.utc_now(), -days * 86_400)
   end
 
+  # The watermark deadline is never further back than the normal one.
+  defp watermark_deadline do
+    min_age = NaiveDateTime.add(NaiveDateTime.utc_now(), -@watermark_min_age)
+    Enum.max([deadline(), min_age], NaiveDateTime)
+  end
+
   @doc """
   Activities grouped by thread context, restricted to threads that may be evicted.
 
@@ -201,7 +209,6 @@ defmodule Pleroma.Retention do
   Options:
 
     * `:keep_non_public` - also pin threads containing a non-public post
-    * `:ignore_deadline` - consider every unpinned thread, not just quiet ones
     * `:contexts` - only look at these threads, using the `(type, context)`
       index; without it the whole table is grouped
     * `:skip_reported` - a `MapSet` of reported contexts already removed from
@@ -209,8 +216,6 @@ defmodule Pleroma.Retention do
   """
   @spec evictable_contexts_query(NaiveDateTime.t(), keyword()) :: Ecto.Query.t()
   def evictable_contexts_query(deadline, opts \\ []) do
-    ignore_deadline = Keyword.get(opts, :ignore_deadline, false) == true
-
     contexts =
       case {Keyword.get(opts, :contexts), Keyword.get(opts, :skip_reported)} do
         {nil, _} -> nil
@@ -225,7 +230,7 @@ defmodule Pleroma.Retention do
     |> maybe_exclude_reported(is_nil(Keyword.get(opts, :skip_reported)))
     |> maybe_only_contexts(contexts)
     |> group_by([a], fragment("? ->> 'context'", a.data))
-    |> having([a], max(a.updated_at) < ^deadline or ^ignore_deadline)
+    |> having([a], max(a.updated_at) < ^deadline)
     |> having([a], not fragment("bool_or(?)", a.local))
     |> having([_, b], fragment("max(?::text) is null", b.id))
     |> having([_, _, n], fragment("max(?) is null", n.id))

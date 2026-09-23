@@ -58,6 +58,12 @@ defmodule Pleroma.RetentionTest do
   # and backdate it so it looks like an old federated post.
   defp make_remote_and_old(activity, old_date), do: age(activity, old_date, %{local: false})
 
+  defp days_ago(days) do
+    NaiveDateTime.utc_now()
+    |> NaiveDateTime.add(-days * 86_400)
+    |> NaiveDateTime.truncate(:second)
+  end
+
   defp make_old(activity, old_date), do: age(activity, old_date, %{})
 
   defp old_remote_post(user, old_date, params \\ %{}) do
@@ -232,32 +238,31 @@ defmodule Pleroma.RetentionTest do
       refute Object.get_by_ap_id(newer.data["object"])
     end
 
-    test "evicts recent unpinned threads when over the object watermark" do
+    test "evicts threads younger than the retention period when over the object watermark" do
       clear_config([:retention, :max_objects], 1)
       clear_config([:retention, :batch_size], 1)
 
       remote_user = insert(:user, local: false)
       local_user = insert(:user)
 
-      {:ok, older} = CommonAPI.post(remote_user, %{status: "older"})
-
-      older
-      |> Ecto.Changeset.change(%{
-        local: false,
-        updated_at:
-          NaiveDateTime.utc_now() |> NaiveDateTime.add(-60) |> NaiveDateTime.truncate(:second)
-      })
-      |> Repo.update!()
-
-      {:ok, newer} = CommonAPI.post(remote_user, %{status: "newer"})
-      newer |> Ecto.Changeset.change(%{local: false}) |> Repo.update!()
-
+      older = old_remote_post(remote_user, days_ago(3))
+      newer = old_remote_post(remote_user, days_ago(2))
       {:ok, mine} = CommonAPI.post(local_user, %{status: "mine"})
 
       assert %{contexts: 1} = Retention.run()
       refute Object.get_by_ap_id(older.data["object"])
       assert Object.get_by_ap_id(newer.data["object"])
       assert Object.get_by_ap_id(mine.data["object"])
+    end
+
+    test "keeps threads quiet for less than a day, even over the watermark" do
+      clear_config([:retention, :max_objects], 0)
+      remote_user = insert(:user, local: false)
+
+      post = old_remote_post(remote_user, NaiveDateTime.add(days_ago(1), 3_600))
+
+      assert %{contexts: 0} = Retention.run()
+      assert Object.get_by_ap_id(post.data["object"])
     end
 
     test "does not evict anything below the watermark" do
@@ -447,8 +452,7 @@ defmodule Pleroma.RetentionTest do
       remote_user = insert(:user, local: false)
 
       clear_config([:retention, :max_objects], 0)
-      {:ok, recent} = CommonAPI.post(remote_user, %{status: "recent"})
-      recent |> Ecto.Changeset.change(%{local: false}) |> Repo.update!()
+      recent = old_remote_post(remote_user, days_ago(2))
       assert %{contexts: 1} = Retention.run()
       refute Object.get_by_ap_id(recent.data["object"])
 

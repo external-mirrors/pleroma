@@ -3328,7 +3328,7 @@ config :pleroma, :config_description, [
         type: :integer,
         description:
           "Optional watermark. When the objects table is estimated to hold more rows than this," <>
-            " the oldest unpinned remote threads are evicted regardless of their age.",
+            " the oldest unpinned remote threads quiet for more than a day are evicted, whatever the retention period.",
         suggestions: [nil, 1_000_000]
       },
       %{
