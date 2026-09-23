@@ -125,7 +125,6 @@ defmodule Pleroma.Retention do
 
     # Fewer rows than asked for: everything up to the boundary is done.
     if length(rows) < budget and after?(boundary, from), do: Cursor.put(cursor, boundary)
-    if stats.contexts > 0, do: delete_unused_hashtags()
 
     stats
   end
@@ -335,6 +334,17 @@ defmodule Pleroma.Retention do
     {:ok, stats} =
       Repo.transaction(
         fn ->
+          # hashtags_objects rows go with the objects, so collect them first
+          hashtag_ids =
+            from(ho in "hashtags_objects",
+              join: o in Object,
+              on: o.id == ho.object_id,
+              where: fragment("? ->> 'id'", o.data) in ^object_ids,
+              distinct: true,
+              select: ho.hashtag_id
+            )
+            |> Repo.all(timeout: :infinity)
+
           {objects, deleted_ap_ids} =
             Object
             |> where([o], fragment("? ->> 'id'", o.data) in ^object_ids)
@@ -367,6 +377,8 @@ defmodule Pleroma.Retention do
             |> where([a], fragment("? ->> 'type' != 'Flag'", a.data))
             |> Repo.delete_all(timeout: :infinity)
 
+          delete_unused_hashtags(hashtag_ids)
+
           %{
             contexts: length(threads),
             objects: objects,
@@ -398,27 +410,34 @@ defmodule Pleroma.Retention do
     if estimate > 0, do: estimate, else: Repo.aggregate(Object, :count, timeout: :infinity)
   end
 
-  @doc """
-  Removes hashtags no longer attached to any object and not followed by anyone.
+  @unused_hashtags """
+  DELETE FROM hashtags AS ht
+  WHERE NOT EXISTS (
+    SELECT 1 FROM hashtags_objects hto
+    WHERE ht.id = hto.hashtag_id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM user_follows_hashtag ufh
+    WHERE ht.id = ufh.hashtag_id
+  )
   """
-  @spec delete_unused_hashtags() :: :ok
-  def delete_unused_hashtags do
-    Repo.query!(
-      """
-      DELETE FROM hashtags AS ht
-      WHERE NOT EXISTS (
-        SELECT 1 FROM hashtags_objects hto
-        WHERE ht.id = hto.hashtag_id
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM user_follows_hashtag ufh
-        WHERE ht.id = ufh.hashtag_id
-      )
-      """,
-      [],
-      timeout: :infinity
-    )
 
+  @doc """
+  Removes hashtags no longer attached to any object and not followed by anyone,
+  either all of them or only those among the given ids.
+  """
+  @spec delete_unused_hashtags([integer()] | nil) :: :ok
+  def delete_unused_hashtags(ids \\ nil)
+
+  def delete_unused_hashtags([]), do: :ok
+
+  def delete_unused_hashtags(nil) do
+    Repo.query!(@unused_hashtags, [], timeout: :infinity)
+    :ok
+  end
+
+  def delete_unused_hashtags(ids) do
+    Repo.query!(@unused_hashtags <> "AND ht.id = ANY($1)", [ids], timeout: :infinity)
     :ok
   end
 

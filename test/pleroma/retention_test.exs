@@ -488,5 +488,23 @@ defmodule Pleroma.RetentionTest do
 
       refute Pleroma.Hashtag.get_by_name("lonelytag")
     end
+
+    test "only cleans up hashtags of the evicted objects", %{old_date: old_date} do
+      remote_user = insert(:user, local: false)
+      local_user = insert(:user)
+
+      old_remote_post(remote_user, old_date, %{status: "#gone #shared #followed"})
+      {:ok, _} = CommonAPI.post(local_user, %{status: "#shared"})
+      {:ok, followed} = Pleroma.Hashtag.get_or_create_by_name("followed")
+      {:ok, _} = Pleroma.User.follow_hashtag(local_user, followed)
+      {:ok, _} = Pleroma.Hashtag.get_or_create_by_name("unrelated")
+
+      assert %{contexts: 1} = Retention.run()
+
+      refute Pleroma.Hashtag.get_by_name("gone")
+      assert Pleroma.Hashtag.get_by_name("shared")
+      assert Pleroma.Hashtag.get_by_name("followed")
+      assert Pleroma.Hashtag.get_by_name("unrelated")
+    end
   end
 end
