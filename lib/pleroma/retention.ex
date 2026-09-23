@@ -81,11 +81,12 @@ defmodule Pleroma.Retention do
   # Invariant: every type that *adopts* another activity's context must be
   # listed, or its thread's local pins become invisible to the walk and the
   # thread gets evicted. Today only Create, Announce, Like and EmojiReact do
-  # (see Pleroma.Web.ActivityPub.Builder). The others carry a context of
-  # their own (or did in older data) and are listed so they get evicted
-  # rather than left behind. The regression test "keeps threads pinned by
-  # each local interaction type" guards this.
-  @context_types ~w(Create Announce Like EmojiReact Update Delete Undo Flag Listen Move)
+  # (see Pleroma.Web.ActivityPub.Builder), and EmojiReaction, the name
+  # EmojiReact had in older data. The others carry a context of their own (or
+  # did in older data) and are listed so they get evicted rather than left
+  # behind. The regression test "keeps threads pinned by each local
+  # interaction type" guards this.
+  @context_types ~w(Create Announce Like EmojiReact EmojiReaction Update Delete Undo Flag Listen Move)
 
   @doc """
   Runs one eviction batch using the `:retention` config and returns what was removed.

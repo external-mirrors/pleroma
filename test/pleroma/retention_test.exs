@@ -217,6 +217,33 @@ defmodule Pleroma.RetentionTest do
       assert Activity.get_by_id(post.id)
     end
 
+    test "keeps threads pinned by a local reaction of the legacy EmojiReaction type", %{
+      old_date: old_date
+    } do
+      remote_user = insert(:user, local: false)
+      local_user = insert(:user)
+
+      post = old_remote_post(remote_user, old_date)
+
+      Repo.insert!(%Activity{
+        data: %{
+          "id" => "#{Pleroma.Web.Endpoint.url()}/activities/#{Ecto.UUID.generate()}",
+          "type" => "EmojiReaction",
+          "actor" => local_user.ap_id,
+          "object" => post.data["object"],
+          "content" => "👍",
+          "context" => post.data["context"]
+        },
+        local: true,
+        actor: local_user.ap_id,
+        recipients: [remote_user.ap_id]
+      })
+      |> make_old(old_date)
+
+      assert %{contexts: 0} = Retention.run()
+      assert Object.get_by_ap_id(post.data["object"])
+    end
+
     test "keeps an old remote post that was reported", %{old_date: old_date} do
       remote_user = insert(:user, local: false)
       local_user = insert(:user)
