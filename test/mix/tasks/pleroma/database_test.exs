@@ -200,21 +200,33 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
       refute Object.get_by_ap_id(old_remote_post2_id)
     end
 
-    test "with the --keep-threads option it keeps old threads that mentioned a local user", %{
+    test "with the --keep-threads option it keeps old threads addressed to a local user", %{
       old_insert_date: old_insert_date
     } do
       remote_user = insert(:user, local: false)
       local_user = insert(:user)
 
-      {:ok, activity} = CommonAPI.post(remote_user, %{status: "hey @#{local_user.nickname}"})
+      {:ok, mention} = CommonAPI.post(remote_user, %{status: "hey @#{local_user.nickname}"})
 
-      activity
-      |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
-      |> Repo.update!()
+      {:ok, dm} =
+        CommonAPI.post(remote_user, %{
+          status: "psst @#{local_user.nickname}",
+          visibility: "direct"
+        })
+
+      # The pin must not depend on the notifications still being there
+      Pleroma.Notification.clear(local_user)
+
+      for activity <- [mention, dm] do
+        activity
+        |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
+        |> Repo.update!()
+      end
 
       Mix.Tasks.Pleroma.Database.run(["prune_objects", "--keep-threads"])
 
-      assert Object.get_by_ap_id(activity.data["object"])
+      assert Object.get_by_ap_id(mention.data["object"])
+      assert Object.get_by_ap_id(dm.data["object"])
     end
 
     test "with the --keep-threads option it still keeps non-old threads even with no local interactions" do

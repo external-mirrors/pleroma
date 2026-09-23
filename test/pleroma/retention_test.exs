@@ -265,6 +265,20 @@ defmodule Pleroma.RetentionTest do
       assert Object.get_by_ap_id(post.data["object"])
     end
 
+    test "keeps an old thread with a recent reply, even over the watermark", %{
+      old_date: old_date
+    } do
+      clear_config([:retention, :max_objects], 0)
+      remote_user = insert(:user, local: false)
+
+      {:ok, post} = CommonAPI.post(remote_user, %{status: "old but active"})
+      # Old id, so the walk reaches it, but active an hour ago
+      age(post, old_date, %{local: false, updated_at: NaiveDateTime.add(days_ago(0), -3_600)})
+
+      assert %{contexts: 0} = Retention.run()
+      assert Object.get_by_ap_id(post.data["object"])
+    end
+
     test "does not evict anything below the watermark" do
       clear_config([:retention, :max_objects], 100)
       remote_user = insert(:user, local: false)
