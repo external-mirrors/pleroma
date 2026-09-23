@@ -152,8 +152,9 @@ defmodule Pleroma.Retention do
   defp after?(id, other), do: FlakeId.from_string(id) > FlakeId.from_string(other)
 
   # Verifies the given threads against the pin rules and evicts those that
-  # pass, in one transaction so a local interaction landing in between cannot
-  # be left pointing at an evicted object.
+  # pass. The transaction makes a chunk all-or-nothing but does not lock the
+  # threads: a local interaction landing between check and delete survives,
+  # pins the thread from then on, and its object is refetched when needed.
   defp evict_threads([], _deadline, _opts), do: @empty_stats
 
   defp evict_threads(contexts, deadline, opts) do
