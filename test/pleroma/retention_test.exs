@@ -196,6 +196,27 @@ defmodule Pleroma.RetentionTest do
       assert Object.get_by_ap_id(mention.data["object"])
     end
 
+    test "keeps a pinned post that an evicted thread's activity points at", %{
+      old_date: old_date
+    } do
+      remote_user = insert(:user, local: false)
+      remote_user2 = insert(:user, local: false)
+      local_user = insert(:user)
+
+      post = old_remote_post(remote_user, old_date)
+      {:ok, local_like} = CommonAPI.favorite(post.id, local_user)
+      make_old(local_like, old_date)
+
+      # A remote like that arrived with a context of its own
+      {:ok, like} = CommonAPI.favorite(post.id, remote_user2)
+      other_context = "https://remote.example/contexts/#{Ecto.UUID.generate()}"
+      age(like, old_date, %{local: false, data: Map.put(like.data, "context", other_context)})
+
+      assert %{contexts: 1, objects: 0} = Retention.run()
+      assert Object.get_by_ap_id(post.data["object"])
+      assert Activity.get_by_id(post.id)
+    end
+
     test "keeps an old remote post that was reported", %{old_date: old_date} do
       remote_user = insert(:user, local: false)
       local_user = insert(:user)

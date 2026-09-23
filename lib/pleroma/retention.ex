@@ -161,6 +161,7 @@ defmodule Pleroma.Retention do
       deadline
       |> evictable_contexts_query(Keyword.put(opts, :contexts, contexts))
       |> select([a], %{
+        context: fragment("? ->> 'context'", a.data),
         activity_ids: type(fragment("array_agg(?)", a.id), {:array, FlakeId.Ecto.CompatType}),
         object_ids: fragment("array_agg(associated_object_id(?))", a.data)
       })
@@ -321,15 +322,23 @@ defmodule Pleroma.Retention do
   end
 
   @doc """
-  Deletes the given threads. Each entry carries the activity ids and object
-  ids collected per thread, so deletion uses primary key and ap_id indexes only.
+  Deletes the given threads. Each entry carries the context, activity ids and
+  object ids collected per thread, so deletion uses primary key and ap_id
+  indexes only.
+
+  An object is only deleted if it belongs to one of the threads itself: a
+  Like or Announce may carry a context other than its object's, and that
+  object's own thread can be pinned.
   """
-  @spec evict([%{activity_ids: [String.t()], object_ids: [String.t() | nil]}]) :: stats()
+  @spec evict([
+          %{context: String.t(), activity_ids: [String.t()], object_ids: [String.t() | nil]}
+        ]) :: stats()
   def evict([]), do: @empty_stats
 
   def evict(threads) do
     activity_ids = Enum.flat_map(threads, & &1.activity_ids)
     object_ids = threads |> Enum.flat_map(& &1.object_ids) |> Enum.reject(&is_nil/1)
+    contexts = Enum.map(threads, & &1.context)
 
     {:ok, stats} =
       Repo.transaction(
@@ -340,6 +349,7 @@ defmodule Pleroma.Retention do
               join: o in Object,
               on: o.id == ho.object_id,
               where: fragment("? ->> 'id'", o.data) in ^object_ids,
+              where: fragment("? ->> 'context'", o.data) in ^contexts,
               distinct: true,
               select: ho.hashtag_id
             )
@@ -348,6 +358,7 @@ defmodule Pleroma.Retention do
           {objects, deleted_ap_ids} =
             Object
             |> where([o], fragment("? ->> 'id'", o.data) in ^object_ids)
+            |> where([o], fragment("? ->> 'context'", o.data) in ^contexts)
             |> where(
               [o],
               fragment(
