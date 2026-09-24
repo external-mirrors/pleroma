@@ -3343,6 +3343,14 @@ config :pleroma, :config_description, [
         key: :keep_non_public,
         type: :boolean,
         description: "Also keep threads that contain non-public posts"
+      },
+      %{
+        key: :processed_activity_days,
+        type: :integer,
+        description:
+          "Days to keep remote Delete, Undo and Update activities after they were received." <>
+            " They are only needed to recognise duplicate deliveries. Unset to keep them forever.",
+        suggestions: [7]
       }
     ]
   },

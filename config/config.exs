@@ -925,7 +925,8 @@ config :pleroma, :retention,
   enabled: false,
   max_objects: nil,
   batch_size: 50_000,
-  keep_non_public: false
+  keep_non_public: false,
+  processed_activity_days: 7
 
 config :floki, :html_parser, Floki.HTMLParser.FastHtml
 

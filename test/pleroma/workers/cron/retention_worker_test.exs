@@ -49,4 +49,29 @@ defmodule Pleroma.Workers.Cron.RetentionWorkerTest do
     assert :ok = RetentionWorker.perform(%Oban.Job{})
     refute Object.get_by_ap_id(object_id)
   end
+
+  test "prunes processed remote activities when enabled" do
+    clear_config([:retention, :enabled], true)
+    clear_config([:retention, :processed_activity_days], 7)
+
+    remote_user = insert(:user, local: false)
+    old_date = NaiveDateTime.utc_now() |> NaiveDateTime.add(-30 * 86_400)
+
+    delete =
+      Repo.insert!(%Pleroma.Activity{
+        id: Pleroma.Retention.Cursor.id_at(old_date),
+        data: %{
+          "id" => "#{remote_user.ap_id}/activities/#{Ecto.UUID.generate()}",
+          "type" => "Delete",
+          "actor" => remote_user.ap_id,
+          "object" => "https://remote.example/objects/1"
+        },
+        local: false,
+        actor: remote_user.ap_id,
+        recipients: []
+      })
+
+    assert :ok = RetentionWorker.perform(%Oban.Job{})
+    refute Pleroma.Activity.get_by_id(delete.id)
+  end
 end
