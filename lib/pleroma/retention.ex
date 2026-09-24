@@ -103,7 +103,7 @@ defmodule Pleroma.Retention do
         do: {"activities_watermark", watermark_deadline()},
         else: {"activities", deadline()}
 
-    boundary = id_at(deadline)
+    boundary = Cursor.id_at(deadline)
 
     opts = [
       keep_non_public: config[:keep_non_public],
@@ -125,7 +125,7 @@ defmodule Pleroma.Retention do
       end)
 
     # Fewer rows than asked for: everything up to the boundary is done.
-    if length(rows) < budget and after?(boundary, from), do: Cursor.put(cursor, boundary)
+    if length(rows) < budget and Cursor.after?(boundary, from), do: Cursor.put(cursor, boundary)
 
     stats
   end
@@ -147,9 +147,6 @@ defmodule Pleroma.Retention do
   defp contexts_of(rows) do
     for {_id, false, context} when is_binary(context) <- rows, uniq: true, do: context
   end
-
-  defp after?(_id, nil), do: true
-  defp after?(id, other), do: FlakeId.from_string(id) > FlakeId.from_string(other)
 
   # Verifies the given threads against the pin rules and evicts those that
   # pass. The transaction makes a chunk all-or-nothing but does not lock the
@@ -178,13 +175,6 @@ defmodule Pleroma.Retention do
       )
 
     stats
-  end
-
-  # The activity id a flake would have received at the given time. Ids at or
-  # below it belong to activities created before then.
-  defp id_at(%NaiveDateTime{} = time) do
-    ms = time |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(:millisecond) |> max(0)
-    FlakeId.to_string(<<ms::integer-size(64), 0::integer-size(64)>>)
   end
 
   @doc """
@@ -453,8 +443,12 @@ defmodule Pleroma.Retention do
     :ok
   end
 
-  # Actor ids of local users start with the instance url; an exact prefix
-  # comparison avoids LIKE wildcards and host/port ambiguity.
-  defp local_prefix, do: Pleroma.Web.Endpoint.url() <> "/"
+  @doc """
+  The prefix of every local actor and object id. An exact prefix comparison
+  avoids LIKE wildcards and host/port ambiguity.
+  """
+  @spec local_prefix() :: String.t()
+  def local_prefix, do: Pleroma.Web.Endpoint.url() <> "/"
+
   defp local_prefix_length, do: String.length(local_prefix())
 end

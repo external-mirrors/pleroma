@@ -41,6 +41,21 @@ defmodule Pleroma.Retention.Cursor do
     :ok
   end
 
+  @doc """
+  The activity id a flake would have received at the given time. Ids at or
+  below it belong to activities created before then.
+  """
+  @spec id_at(NaiveDateTime.t()) :: String.t()
+  def id_at(%NaiveDateTime{} = time) do
+    ms = time |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(:millisecond) |> max(0)
+    FlakeId.to_string(<<ms::integer-size(64), 0::integer-size(64)>>)
+  end
+
+  @doc "Whether position `id` lies after `other`; everything lies after no position."
+  @spec after?(String.t(), String.t() | nil) :: boolean()
+  def after?(_id, nil), do: true
+  def after?(id, other), do: FlakeId.from_string(id) > FlakeId.from_string(other)
+
   @doc "Forgets the position, so the next run starts from the oldest activity."
   @spec reset(String.t()) :: :ok
   def reset(name) do
