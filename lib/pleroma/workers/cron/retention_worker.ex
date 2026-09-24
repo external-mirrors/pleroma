@@ -5,7 +5,8 @@
 defmodule Pleroma.Workers.Cron.RetentionWorker do
   @moduledoc """
   Evicts one batch of old remote threads per run, see `Pleroma.Retention`,
-  and prunes processed remote activities, see `Pleroma.Retention.Processed`.
+  and prunes processed remote activities and old remote tombstones, see
+  `Pleroma.Retention.Processed`.
   """
 
   use Oban.Worker,
@@ -37,6 +38,11 @@ defmodule Pleroma.Workers.Cron.RetentionWorker do
 
       if pruned > 0,
         do: Logger.info("Retention: pruned #{pruned} processed remote activities")
+
+      tombstones = Processed.prune_tombstones(config)
+
+      if tombstones > 0,
+        do: Logger.info("Retention: pruned #{tombstones} old remote tombstones")
     end
 
     :ok

@@ -7,6 +7,7 @@ defmodule Pleroma.Retention.ProcessedTest do
 
   alias Pleroma.Activity
   alias Pleroma.Notification
+  alias Pleroma.Object
   alias Pleroma.Repo
   alias Pleroma.Retention.Cursor
   alias Pleroma.Retention.Processed
@@ -96,6 +97,15 @@ defmodule Pleroma.Retention.ProcessedTest do
       assert Activity.get_by_id(old.id)
     end
 
+    test "ignores nonsensical settings" do
+      old = activity("Delete", 10)
+
+      assert Processed.prune_activities(Keyword.put(@config, :batch_size, 0)) == 0
+      assert Processed.prune_activities(Keyword.put(@config, :processed_activity_days, -1)) == 0
+      assert is_nil(Cursor.get("processed_activities"))
+      assert Activity.get_by_id(old.id)
+    end
+
     test "walks in batches and does not rescan" do
       config = Keyword.put(@config, :batch_size, 1)
       older = activity("Delete", 12)
@@ -112,6 +122,105 @@ defmodule Pleroma.Retention.ProcessedTest do
       behind = activity("Delete", 20)
       assert Processed.prune_activities(config) == 0
       assert Activity.get_by_id(behind.id)
+    end
+  end
+
+  describe "prune_tombstones/1" do
+    @config [tombstone_days: 30, batch_size: 500]
+
+    defp tombstone(days, opts \\ []) do
+      base = if opts[:local], do: Pleroma.Web.Endpoint.url(), else: "https://remote.example"
+      time = days_ago(days)
+
+      Repo.insert!(%Object{
+        data: %{
+          "id" => "#{base}/objects/#{Ecto.UUID.generate()}",
+          "type" => "Tombstone",
+          "formerType" => "Note",
+          "deleted" => NaiveDateTime.to_iso8601(time)
+        },
+        inserted_at: days_ago(days + 100),
+        updated_at: time
+      })
+    end
+
+    test "prunes remote tombstones deleted longer ago than tombstone_days" do
+      old = tombstone(40)
+      delete = activity("Delete", 40, object: old.data["id"])
+
+      assert Processed.prune_tombstones(@config) == 1
+      refute Object.get_by_id(old.id)
+      refute Activity.get_by_id(delete.id)
+    end
+
+    test "keeps recent tombstones, so deleted posts are not fetched again" do
+      recent = tombstone(10)
+
+      assert Processed.prune_tombstones(@config) == 0
+      assert Object.get_by_id(recent.id)
+    end
+
+    test "keeps local tombstones" do
+      local = tombstone(40, local: true)
+
+      assert Processed.prune_tombstones(@config) == 0
+      assert Object.get_by_id(local.id)
+    end
+
+    test "keeps tombstones a local activity points at" do
+      pointed_at = tombstone(40)
+      local_activity = activity("Undo", 40, local: true, object: pointed_at.data["id"])
+
+      assert Processed.prune_tombstones(@config) == 0
+      assert Object.get_by_id(pointed_at.id)
+      assert Activity.get_by_id(local_activity.id)
+    end
+
+    test "keeps other objects" do
+      note = insert(:note, updated_at: days_ago(400))
+
+      assert Processed.prune_tombstones(@config) == 0
+      assert Object.get_by_id(note.id)
+    end
+
+    test "prunes at most batch_size tombstones, oldest first" do
+      older = tombstone(50)
+      newer = tombstone(40)
+
+      assert Processed.prune_tombstones(Keyword.put(@config, :batch_size, 1)) == 1
+      refute Object.get_by_id(older.id)
+      assert Object.get_by_id(newer.id)
+    end
+
+    test "walks tombstones once and does not look at skipped ones again" do
+      config = Keyword.put(@config, :batch_size, 1)
+      local = tombstone(50, local: true)
+      remote = tombstone(40)
+
+      assert Processed.prune_tombstones(config) == 0
+      assert Processed.prune_tombstones(config) == 1
+      refute Object.get_by_id(remote.id)
+
+      # Behind the cursor now: not visited again.
+      behind = tombstone(45)
+      assert Processed.prune_tombstones(config) == 0
+      assert Object.get_by_id(behind.id)
+      assert Object.get_by_id(local.id)
+    end
+
+    test "ignores nonsensical settings" do
+      old = tombstone(40)
+
+      assert Processed.prune_tombstones(Keyword.put(@config, :batch_size, 0)) == 0
+      assert Processed.prune_tombstones(Keyword.put(@config, :tombstone_days, -1)) == 0
+      assert Object.get_by_id(old.id)
+    end
+
+    test "does nothing without tombstone_days" do
+      old = tombstone(40)
+
+      assert Processed.prune_tombstones(Keyword.delete(@config, :tombstone_days)) == 0
+      assert Object.get_by_id(old.id)
     end
   end
 end

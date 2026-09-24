@@ -3351,6 +3351,14 @@ config :pleroma, :config_description, [
           "Days to keep remote Delete, Undo and Update activities after they were received." <>
             " They are only needed to recognise duplicate deliveries. Unset to keep them forever.",
         suggestions: [7]
+      },
+      %{
+        key: :tombstone_days,
+        type: :integer,
+        description:
+          "Days to keep the tombstones of deleted remote posts. They stop a deleted post from" <>
+            " being fetched again while its thread is active. Unset to keep them forever.",
+        suggestions: [30]
       }
     ]
   },

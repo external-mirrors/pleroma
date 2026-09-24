@@ -74,4 +74,21 @@ defmodule Pleroma.Workers.Cron.RetentionWorkerTest do
     assert :ok = RetentionWorker.perform(%Oban.Job{})
     refute Pleroma.Activity.get_by_id(delete.id)
   end
+
+  test "prunes old remote tombstones when enabled" do
+    clear_config([:retention, :enabled], true)
+    clear_config([:retention, :tombstone_days], 30)
+
+    tombstone =
+      Repo.insert!(%Object{
+        data: %{"id" => "https://remote.example/objects/gone", "type" => "Tombstone"},
+        updated_at:
+          NaiveDateTime.utc_now()
+          |> NaiveDateTime.add(-60 * 86_400)
+          |> NaiveDateTime.truncate(:second)
+      })
+
+    assert :ok = RetentionWorker.perform(%Oban.Job{})
+    refute Object.get_by_id(tombstone.id)
+  end
 end
