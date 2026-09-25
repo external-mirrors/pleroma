@@ -12,10 +12,10 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.AudioHandlingTest do
 
   import Pleroma.Factory
 
-  test "it works for incoming listens" do
-    _user = insert(:user, ap_id: "http://mastodon.example.org/users/admin")
+  defp listen_data do
+    insert(:user, ap_id: "http://mastodon.example.org/users/admin")
 
-    data = %{
+    %{
       "@context" => "https://www.w3.org/ns/activitystreams",
       "to" => ["https://www.w3.org/ns/activitystreams#Public"],
       "cc" => [],
@@ -34,7 +34,36 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.AudioHandlingTest do
         "length" => 180_000
       }
     }
+  end
 
+  test "it rejects incoming listens exceeding remote_limit before persistence" do
+    clear_config([:instance, :remote_limit], 10)
+    data = put_in(listen_data(), ["object", "content"], String.duplicate("x", 11))
+
+    assert {:error, {:validate, {:error, :remote_limit}}} =
+             Transmogrifier.handle_incoming(data)
+
+    refute Activity.get_by_ap_id(data["id"])
+    refute Object.get_by_ap_id(data["object"]["id"])
+  end
+
+  test "it accepts incoming listens at the character limit" do
+    clear_config([:instance, :remote_limit], 10)
+    content = String.duplicate("é", 10)
+    data = put_in(listen_data(), ["object", "content"], content)
+
+    assert {:ok, %Activity{} = activity} = Transmogrifier.handle_incoming(data)
+    assert Object.normalize(activity).data["content"] == content
+  end
+
+  test "it accepts incoming listens with null content" do
+    data = put_in(listen_data(), ["object", "content"], nil)
+
+    assert {:ok, %Activity{}} = Transmogrifier.handle_incoming(data)
+  end
+
+  test "it works for incoming listens" do
+    data = listen_data()
     {:ok, %Activity{local: false} = activity} = Transmogrifier.handle_incoming(data)
 
     object = Object.normalize(activity, fetch: false)

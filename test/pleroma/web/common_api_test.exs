@@ -702,6 +702,21 @@ defmodule Pleroma.Web.CommonAPITest do
       assert Repo.aggregate(Object, :count, :id) == 0
     end
 
+    test "it enforces the same content limit for posts and previews" do
+      clear_config([:instance, :remote_limit], 10)
+      user = insert(:user)
+
+      for preview <- [true, false] do
+        assert {:error, :remote_limit} =
+                 CommonAPI.post(user, %{status: String.duplicate("x", 11), preview: preview})
+      end
+
+      assert Repo.aggregate(Activity, :count, :id) == 0
+      assert Repo.aggregate(Object, :count, :id) == 0
+
+      assert {:ok, _} = CommonAPI.post(user, %{status: String.duplicate("é", 10)})
+    end
+
     test "it rolls back posts when MRF expiration cannot be scheduled" do
       clear_config([:mrf, :policies], [Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicy])
       clear_config([Pleroma.Workers.PurgeExpiredActivity, :enabled], false)

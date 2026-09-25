@@ -139,7 +139,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
         meta
       )
       when objtype in ~w[Question Answer Audio Video Image Event Article Note Page] do
-    with {:ok, object_data} <-
+    with :ok <- validate_remote_limit(create_activity),
+         {:ok, object_data} <-
            object
            |> CommonFixes.maybe_set_attributed_to_from_activity(create_activity)
            |> CommonFixes.maybe_add_language_from_activity(create_activity)
@@ -158,7 +159,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
         %{"type" => "Listen", "object" => %{"type" => "Audio"} = object} = listen_activity,
         meta
       ) do
-    with {:ok, object_data} <-
+    with :ok <- validate_remote_limit(listen_activity),
+         {:ok, object_data} <-
            object
            |> CommonFixes.maybe_set_attributed_to_from_activity(listen_activity)
            |> cast_and_apply_and_stringify_with_history(),
@@ -287,6 +289,17 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   end
 
   def validate(o, m), do: {:error, {:validator_not_set, {o, m}}}
+
+  # Shared with legacy insertion so previews and pipeline posts enforce the same limit.
+  def validate_remote_limit(%{"object" => %{"content" => content}}) when is_binary(content) do
+    if String.length(content) <= Pleroma.Config.get([:instance, :remote_limit]) do
+      :ok
+    else
+      {:error, :remote_limit}
+    end
+  end
+
+  def validate_remote_limit(_), do: :ok
 
   def cast_and_apply_and_stringify_with_history(object) do
     do_separate_with_history(object, fn object ->

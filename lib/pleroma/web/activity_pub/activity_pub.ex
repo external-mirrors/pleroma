@@ -19,6 +19,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   alias Pleroma.Upload
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.MRF
+  alias Pleroma.Web.ActivityPub.ObjectValidator
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.Streamer
   alias Pleroma.Web.WebFinger
@@ -62,13 +63,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   defp check_actor_can_insert(_), do: true
 
-  defp check_remote_limit(%{"object" => %{"content" => content}}) when not is_nil(content) do
-    limit = Config.get([:instance, :remote_limit])
-    String.length(content) <= limit
-  end
-
-  defp check_remote_limit(_), do: true
-
   def increase_note_count_if_public(actor, object) do
     if public?(object), do: User.increase_note_count(actor), else: {:ok, actor}
   end
@@ -110,7 +104,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     with nil <- Activity.normalize(map),
          map <- lazy_put_activity_defaults(map, fake),
          {_, true} <- {:actor_check, bypass_actor_check || check_actor_can_insert(map)},
-         {_, true} <- {:remote_limit_pass, check_remote_limit(map)},
+         :ok <- ObjectValidator.validate_remote_limit(map),
          {:ok, map} <- MRF.filter(map),
          {recipients, _, _} = get_recipients(map),
          {:fake, false, map, recipients} <- {:fake, fake, map, recipients},
@@ -150,9 +144,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
         Pleroma.Web.RichMedia.Card.get_by_activity(activity)
         {:ok, activity}
-
-      {:remote_limit_pass, _} ->
-        {:error, :remote_limit}
 
       {:reject, _} = e ->
         {:error, e}
