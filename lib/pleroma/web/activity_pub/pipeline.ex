@@ -25,20 +25,29 @@ defmodule Pleroma.Web.ActivityPub.Pipeline do
   @type results :: {:ok, Activity.t() | Object.t(), keyword()}
   @type errors :: {:error | :reject, any()}
 
-  # The Repo.transaction will wrap the result in an {:ok, _}
-  # and only returns an {:error, _} if the error encountered was related
-  # to the SQL transaction
+  # Once persistence starts, returned errors must abort the transaction.
+  # Earlier rejections must not abort an enclosing pipeline (e.g. an optional group boost).
   @spec common_pipeline(map(), keyword()) :: results() | errors()
   def common_pipeline(object, meta) do
-    case Repo.transaction(fn -> do_common_pipeline(object, meta) end, Utils.query_timeout()) do
+    transaction = fn ->
+      case do_common_pipeline(object, meta) do
+        {:error, {stage, _}} = error when stage in [:persist, :side_effects, :federation] ->
+          Repo.rollback({:pipeline_error, error})
+
+        result ->
+          result
+      end
+    end
+
+    case Repo.transaction(transaction, Utils.query_timeout()) do
       {:ok, {:ok, activity, meta}} ->
         side_effects().handle_after_transaction(meta)
         {:ok, activity, meta}
 
-      {:ok, {:error, _} = error} ->
+      {:ok, error} ->
         error
 
-      {:ok, {:reject, _} = error} ->
+      {:error, {:pipeline_error, error}} ->
         error
 
       {:error, e} ->

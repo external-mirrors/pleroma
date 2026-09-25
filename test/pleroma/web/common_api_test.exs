@@ -702,6 +702,18 @@ defmodule Pleroma.Web.CommonAPITest do
       assert Repo.aggregate(Object, :count, :id) == 0
     end
 
+    test "it rolls back posts when MRF expiration cannot be scheduled" do
+      clear_config([:mrf, :policies], [Pleroma.Web.ActivityPub.MRF.ActivityExpirationPolicy])
+      clear_config([Pleroma.Workers.PurgeExpiredActivity, :enabled], false)
+      user = insert(:user)
+
+      assert {:error, :expired_activities_disabled} =
+               CommonAPI.post(user, %{status: "expired by policy"})
+
+      assert Repo.aggregate(Activity, :count, :id) == 0
+      assert Repo.aggregate(Object, :count, :id) == 0
+    end
+
     test "it returns MRF rejections and pipeline errors in the legacy shape" do
       clear_config([:mrf_keyword, :reject], ["GNO"])
       clear_config([:mrf, :policies], [Pleroma.Web.ActivityPub.MRF.KeywordPolicy])

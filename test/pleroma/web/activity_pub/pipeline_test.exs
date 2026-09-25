@@ -17,6 +17,67 @@ defmodule Pleroma.Web.ActivityPub.PipelineTest do
 
   setup :verify_on_exit!
 
+  describe "failed transactions" do
+    setup do
+      ObjectValidatorMock
+      |> expect(:validate, fn o, m -> {:ok, o, m} end)
+
+      SideEffectsMock
+      |> expect(:handle_after_transaction, 0, fn _ -> :ok end)
+
+      FederatorMock
+      |> expect(:publish, 0, fn _ -> :ok end)
+
+      :ok
+    end
+
+    for stage <- [:persist, :side_effects] do
+      @tag failing_stage: stage
+      test "rolls back writes when #{stage} returns an error", %{failing_stage: stage} do
+        ap_id = Pleroma.Web.ActivityPub.Utils.generate_activity_id()
+
+        MRFMock
+        |> expect(:pipeline_filter, fn o, m -> {:ok, o, m} end)
+
+        ActivityPubMock
+        |> expect(:persist, fn _, meta ->
+          activity = insert(:note_activity, data: %{"id" => ap_id})
+
+          if stage == :persist, do: {:error, :failed}, else: {:ok, activity, meta}
+        end)
+
+        if stage == :side_effects do
+          expect(SideEffectsMock, :handle, fn _, _ -> {:error, :failed} end)
+        else
+          expect(SideEffectsMock, :handle, 0, fn _, _ -> :ok end)
+        end
+
+        assert {:error, {^stage, {:error, :failed}}} =
+                 Pleroma.Web.ActivityPub.Pipeline.common_pipeline(%{}, local: true)
+
+        refute Pleroma.Activity.get_by_ap_id(ap_id)
+      end
+    end
+
+    test "preserves MRF rejection results" do
+      MRFMock
+      |> expect(:pipeline_filter, fn o, m -> {:reject, o, m} end)
+
+      assert {:reject, %{}} = Pleroma.Web.ActivityPub.Pipeline.common_pipeline(%{}, local: true)
+    end
+
+    test "preserves explicit rollback results" do
+      MRFMock
+      |> expect(:pipeline_filter, fn o, m -> {:ok, o, m} end)
+
+      ActivityPubMock
+      |> expect(:persist, fn _, _ -> Pleroma.Repo.rollback(:failed) end)
+
+      assert {:error, :failed} =
+               Pleroma.Web.ActivityPub.Pipeline.common_pipeline(%{}, local: true)
+    end
+  end
+
   describe "common_pipeline/2" do
     setup do
       ObjectValidatorMock

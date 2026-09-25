@@ -1,0 +1,1 @@
+Roll back activity pipeline stage failures, including local posts whose MRF-added expiration cannot be scheduled, instead of committing incomplete activities.
