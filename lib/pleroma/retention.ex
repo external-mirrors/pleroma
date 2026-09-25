@@ -18,6 +18,7 @@ defmodule Pleroma.Retention do
       users all carry the thread's context),
     * is bookmarked by a local user,
     * is addressed to a local user (direct messages and mentions),
+    * is a post quoted by a local post,
     * still has a notification for a local user,
     * is a report (Flag),
 
@@ -241,6 +242,18 @@ defmodule Pleroma.Retention do
       not fragment(
         "bool_or(EXISTS (SELECT 1 FROM unnest(?) AS r WHERE left(r, ?) = ?))",
         a.recipients,
+        ^local_prefix_length(),
+        ^local_prefix()
+      )
+    )
+    # A local quote has a context of its own, so look up quotes of the posts
+    # here; the objects_quote_url index is on the jsonb value.
+    |> having(
+      [a],
+      not fragment(
+        "bool_or(? ->> 'type' = 'Create' AND EXISTS (SELECT 1 FROM objects q WHERE q.data -> 'quoteUrl' = to_jsonb(associated_object_id(?)) AND left(q.data ->> 'actor', ?) = ?))",
+        a.data,
+        a.data,
         ^local_prefix_length(),
         ^local_prefix()
       )

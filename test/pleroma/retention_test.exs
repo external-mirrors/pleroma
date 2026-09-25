@@ -244,6 +244,21 @@ defmodule Pleroma.RetentionTest do
       assert Object.get_by_ap_id(post.data["object"])
     end
 
+    test "keeps an old remote thread whose post a local user quoted", %{old_date: old_date} do
+      remote_user = insert(:user, local: false)
+      local_user = insert(:user)
+
+      quoted = old_remote_post(remote_user, old_date)
+      {:ok, quote} = CommonAPI.post(local_user, %{status: "look at this", quote_id: quoted.id})
+      make_old(quote, old_date)
+
+      # The quote has a context of its own and does not pin the quoted thread.
+      refute quote.data["context"] == quoted.data["context"]
+
+      assert %{contexts: 0} = Retention.run()
+      assert Object.get_by_ap_id(quoted.data["object"])
+    end
+
     test "keeps an old remote post that was reported", %{old_date: old_date} do
       remote_user = insert(:user, local: false)
       local_user = insert(:user)

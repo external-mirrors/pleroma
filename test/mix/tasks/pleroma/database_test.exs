@@ -200,6 +200,29 @@ defmodule Mix.Tasks.Pleroma.DatabaseTest do
       refute Object.get_by_ap_id(old_remote_post2_id)
     end
 
+    test "with the --keep-threads option it keeps old threads a local user quoted", %{
+      old_insert_date: old_insert_date
+    } do
+      remote_user = insert(:user, local: false)
+      local_user = insert(:user)
+
+      {:ok, quoted} = CommonAPI.post(remote_user, %{status: "quote me"})
+
+      quoted
+      |> Ecto.Changeset.change(%{local: false, updated_at: old_insert_date})
+      |> Repo.update!()
+
+      {:ok, quote} = CommonAPI.post(local_user, %{status: "look", quote_id: quoted.id})
+
+      quote
+      |> Ecto.Changeset.change(%{updated_at: old_insert_date})
+      |> Repo.update!()
+
+      Mix.Tasks.Pleroma.Database.run(["prune_objects", "--keep-threads"])
+
+      assert Object.get_by_ap_id(quoted.data["object"])
+    end
+
     test "with the --keep-threads option it keeps old threads addressed to a local user", %{
       old_insert_date: old_insert_date
     } do

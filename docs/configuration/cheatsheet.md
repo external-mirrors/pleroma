@@ -1189,10 +1189,7 @@ Control favicons for instances.
 
 Bounded retention of remote content. Local posts are your data; remote posts are a cache of somebody else's, and this treats them that way. When enabled, a cron worker (`Pleroma.Workers.Cron.RetentionWorker`, hourly by default) evicts a batch of remote threads that nobody local has interacted with and that have been quiet for longer than `remote_post_retention_days` (see [`:instance`](#instance)). The database then plateaus instead of growing without limit.
 
-A thread is never evicted if it contains a local post, reply, favourite, repeat or reaction, a post bookmarked by a local user, a post addressed to a local user (direct messages and mentions), a post a local user still has a notification for, or a post that was reported. Relationship activities (follows, blocks) and chat messages are never touched. Evicted posts are refetched on demand when somebody opens them again, as with `prune_objects`.
-
-!!! warning
-    A local quote post does not pin the post it quotes, since quotes do not share the quoted thread's context. Old quoted remote posts can be evicted and will be refetched when the quote is viewed.
+A thread is never evicted if it contains a local post, reply, favourite, repeat or reaction, a post bookmarked by a local user, a post addressed to a local user (direct messages and mentions), a post quoted by a local post, a post a local user still has a notification for, or a post that was reported. Relationship activities (follows, blocks) and chat messages are never touched. Evicted posts are refetched on demand when somebody opens them again, as with `prune_objects`.
 
 * `enabled`: Run the worker. Defaults to `false`.
 * `max_objects`: Optional watermark. When the `objects` table is estimated to hold more rows than this, the oldest unpinned remote threads that have been quiet for more than a day are evicted, whatever `remote_post_retention_days` says. Defaults to `nil` (age only).
