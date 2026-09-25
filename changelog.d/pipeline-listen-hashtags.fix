@@ -1,0 +1,1 @@
+Accept hashtags on incoming Listen activities by removing internal string tags before validating their Audio objects, while retaining AS2 tags and hashtag indexing.

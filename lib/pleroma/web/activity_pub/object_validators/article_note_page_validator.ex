@@ -78,13 +78,6 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidator do
 
   defp fix_url(data), do: data
 
-  defp fix_tag(%{"tag" => tag} = data) when is_list(tag) do
-    Map.put(data, "tag", Enum.filter(tag, &is_map/1))
-  end
-
-  defp fix_tag(%{"tag" => tag} = data) when is_map(tag), do: Map.put(data, "tag", [tag])
-  defp fix_tag(data), do: Map.drop(data, ["tag"])
-
   # legacy internal *oma format
   defp fix_replies(%{"replies" => replies} = data) when is_list(replies), do: data
 
@@ -218,7 +211,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ArticleNotePageValidator do
     |> CommonFixes.fix_actor()
     |> CommonFixes.fix_object_defaults()
     |> fix_url()
-    |> fix_tag()
+    |> CommonFixes.fix_tag()
     |> fix_replies()
     |> fix_attachments()
     |> normalize_source()

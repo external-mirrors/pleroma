@@ -62,6 +62,26 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.AudioHandlingTest do
     assert {:ok, %Activity{}} = Transmogrifier.handle_incoming(data)
   end
 
+  for shape <- [:object, :list] do
+    @tag tag_shape: shape
+    test "it accepts incoming listens with a Hashtag #{shape}", %{tag_shape: shape} do
+      hashtag = %{
+        "type" => "Hashtag",
+        "name" => "#music",
+        "href" => "http://mastodon.example.org/tags/music"
+      }
+
+      tags = if shape == :object, do: hashtag, else: [hashtag]
+      data = put_in(listen_data(), ["object", "tag"], tags)
+
+      assert {:ok, %Activity{} = activity} = Transmogrifier.handle_incoming(data)
+      object = Object.get_by_ap_id(activity.data["object"])
+
+      assert object.data["tag"] == [hashtag, "music"]
+      assert Object.hashtags(object) == ["music"]
+    end
+  end
+
   test "it works for incoming listens" do
     data = listen_data()
     {:ok, %Activity{local: false} = activity} = Transmogrifier.handle_incoming(data)

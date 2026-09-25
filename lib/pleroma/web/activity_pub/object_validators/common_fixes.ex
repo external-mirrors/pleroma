@@ -80,6 +80,14 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes do
     |> Transmogrifier.fix_implicit_addressing(follower_collection)
   end
 
+  # Strip internal string copies before casting AS2 tag embeds.
+  def fix_tag(%{"tag" => tag} = data) when is_list(tag) do
+    Map.put(data, "tag", Enum.filter(tag, &is_map/1))
+  end
+
+  def fix_tag(%{"tag" => tag} = data) when is_map(tag), do: Map.put(data, "tag", [tag])
+  def fix_tag(data), do: Map.drop(data, ["tag"])
+
   def fix_actor(data) do
     actor =
       data
