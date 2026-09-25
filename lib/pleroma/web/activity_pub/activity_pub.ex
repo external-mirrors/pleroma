@@ -546,6 +546,12 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   defp pagination_binding(%{favorited_by: _}), do: :favorited_activity
   defp pagination_binding(_), do: nil
 
+  def fetch_home_activities(recipients, opts) do
+    Pleroma.Web.ActivityPub.HomeTimeline.with_exact_queries(fn ->
+      fetch_activities(recipients, opts)
+    end)
+  end
+
   def fetch_activities(recipients, opts \\ %{}, pagination \\ :keyset) do
     list_memberships = Pleroma.List.memberships(opts[:user])
 
