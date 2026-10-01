@@ -34,6 +34,8 @@ defmodule Pleroma.Retention.Processed do
   @cursor "processed_activities"
   @tombstone_cursor "tombstones"
   @default_batch_size 50_000
+  # tombstone ids per lookup of local activities
+  @lookup_chunk 1_000
 
   @doc """
   Prunes the next batch of processed remote activities and returns how many
@@ -89,12 +91,33 @@ defmodule Pleroma.Retention.Processed do
       last -> Cursor.put(@tombstone_cursor, position(last.updated_at, last.id))
     end
 
-    rows |> Enum.filter(& &1.deletable) |> delete_tombstones()
+    prefix = Retention.local_prefix()
+    remote = Enum.reject(rows, &String.starts_with?(&1.ap_id || "", prefix))
+    kept = locally_referenced(Enum.map(remote, & &1.ap_id))
+
+    remote
+    |> Enum.reject(&MapSet.member?(kept, &1.ap_id))
+    |> delete_tombstones()
+  end
+
+  # The ids of these objects that a local activity points at, through the
+  # associated_object_id index. A correlated NOT EXISTS in the tombstone
+  # query became a hashed subplan instead, which read every local activity
+  # on each run (minutes of random reads on a large instance).
+  defp locally_referenced(ap_ids) do
+    ap_ids
+    |> Enum.chunk_every(@lookup_chunk)
+    |> Enum.flat_map(fn chunk ->
+      Activity
+      |> Activity.Queries.by_object_id(chunk)
+      |> where([a], a.local)
+      |> select([a], fragment("associated_object_id(?)", a.data))
+      |> Repo.all(timeout: :infinity)
+    end)
+    |> MapSet.new()
   end
 
   defp tombstones_after(deadline, from, budget) do
-    prefix = Retention.local_prefix()
-
     Object
     |> where([o], fragment("? ->> 'type' = 'Tombstone'", o.data))
     |> where([o], o.updated_at < ^deadline)
@@ -104,15 +127,7 @@ defmodule Pleroma.Retention.Processed do
     |> select([o], %{
       id: o.id,
       updated_at: o.updated_at,
-      ap_id: fragment("? ->> 'id'", o.data),
-      deletable:
-        fragment(
-          "left(? ->> 'id', ?) != ? AND NOT EXISTS (SELECT 1 FROM activities a WHERE associated_object_id(a.data) = ? ->> 'id' AND a.local)",
-          o.data,
-          ^String.length(prefix),
-          ^prefix,
-          o.data
-        )
+      ap_id: fragment("? ->> 'id'", o.data)
     })
   end
 

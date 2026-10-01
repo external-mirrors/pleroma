@@ -176,6 +176,37 @@ defmodule Pleroma.Retention.ProcessedTest do
       assert Activity.get_by_id(local_activity.id)
     end
 
+    # The check for local activities goes through the associated_object_id
+    # index for the batch's tombstones; a correlated NOT EXISTS became a
+    # hashed subplan that read every local activity on each run.
+    test "checks only the batch's tombstones against local activities" do
+      tombstone(40)
+      handler = "tombstone-queries-#{System.unique_integer()}"
+      test_pid = self()
+
+      :telemetry.attach(
+        handler,
+        [:pleroma, :repo, :query],
+        fn _, _, %{query: query}, _ -> send(test_pid, {:query, query}) end,
+        nil
+      )
+
+      Processed.prune_tombstones(@config)
+      :telemetry.detach(handler)
+
+      queries = collect_queries([])
+      refute Enum.any?(queries, &(&1 =~ "NOT EXISTS (SELECT 1 FROM activities"))
+      assert Enum.any?(queries, &(&1 =~ ~r/associated_object_id.*= ANY/s and &1 =~ "local"))
+    end
+
+    defp collect_queries(acc) do
+      receive do
+        {:query, query} -> collect_queries([query | acc])
+      after
+        0 -> acc
+      end
+    end
+
     test "keeps other objects" do
       note = insert(:note, updated_at: days_ago(400))
 
