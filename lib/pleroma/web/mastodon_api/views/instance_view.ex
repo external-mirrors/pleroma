@@ -5,10 +5,19 @@
 defmodule Pleroma.Web.MastodonAPI.InstanceView do
   use Pleroma.Web, :view
 
+  import Pleroma.Web.Utils.Guards, only: [not_empty_string: 1]
+
   alias Pleroma.Config
   alias Pleroma.Web.ActivityPub.MRF
 
   @mastodon_api_level "2.7.2"
+
+  @block_severities %{
+    federated_timeline_removal: "silence",
+    reject: "suspend"
+  }
+
+  def mastodon_api_level, do: @mastodon_api_level
 
   def render("show.json", _) do
     instance = Config.get(:instance)
@@ -90,6 +99,53 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
     }
   end
 
+  def render("domain_blocks.json", _) do
+    if Config.get([:mrf, :transparency]) do
+      exclusions = Config.get([:mrf, :transparency_exclusions]) |> MRF.instance_list_from_tuples()
+
+      domain_blocks =
+        Config.get(:mrf_simple)
+        |> Enum.map(fn {rule, instances} ->
+          instances
+          |> Enum.map(fn
+            {host, reason} when not_empty_string(host) and not_empty_string(reason) ->
+              {host, reason}
+
+            {host, _reason} when not_empty_string(host) ->
+              {host, ""}
+
+            host when not_empty_string(host) ->
+              {host, ""}
+
+            _ ->
+              nil
+          end)
+          |> Enum.reject(&is_nil/1)
+          |> Enum.reject(fn {host, _} ->
+            host in exclusions or not Map.has_key?(@block_severities, rule)
+          end)
+          |> Enum.map(fn {host, reason} ->
+            domain_block = %{
+              domain: host,
+              digest: :crypto.hash(:sha256, host) |> Base.encode16(case: :lower),
+              severity: Map.get(@block_severities, rule)
+            }
+
+            if not_empty_string(reason) do
+              Map.put(domain_block, :comment, reason)
+            else
+              domain_block
+            end
+          end)
+        end)
+        |> List.flatten()
+
+      domain_blocks
+    else
+      []
+    end
+  end
+
   def render("translation_languages.json", _) do
     with true <- Pleroma.Language.Translation.configured?(),
          {:ok, languages} <- Pleroma.Language.Translation.languages_matrix() do
@@ -112,6 +168,7 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
     [
       "pleroma_api",
       "mastodon_api",
+      "mastodon_api_grouped_notifications",
       "mastodon_api_streaming",
       "polls",
       "v2_suggestions",
@@ -145,8 +202,12 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
       end,
       "pleroma_emoji_reactions",
       "pleroma_custom_emoji_reactions",
-      "pleroma_chat_messages",
-      "pleroma:pin_chats",
+      if Pleroma.Chat.enabled?() do
+        "pleroma_chat_messages"
+      end,
+      if Pleroma.Chat.enabled?() do
+        "pleroma:pin_chats"
+      end,
       if Config.get([:instance, :show_reactions]) do
         "exposable_reactions"
       end,
@@ -249,6 +310,15 @@ defmodule Pleroma.Web.MastodonAPI.InstanceView do
   defp configuration2 do
     configuration()
     |> put_in([:accounts, :max_pinned_statuses], Config.get([:instance, :max_pinned_statuses], 0))
+    |> put_in([:accounts, :max_profile_fields], Config.get([:instance, :max_account_fields]))
+    |> put_in(
+      [:accounts, :profile_field_name_limit],
+      Config.get([:instance, :account_field_name_length])
+    )
+    |> put_in(
+      [:accounts, :profile_field_value_limit],
+      Config.get([:instance, :account_field_value_length])
+    )
     |> put_in([:statuses, :characters_reserved_per_url], 0)
     |> Map.merge(%{
       urls: %{

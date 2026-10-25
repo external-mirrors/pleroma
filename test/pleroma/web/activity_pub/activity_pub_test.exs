@@ -17,6 +17,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.AdminAPI.AccountView
   alias Pleroma.Web.CommonAPI
+  alias Pleroma.Webhook.Notify
 
   import ExUnit.CaptureLog
   import Mock
@@ -415,6 +416,105 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       assert %{data: %{"id" => ^object_url}} = Object.get_by_ap_id(object_url)
     end
 
+    test "fetches user featured collection from the first collection page" do
+      ap_id = "https://example.com/users/lain"
+      featured_url = "https://example.com/users/lain/collections/featured"
+      first_page_url = "#{featured_url}?page=true"
+
+      user_data =
+        "test/fixtures/users_mock/user.json"
+        |> File.read!()
+        |> String.replace("{{nickname}}", "lain")
+        |> Jason.decode!()
+        |> Map.put("featured", featured_url)
+        |> Jason.encode!()
+
+      object_id = Ecto.UUID.generate()
+      object_url = "https://example.com/objects/#{object_id}"
+
+      featured_data =
+        Jason.encode!(%{
+          "id" => featured_url,
+          "type" => "OrderedCollection",
+          "first" => first_page_url
+        })
+
+      first_page_data =
+        Jason.encode!(%{
+          "id" => first_page_url,
+          "type" => "OrderedCollectionPage",
+          "partOf" => featured_url,
+          "orderedItems" => [object_url]
+        })
+
+      object_data =
+        "test/fixtures/statuses/note.json"
+        |> File.read!()
+        |> String.replace("{{object_id}}", object_id)
+        |> String.replace("{{nickname}}", "lain")
+
+      Tesla.Mock.mock(fn
+        %{
+          method: :get,
+          url: ^ap_id
+        } ->
+          %Tesla.Env{
+            status: 200,
+            body: user_data,
+            headers: [{"content-type", "application/activity+json"}]
+          }
+
+        %{
+          method: :get,
+          url: ^featured_url
+        } ->
+          %Tesla.Env{
+            status: 200,
+            body: featured_data,
+            headers: [{"content-type", "application/activity+json"}]
+          }
+
+        %{
+          method: :get,
+          url: ^first_page_url
+        } ->
+          %Tesla.Env{
+            status: 200,
+            body: first_page_data,
+            headers: [{"content-type", "application/activity+json"}]
+          }
+
+        %{
+          method: :get,
+          url: ^object_url
+        } ->
+          %Tesla.Env{
+            status: 200,
+            body: object_data,
+            headers: [{"content-type", "application/activity+json"}]
+          }
+      end)
+
+      refute capture_log(fn ->
+               {:ok, user} = ActivityPub.make_user_from_ap_id(ap_id)
+
+               assert_enqueued(
+                 worker: Pleroma.Workers.RemoteFetcherWorker,
+                 args: %{
+                   "op" => "fetch_remote",
+                   "id" => object_url,
+                   "depth" => 1
+                 }
+               )
+
+               Pleroma.Tests.ObanHelpers.perform_all()
+
+               assert user.featured_address == featured_url
+               assert Map.has_key?(user.pinned_objects, object_url)
+               assert %{data: %{"id" => ^object_url}} = Object.get_by_ap_id(object_url)
+             end) =~ "Could not parse featured collection"
+    end
+
     test "fetches user birthday information from misskey" do
       user_id = "https://misskey.io/@mkljczk"
 
@@ -497,6 +597,35 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
 
     assert user.banner["url"] |> List.first() |> Map.fetch!("href") ==
              "https://queef.in/storage/banner.gif"
+  end
+
+  test "works with alsoKnownAs as string" do
+    user_id = "https://hub.netzgemeinde.eu/channel/jupiter_rowland"
+
+    user_data =
+      "test/fixtures/users_mock/hubzilla-actor-alsoknownas-string.json"
+      |> File.read!()
+
+    user_data_decoded =
+      user_data
+      |> Jason.decode!()
+
+    Tesla.Mock.mock(fn
+      %{
+        method: :get,
+        url: ^user_id
+      } ->
+        %Tesla.Env{
+          status: 200,
+          body: user_data,
+          headers: [{"content-type", "application/activity+json"}]
+        }
+    end)
+
+    {:ok, user} = ActivityPub.make_user_from_ap_id(user_id)
+
+    assert is_list(user.also_known_as)
+    assert user.also_known_as == [user_data_decoded["alsoKnownAs"]]
   end
 
   test "it fetches the appropriate tag-restricted posts" do
@@ -1495,8 +1624,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       %{test_file: test_file}
     end
 
-    test "strips / from filename", %{test_file: file} do
-      file = %Plug.Upload{file | filename: "../../../../../nested/bad.jpg"}
+    test "strips / from filename", %{test_file: %Plug.Upload{} = file} do
+      file = %{file | filename: "../../../../../nested/bad.jpg"}
       {:ok, %Object{} = object} = ActivityPub.upload(file)
       [%{"href" => href}] = object.data["url"]
       assert Regex.match?(~r"/bad.jpg$", href)
@@ -1749,18 +1878,42 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       assert Repo.aggregate(Object, :count, :id) == 1
       assert Repo.aggregate(Notification, :count, :id) == 0
     end
+
+    test_with_mock "triggers webhooks",
+                   %{
+                     reporter: reporter,
+                     context: context,
+                     target_account: target_account,
+                     reported_activity: reported_activity,
+                     content: content
+                   },
+                   Notify,
+                   [:passthrough],
+                   trigger_webhooks: fn _, _ -> nil end do
+      {:ok, activity} =
+        ActivityPub.flag(%{
+          actor: reporter,
+          context: context,
+          account: target_account,
+          statuses: [reported_activity],
+          content: content
+        })
+
+      assert_called(Notify.trigger_webhooks(activity, :"report.created"))
+    end
   end
 
   test "fetch_activities/2 returns activities addressed to a list " do
     user = insert(:user)
     member = insert(:user)
-    {:ok, list} = Pleroma.List.create("foo", user)
+    {:ok, list} = Pleroma.List.create(%{title: "foo"}, user)
     {:ok, list} = Pleroma.List.follow(list, member)
 
-    {:ok, activity} = CommonAPI.post(user, %{status: "foobar", visibility: "list:#{list.id}"})
+    {:ok, %Activity{} = activity} =
+      CommonAPI.post(user, %{status: "foobar", visibility: "list:#{list.id}"})
 
     activity = Repo.preload(activity, :bookmark)
-    activity = %Activity{activity | thread_muted?: !!activity.thread_muted?}
+    activity = %{activity | thread_muted?: !!activity.thread_muted?}
 
     assert ActivityPub.fetch_activities([], %{user: user}) == [activity]
   end
@@ -1960,7 +2113,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       assert User.following?(follower, old_user)
       assert User.following?(follower_move_opted_out, old_user)
 
-      assert {:ok, activity} = ActivityPub.move(old_user, new_user)
+      assert {:ok, %Activity{} = activity} = ActivityPub.move(old_user, new_user)
 
       assert %Activity{
                actor: ^old_ap_id,
@@ -1992,7 +2145,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
       assert User.following?(follower_move_opted_out, old_user)
       refute User.following?(follower_move_opted_out, new_user)
 
-      activity = %Activity{activity | object: nil}
+      activity = %{activity | object: nil}
 
       assert [%Notification{activity: ^activity}] = Notification.for_user(follower)
 
@@ -2787,5 +2940,39 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubTest do
                "type" => "OrderedCollection",
                "first" => "https://social.example/users/alice/collections/featured?page=true"
              })
+  end
+
+  test "fetch_and_prepare_featured_from_ap_id handles embedded first collection pages" do
+    featured_url = "https://social.example/users/alice/collections/featured"
+    first_page_url = "#{featured_url}?page=true"
+    object_url = "https://social.example/objects/1"
+
+    featured_data =
+      Jason.encode!(%{
+        "id" => featured_url,
+        "type" => "OrderedCollection",
+        "first" => %{
+          "id" => first_page_url,
+          "type" => "OrderedCollectionPage",
+          "partOf" => featured_url,
+          "orderedItems" => [object_url]
+        }
+      })
+
+    Tesla.Mock.mock(fn
+      %{method: :get, url: ^featured_url} ->
+        %Tesla.Env{
+          status: 200,
+          body: featured_data,
+          headers: [{"content-type", "application/activity+json"}]
+        }
+    end)
+
+    refute capture_log(fn ->
+             assert {:ok, pinned_objects} =
+                      ActivityPub.fetch_and_prepare_featured_from_ap_id(featured_url)
+
+             assert Map.has_key?(pinned_objects, object_url)
+           end) =~ "Could not parse featured collection"
   end
 end

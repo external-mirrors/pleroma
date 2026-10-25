@@ -6,8 +6,9 @@ defmodule Pleroma.HTTP.AdapterHelper.Hackney do
   @behaviour Pleroma.HTTP.AdapterHelper
 
   @defaults [
-    follow_redirect: true,
-    force_redirect: true
+    follow_redirect: false,
+    force_redirect: false,
+    with_body: true
   ]
 
   @spec options(keyword(), URI.t()) :: keyword()
@@ -27,6 +28,25 @@ defmodule Pleroma.HTTP.AdapterHelper.Hackney do
     |> add_scheme_opts(uri)
     |> maybe_add_with_body()
     |> Pleroma.HTTP.AdapterHelper.maybe_add_proxy(proxy)
+    |> Keyword.put(:follow_redirect, false)
+    |> Keyword.put(:force_redirect, false)
+    |> normalize_proxy()
+    |> Pleroma.HTTP.TLS.put_hackney_ssl_options()
+  end
+
+  # Hackney 4 ignores a proxy whose host is an IP tuple and connects directly.
+  # ConfigDB turns a numeric proxy host into such a tuple.
+  defp normalize_proxy(opts) do
+    case Keyword.fetch(opts, :proxy) do
+      {:ok, {type, host, port}} when is_tuple(host) ->
+        Keyword.put(opts, :proxy, {type, :inet.ntoa(host), port})
+
+      {:ok, {host, port}} when is_tuple(host) ->
+        Keyword.put(opts, :proxy, {:inet.ntoa(host), port})
+
+      _ ->
+        opts
+    end
   end
 
   defp add_scheme_opts(opts, _), do: opts
