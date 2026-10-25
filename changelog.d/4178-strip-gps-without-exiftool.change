@@ -1,1 +1,1 @@
-Strip GPS data of JPGs and PNGs without exiftool.
+Remove the exiftool runtime requirement for upload GPS stripping and description extraction. Existing Exiftool filters migrate to the Exif filters, and newly generated instance configurations enable both filters by default. Exiftool is still required for the filter tests.

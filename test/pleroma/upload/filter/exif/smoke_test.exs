@@ -26,10 +26,12 @@ defmodule Pleroma.Upload.Filter.Exif.SmokeTest do
       "-GPSLatitude=12.3456",
       "-GPSLatitudeRef=N",
       "-GPSLongitude=65.4321",
-      "-GPSLongitudeRef=E"
+      "-GPSLongitudeRef=E",
+      "-GPSProcessingMethod=Pleroma GPS privacy regression marker"
     ])
 
     assert exiftool_gps_tags(tmp_path) != ""
+    assert File.read!(tmp_path) =~ "Pleroma GPS privacy regression marker"
 
     upload = %Pleroma.Upload{
       name: "image.jpg",
@@ -40,6 +42,7 @@ defmodule Pleroma.Upload.Filter.Exif.SmokeTest do
 
     assert StripLocation.filter(upload) == {:ok, :filtered}
     assert exiftool_gps_tags(tmp_path) == ""
+    refute File.read!(tmp_path) =~ "Pleroma GPS privacy regression marker"
   end
 
   test "StripLocation removes GPS metadata from PNG" do
@@ -123,6 +126,7 @@ defmodule Pleroma.Upload.Filter.Exif.SmokeTest do
       )
 
     File.cp!(source_path, tmp_path)
+    on_exit(fn -> File.rm(tmp_path) end)
     tmp_path
   end
 

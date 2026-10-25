@@ -54,6 +54,25 @@ defmodule Pleroma.Config.DeprecationWarningsTest do
       assert Config.get([Pleroma.Upload]) |> Keyword.get(:filters, []) == expected_config
     end
 
+    test "migrates the nested legacy filters without reordering unrelated filters" do
+      clear_config(
+        [Pleroma.Upload, :filters],
+        [
+          Pleroma.Upload.Filter.Exiftool.StripLocation,
+          Pleroma.Upload.Filter.Exiftool.ReadDescription,
+          Pleroma.Upload.Filter.Dedupe
+        ]
+      )
+
+      capture_log(fn -> DeprecationWarnings.check_exiftool_filter() end)
+
+      assert Config.get([Pleroma.Upload, :filters]) == [
+               Pleroma.Upload.Filter.Exif.StripLocation,
+               Pleroma.Upload.Filter.Exif.ReadDescription,
+               Pleroma.Upload.Filter.Dedupe
+             ]
+    end
+
     test "doesn't give a warning with correct config" do
       clear_config(
         [Pleroma.Upload, :filters],
