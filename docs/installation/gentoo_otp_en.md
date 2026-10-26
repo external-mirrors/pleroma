@@ -76,7 +76,13 @@ See [Optional software packages needed for specific functionality](optional/medi
 * Generate the configuration:
 
 ```shell
- # pleroma_ctl instance gen --output /etc/pleroma/config.exs --output-psql /tmp/setup_db.psql"
+ # pleroma_ctl instance gen --output /etc/pleroma/config.exs --output-psql /tmp/setup_db.psql
+```
+
+* Make configuration readable by Pleroma:
+
+```shell
+# chown root:pleroma /etc/pleroma/config.exs
 ```
 
 * Create the PostgreSQL database
