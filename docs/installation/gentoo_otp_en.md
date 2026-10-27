@@ -30,21 +30,20 @@ Gentoo quite pointedly does not come with a cron daemon installed, and as such i
 ### Prepare the system
 
 * If you haven't yet done so, add the [Gentoo User Repository (GURU)](https://wiki.gentoo.org/wiki/Project:GURU), where the `www-apps/pleroma` ebuild currently lives at:
-```shell
- # eselect repository enable guru
+```
+# eselect repository enable guru
 ```
 
 * Ensure that you have the latest copy of the Gentoo and GURU ebuilds if you have not synced them yet:
 
-```shell
- # emaint sync -a
+```
+# emaint sync -a
 ```
 
+* Emerge all the required and suggested software in one go:
 
-* Emerge all required the required and suggested software in one go:
-
-```shell
- # emerge --ask www-apps/pleroma www-servers/nginx app-crypt/certbot app-crypt/certbot-nginx
+```
+# emerge --ask www-apps/pleroma www-servers/nginx app-crypt/certbot app-crypt/certbot-nginx
 ```
 
 If you would not like to install the optional packages, remove them from this line.
@@ -59,15 +58,15 @@ If you're running this from a low-powered virtual machine, it should work though
 
 The output from emerging postgresql should give you a command for initializing the postgres database. The default slot should be indicated in this command, ensure that it matches the command below.
 
-```shell
- # emerge --config dev-db/postgresql:11
+```
+# emerge --config dev-db/postgresql:11
 ```
 
 ### Install media / graphics packages (optional)
 
 See [Optional software packages needed for specific functionality](optional/media_graphics_packages.md) for details.
 
-```shell
+```
 # emerge --ask media-video/ffmpeg media-gfx/imagemagick media-libs/exiftool
 ```
 
@@ -75,38 +74,38 @@ See [Optional software packages needed for specific functionality](optional/medi
 
 * Generate the configuration:
 
-```shell
- # pleroma_ctl instance gen --output /etc/pleroma/config.exs --output-psql /tmp/setup_db.psql
+```
+# pleroma_ctl instance gen --output /etc/pleroma/config.exs --output-psql /tmp/setup_db.psql
 ```
 
 * Make configuration readable by Pleroma:
 
-```shell
+```
 # chown root:pleroma /etc/pleroma/config.exs
 ```
 
 * Create the PostgreSQL database
 
-```shell
- # sudo -u postgres -s $SHELL -lc "psql -f /tmp/setup_db.psql"
+```
+# sudo -u postgres -s $SHELL -lc "psql -f /tmp/setup_db.psql"
 ```
 
 * Now run the database migration:
 
-```shell
- # pleroma_ctl migrate
+```
+# pleroma_ctl migrate
 ```
 
 * Optional: If you have installed RUM indexes (`dev-db/rum`) you also need to run:
 ```
- # sudo -Hu pleroma "pleroma_ctl migrate --migrations-path priv/repo/optional_migrations/rum_indexing/"
+# sudo -Hu pleroma "pleroma_ctl migrate --migrations-path priv/repo/optional_migrations/rum_indexing/"
 ```
 
 * Now you can start Pleroma already and add it in the default runlevel
 
-```shell
- # rc-service pleroma start
- # rc-update add pleroma default
+```
+# rc-service pleroma start
+# rc-update add pleroma default
 ```
 
 It probably won't work over the public internet quite yet, however, as we still need to set up a web server to proxy to the pleroma application, as well as configure SSL.
@@ -119,14 +118,14 @@ Assuming you want to open your newly installed federated social network to, well
 
 * Install nginx, if not already done:
 
-```shell
- # emerge --ask www-servers/nginx
+```
+# emerge --ask www-servers/nginx
 ```
 
 * Create directories for available and enabled sites:
 
-```shell
- # mkdir -p /etc/nginx/sites-{available,enabled}
+```
+# mkdir -p /etc/nginx/sites-{available,enabled}
 ```
 
 * Append the following line at the end of the `http` block in `/etc/nginx/nginx.conf`:
@@ -137,15 +136,15 @@ include sites-enabled/*;
 
 * Setup your SSL cert, using your method of choice or certbot. If using certbot, install it if you haven't already:
 
-```shell
- # emerge --ask app-crypt/certbot app-crypt/certbot-nginx
+```
+# emerge --ask app-crypt/certbot app-crypt/certbot-nginx
 ```
 
 and then set it up:
 
-```shell
- # mkdir -p /var/lib/letsencrypt/
- # certbot certonly --email <your@emailaddress> -d <yourdomain> --standalone
+```
+# mkdir -p /var/lib/letsencrypt/
+# certbot certonly --email <your@emailaddress> -d <yourdomain> --standalone
 ```
 
 If that doesn't work the first time, add `--dry-run` to further attempts to avoid being ratelimited as you identify the issue, and do not remove it until the dry run succeeds. If that doesn’t work, make sure, that nginx is not already running. If it still doesn’t work, try setting up nginx first (change ssl “on” to “off” and try again). Often the answer to issues with certbot is to use the `--nginx` flag once you have nginx up and running.
@@ -156,9 +155,9 @@ If you are using any additional subdomains, such as for a media proxy, you can r
 
 * Copy the example nginx configuration and activate it:
 
-```shell
- # cp /opt/pleroma/installation/pleroma.nginx /etc/nginx/sites-available/
- # ln -s /etc/nginx/sites-available/pleroma.nginx /etc/nginx/sites-enabled/pleroma.nginx
+```
+# cp /opt/pleroma/installation/pleroma.nginx /etc/nginx/sites-available/
+# ln -s /etc/nginx/sites-available/pleroma.nginx /etc/nginx/sites-enabled/pleroma.nginx
 ```
 
 * Take some time to ensure that your nginx config is correct
@@ -169,17 +168,17 @@ Pay special attention to the line that begins with `ssl_ecdh_curve`. It is stong
 
 * Enable and start nginx:
 
-```shell
- # rc-update add nginx default
- # /etc/init.d/nginx start
+```
+# rc-update add nginx default
+# /etc/init.d/nginx start
 ```
 
 If you are using certbot, it is HIGHLY recommend you set up a cron job that renews your certificate, and that you install the suggested `certbot-nginx` plugin. If you don't do these things, you only have yourself to blame when your instance breaks suddenly because you forgot about it.
 
 First, ensure that the command you will be installing into your crontab works.
 
-```shell
- # /usr/bin/certbot renew --nginx
+```
+# /usr/bin/certbot renew --nginx
 ```
 
 Assuming not much time has passed since you got certbot working a few steps ago, you should get a message for all domains you installed certificates for saying `Cert not yet due for renewal`.
@@ -200,7 +199,7 @@ If you would like to use other webservers or proxies, there are example configur
 
 If your instance is up and running, you can create your first user with administrative rights with the following task:
 
-```shell
+```
 pleroma$ pleroma_ctl user new <username> <your@emailaddress> --admin
 ```
 
