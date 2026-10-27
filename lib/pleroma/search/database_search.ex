@@ -45,7 +45,7 @@ defmodule Pleroma.Search.DatabaseSearch do
       end
 
     # Outside the query transaction, as it may fetch over the network.
-    maybe_fetch(activities, user, search_query)
+    maybe_fetch(activities, user, search_query, options)
   end
 
   @doc """
@@ -160,7 +160,27 @@ defmodule Pleroma.Search.DatabaseSearch do
 
   defp restrict_local(q), do: where(q, local: true)
 
-  def maybe_fetch(activities, user, search_query) do
+  @doc """
+  Adds the status a URL query points to, fetching it if needed. As in Mastodon,
+  this only happens with `resolve: true` and on the first page, and for
+  anonymous users only if `[:instance, :limit_to_local_content]` is `false`.
+  """
+  def maybe_fetch(activities, user, search_query, options) do
+    if fetch_allowed?(user, options),
+      do: fetch(activities, user, search_query),
+      else: activities
+  end
+
+  defp fetch_allowed?(user, options) do
+    options[:resolve] == true and (options[:offset] || 0) == 0 and
+      case Config.get([:instance, :limit_to_local_content], :unauthenticated) do
+        :all -> false
+        :unauthenticated -> match?(%User{}, user)
+        false -> true
+      end
+  end
+
+  defp fetch(activities, user, search_query) do
     with true <- Regex.match?(~r/https?:/, search_query),
          {:ok, object} <- Fetcher.fetch_object_from_id(search_query),
          %Activity{} = activity <- Activity.get_create_by_object_ap_id(object.data["id"]),
