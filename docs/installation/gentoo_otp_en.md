@@ -64,7 +64,7 @@ dev-db/postgresql uuid
 
 If you would not like to install the optional packages, remove them from this line.
 
-If you're running this from a low-powered virtual machine, it should work though it will take some time. There were no issues on a VPS with a single core and 1GB of RAM; if you are using an even more limited device and run into issues, you can try creating a swapfile or use a more powerful machine running Gentoo to [cross build](https://wiki.gentoo.org/wiki/Cross_build_environment). If you have a wait ahead of you, now would be a good time to take a break, stretch a bit, refresh your beverage of choice and/or get a snack, and reply to Arch users' posts with "I use Gentoo btw" as we do.
+If you're running this from a low-powered virtual machine, it should work though it will take some time. There were no issues on a VPS with a single core and 2GB of RAM; if you are using an even more limited device and run into issues, you can try creating a swapfile or use a more powerful machine running Gentoo to [create a binary package](https://wiki.gentoo.org/wiki/Binary_package_guide). If you have a wait ahead of you, now would be a good time to take a break, stretch a bit, refresh your beverage of choice and/or get a snack, and reply to Arch users' posts with "I use Gentoo btw" as we do.
 
 ### Setup PostgreSQL
 
