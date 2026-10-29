@@ -30,7 +30,9 @@ Gentoo quite pointedly does not come with a cron daemon installed, and as such i
 ### Prepare the system
 
 * If you haven't yet done so, add the [Gentoo User Repository (GURU)](https://wiki.gentoo.org/wiki/Project:GURU), where the `www-apps/pleroma` ebuild currently lives at:
+
 ```
+# emerge --ask app-eselect/eselect-repository
 # eselect repository enable guru
 ```
 
@@ -38,6 +40,20 @@ Gentoo quite pointedly does not come with a cron daemon installed, and as such i
 
 ```
 # emaint sync -a
+```
+
+* Create `/etc/portage/package.accept_keywords/pleroma` and add the following into it:
+
+```
+dev-elixir/hex ~amd64
+dev-libs/lexbor ~amd64
+www-apps/pleroma ~amd64
+```
+
+* Create `/etc/portage/package.use/pleroma` and add the following into it:
+
+```
+dev-db/postgresql uuid
 ```
 
 * Emerge all the required and suggested software in one go:
@@ -59,7 +75,14 @@ If you're running this from a low-powered virtual machine, it should work though
 The output from emerging postgresql should give you a command for initializing the postgres database. The default slot should be indicated in this command, ensure that it matches the command below.
 
 ```
-# emerge --config dev-db/postgresql:11
+# emerge --config dev-db/postgresql:18
+```
+
+* Enable PostgreSQL service and start it. Match the version number with the PostgreSQL you've installed (likely the default slot).
+
+```
+# rc-update add postgresql-18
+# rc-service postgresql-18 start
 ```
 
 ### Install media / graphics packages (optional)
@@ -173,7 +196,7 @@ Pay special attention to the line that begins with `ssl_ecdh_curve`. It is stong
 # /etc/init.d/nginx start
 ```
 
-If you are using certbot, it is HIGHLY recommend you set up a cron job that renews your certificate, and that you install the suggested `certbot-nginx` plugin. If you don't do these things, you only have yourself to blame when your instance breaks suddenly because you forgot about it.
+If you are using certbot, it is HIGHLY recommended you set up a cron job that renews your certificate, and that you install the suggested `certbot-nginx` plugin. If you don't do these things, you only have yourself to blame when your instance breaks suddenly because you forgot about it.
 
 First, ensure that the command you will be installing into your crontab works.
 
