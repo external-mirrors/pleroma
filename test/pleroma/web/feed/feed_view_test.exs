@@ -7,6 +7,23 @@ defmodule Pleroma.Web.Feed.FeedViewTest do
 
   alias Pleroma.Web.Feed.FeedView
 
+  test "date helpers accept a missing date" do
+    assert FeedView.to_rfc3339(nil) == ""
+    assert FeedView.to_rfc2822(nil) == ""
+  end
+
+  test "prepare_activity survives an activity without an inserted_at" do
+    activity = Pleroma.Factory.insert(:note_activity)
+    object = Pleroma.Object.normalize(activity, fetch: false)
+
+    object
+    |> Ecto.Changeset.change(data: Map.delete(object.data, "published"))
+    |> Pleroma.Repo.update!()
+
+    %{data: data} = FeedView.prepare_activity(%{activity | inserted_at: nil})
+    assert data["published"] == nil
+  end
+
   test "escapes fallback content" do
     data = %{
       "attachment" => [],

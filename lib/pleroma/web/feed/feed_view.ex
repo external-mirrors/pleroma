@@ -56,6 +56,8 @@ defmodule Pleroma.Web.Feed.FeedView do
   defp stored_at(%{inserted_at: %NaiveDateTime{} = inserted_at}),
     do: inserted_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
 
+  defp stored_at(_activity), do: nil
+
   def most_recent_update(activities) do
     with %{updated_at: updated_at} <- List.first(activities) do
       to_rfc3339(updated_at)
@@ -319,7 +321,9 @@ defmodule Pleroma.Web.Feed.FeedView do
     |> safe_to_string()
   end
 
-  @spec to_rfc3339(String.t() | NaiveDateTime.t()) :: String.t()
+  @spec to_rfc3339(String.t() | NaiveDateTime.t() | nil) :: String.t()
+  def to_rfc3339(nil), do: ""
+
   def to_rfc3339(date) when is_binary(date) do
     date
     |> Timex.parse!("{ISO:Extended}")
@@ -332,7 +336,9 @@ defmodule Pleroma.Web.Feed.FeedView do
     |> Timex.format!("{RFC3339}")
   end
 
-  @spec to_rfc2822(String.t() | DateTime.t() | NaiveDateTime.t()) :: String.t()
+  @spec to_rfc2822(String.t() | DateTime.t() | NaiveDateTime.t() | nil) :: String.t()
+  def to_rfc2822(nil), do: ""
+
   def to_rfc2822(datestr) when is_binary(datestr) do
     datestr
     |> Timex.parse!("{ISO:Extended}")
