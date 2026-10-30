@@ -145,7 +145,7 @@ defmodule Pleroma.Emoji do
 
   def unicode?(_), do: false
 
-  @emoji_regex ~r/:[A-Za-z0-9_-]+(@.+)?:/
+  @emoji_regex ~r/\A:[A-Za-z0-9_-]+(@[A-Za-z0-9_.-]+)?:\z/
 
   def custom?(s) when is_binary(s), do: Regex.match?(@emoji_regex, s)
 

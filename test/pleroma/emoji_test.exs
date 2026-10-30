@@ -29,6 +29,21 @@ defmodule Pleroma.EmojiTest do
     end
   end
 
+  describe "custom?/1" do
+    test "accepts exactly one custom emoji shortcode" do
+      assert Emoji.custom?(":blobcat:")
+      assert Emoji.custom?(":blob_cat-2:")
+      assert Emoji.custom?(":blobcat@remote.example:")
+      assert Emoji.custom?(":blobcat@.:")
+
+      refute Emoji.custom?("blobcat")
+      refute Emoji.custom?("visit evil.example now :x: <b>bold</b>")
+      refute Emoji.custom?(":x: and more")
+      refute Emoji.custom?(":blobcat@<b>x</b>:")
+      refute Emoji.custom?(":blobcat:\n")
+    end
+  end
+
   describe "get_all/0" do
     setup do
       emoji_list = Emoji.get_all()
