@@ -14,6 +14,10 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
 
   import Pleroma.Factory
 
+  require Pleroma.Constants
+
+  @public Pleroma.Constants.as_public()
+
   setup do
     Mox.stub_with(Pleroma.UnstubbedConfigMock, Pleroma.Test.StaticConfig)
     :ok
@@ -183,6 +187,72 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
       {:ok, alice} = Pleroma.User.add_pinned_object_id(alice, private.data["object"])
 
       assert featured(alice) == []
+    end
+  end
+
+  describe "Update of own objects" do
+    setup do
+      user = insert(:user)
+      {:ok, activity} = CommonAPI.post(user, %{status: "hello"})
+      %{user: user, object_id: activity.data["object"]}
+    end
+
+    defp update(object),
+      do: %{"type" => "Update", "to" => [@public], "cc" => [], "object" => object}
+
+    test "rejects an invalid object and keeps the post", %{conn: conn} = ctx do
+      for bad <- [%{"content" => %{"not" => "a string"}}, %{"attachment" => "garbage"}] do
+        object = Map.merge(%{"id" => ctx.object_id, "type" => "Note", "content" => "x"}, bad)
+        post_outbox(conn, ctx.user, update(object), 400)
+      end
+
+      assert Object.get_by_ap_id(ctx.object_id).data["content"] == "hello"
+    end
+
+    test "builds the edit history and the edit time on the server", %{conn: conn} = ctx do
+      forged = %{
+        "type" => "OrderedCollection",
+        "totalItems" => 1,
+        "orderedItems" => [%{"type" => "Note", "content" => "forged", "actor" => "x"}]
+      }
+
+      object = %{
+        "id" => ctx.object_id,
+        "type" => "Note",
+        "content" => "now",
+        "updated" => "2999-01-01T00:00:00Z",
+        "formerRepresentations" => forged
+      }
+
+      post_outbox(conn, ctx.user, update(object), 201)
+
+      data = Object.get_by_ap_id(ctx.object_id).data
+      assert data["content"] == "now"
+      assert [%{"content" => "hello"}] = data["formerRepresentations"]["orderedItems"]
+      refute data["updated"] =~ "2999"
+    end
+
+    test "keeps the vote counts of a local poll", %{conn: conn, user: user} do
+      {:ok, activity} =
+        CommonAPI.post(user, %{status: "poll", poll: %{options: ["a", "b"], expires_in: 600}})
+
+      %{data: data} = Object.normalize(activity, fetch: false)
+      forged = Enum.map(data["oneOf"], &put_in(&1, ["replies", "totalItems"], 1000))
+
+      object = %{
+        "id" => data["id"],
+        "type" => "Question",
+        "content" => "poll edited",
+        "oneOf" => forged,
+        "votersCount" => 2000
+      }
+
+      post_outbox(conn, user, update(object), 201)
+
+      stored = Object.get_by_ap_id(data["id"]).data
+      assert stored["content"] == "poll edited"
+      assert stored["votersCount"] == data["votersCount"]
+      assert Enum.all?(stored["oneOf"], &(&1["replies"]["totalItems"] == 0))
     end
   end
 end

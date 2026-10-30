@@ -15,8 +15,10 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
 
   alias Pleroma.Activity
   alias Pleroma.EctoType.ActivityPub.ObjectValidators
+  alias Pleroma.Maps
   alias Pleroma.Object
   alias Pleroma.Object.Containment
+  alias Pleroma.Object.Updater
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ObjectValidators.AcceptRejectValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.AddRemoveValidator
@@ -40,6 +42,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   alias Pleroma.Web.ActivityPub.ObjectValidators.UndoValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.UpdateValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.UserValidator
+  alias Pleroma.Web.ActivityPub.Utils
 
   @impl true
   def validate(object, meta)
@@ -214,14 +217,16 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
         meta
       )
       when objtype in ~w[Question Answer Audio Video Event Article Note Page] do
-    with {_, false} <- {:local, Access.get(meta, :local, false)},
-         {_, {:ok, object_data, _}} <-
+    object = maybe_rebuild_local_update_object(object, meta)
+    update_activity = Map.put(update_activity, "object", object)
+
+    with {_, {:ok, object_data, _}} <-
            {:object_validation,
             object
             |> CommonFixes.maybe_set_attributed_to_from_activity(update_activity)
             |> CommonFixes.maybe_add_language_from_activity(update_activity)
             |> validate(meta)},
-         meta = Keyword.put(meta, :object_data, object_data),
+         meta = maybe_put_update_object_data(meta, object_data),
          {:ok, update_activity} <-
            update_activity
            |> UpdateValidator.cast_and_validate(meta)
@@ -229,20 +234,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
       update_activity = stringify_keys(update_activity)
       {:ok, update_activity, meta}
     else
-      {:local, _} ->
-        with {:ok, object} <-
-               update_activity
-               |> UpdateValidator.cast_and_validate(meta)
-               |> Ecto.Changeset.apply_action(:insert) do
-          object = stringify_keys(object)
-          {:ok, object, meta}
-        end
-
-      {:object_validation, e} ->
-        e
-
-      {:error, %Ecto.Changeset{} = e} ->
-        {:error, e}
+      {:object_validation, e} -> e
+      {:error, %Ecto.Changeset{} = e} -> {:error, e}
     end
   end
 
@@ -309,6 +302,34 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
     do: AnswerValidator.validate_vote(answer)
 
   defp validate_new_object(_object, _meta), do: :ok
+
+  # The server owns the edit history, the edit time and the poll results of
+  # local objects. Only the editable fields come from the new version.
+  defp maybe_rebuild_local_update_object(%{"id" => id} = object, meta) when is_binary(id) do
+    with true <- Keyword.get(meta, :local, false),
+         %Object{data: orig_data} <- Object.get_by_ap_id(id) do
+      object =
+        object
+        |> Map.delete("updated")
+        |> Maps.put_if_present("updated", orig_data["updated"])
+
+      Updater.make_update_object_data(orig_data, object, Utils.make_date())
+    else
+      _ -> object
+    end
+  end
+
+  defp maybe_rebuild_local_update_object(object, _meta), do: object
+
+  # Local Updates keep the embedded object, so MRF filters what gets stored
+  # and federated. Remote Updates store the validated object.
+  defp maybe_put_update_object_data(meta, object_data) do
+    if Keyword.get(meta, :local, false) do
+      meta
+    else
+      Keyword.put(meta, :object_data, object_data)
+    end
+  end
 
   defp validate_updated_actor(%{"object" => %{"type" => type} = actor}, meta)
        when type in actor_types() do

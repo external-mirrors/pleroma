@@ -155,6 +155,40 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.UpdateHandlingTest do
       assert is_nil(meta[:object_data])
     end
 
+    test "a local Update gets its history and poll results from the stored object" do
+      user = insert(:user)
+      note = insert(:note, user: user)
+
+      forged_history = %{
+        "type" => "OrderedCollection",
+        "totalItems" => 1,
+        "orderedItems" => [%{"type" => "Note", "content" => "forged"}]
+      }
+
+      updated_note =
+        note.data
+        |> Map.put("content", "edited content")
+        |> Map.put("formerRepresentations", forged_history)
+        |> Map.put("updated", "2999-01-01T00:00:00Z")
+
+      {:ok, update, _} = Builder.update(user, updated_note)
+
+      assert {:ok, %{"object" => object}, _} = ObjectValidator.validate(update, local: true)
+      assert object["content"] == "edited content"
+      assert [%{"content" => content}] = object["formerRepresentations"]["orderedItems"]
+      assert content == note.data["content"]
+      refute object["updated"] =~ "2999"
+    end
+
+    test "a local Update with an invalid object is rejected" do
+      user = insert(:user)
+      note = insert(:note, user: user)
+
+      {:ok, update, _} = Builder.update(user, Map.put(note.data, "attachment", "garbage"))
+
+      assert {:error, _} = ObjectValidator.validate(update, local: true)
+    end
+
     test "returns object_data in meta for a remote Update" do
       user = insert(:user)
       note = insert(:note, user: user)

@@ -255,7 +255,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.CommonFixes do
 
   defp get_language_from_content_map(_), do: nil
 
-  defp get_language_from_content(%{"content" => content} = object) do
+  defp get_language_from_content(%{"content" => content} = object) when is_binary(content) do
     LanguageDetector.detect("#{object["summary"] || ""} #{content}")
   end
 
