@@ -6,3 +6,4 @@ Hold new local polls to the poll limits and reject preset vote counts
 Reject local replies to and quotes of posts the author cannot see or quote
 Local posts and edits only accept own uploads as attachments, within the attachment and description limits, and emoji with shortcode names
 C2S: the server sets publish time, context and other server-owned fields of new objects, scrubs their HTML and counts contentMap toward the character limit
+Feeds scrub post content like the Mastodon API and no longer fail on posts without a publish time

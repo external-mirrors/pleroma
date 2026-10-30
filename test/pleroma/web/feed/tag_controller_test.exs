@@ -189,9 +189,15 @@ defmodule Pleroma.Web.Feed.TagControllerTest do
     obj1 = Object.normalize(activity1, fetch: false)
     obj2 = Object.normalize(activity2, fetch: false)
 
+    scrubbed_content = fn object ->
+      %{"content" => Pleroma.HTML.filter_tags(object.data["content"])}
+      |> FeedView.activity_content()
+      |> HtmlEntities.decode()
+    end
+
     assert xpath(xml, ~x"//channel/item/description/text()"sl) == [
-             HtmlEntities.decode(FeedView.activity_content(obj2.data)),
-             HtmlEntities.decode(FeedView.activity_content(obj1.data))
+             scrubbed_content.(obj2),
+             scrubbed_content.(obj1)
            ]
 
     response =
@@ -241,6 +247,21 @@ defmodule Pleroma.Web.Feed.TagControllerTest do
 
     updated = response |> parse() |> xpath(~x"//feed/updated/text()"s)
     assert {:ok, _datetime, 0} = DateTime.from_iso8601(updated)
+  end
+
+  test "survives a post without a publish time", %{conn: conn} do
+    {:ok, activity} = CommonAPI.post(insert(:user), %{status: "no date #shared"})
+    object = Object.normalize(activity, fetch: false)
+
+    object
+    |> Ecto.Changeset.change(data: Map.delete(object.data, "published"))
+    |> Pleroma.Repo.update!()
+
+    for format <- ["rss", "atom"] do
+      assert conn
+             |> get(tag_feed_path(conn, :feed, "shared.#{format}"))
+             |> response(200) =~ "no date"
+    end
   end
 
   test "escapes Atom IDs and tag feed self links", %{conn: conn} do

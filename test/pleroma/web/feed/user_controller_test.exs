@@ -89,7 +89,7 @@ defmodule Pleroma.Web.Feed.UserControllerTest do
       assert activity_titles == [~c"Won't, didn'...", ~c"2hu", ~c"2hu & as"]
       assert SweetXml.xpath(xml, ~x"//entry/link[@rel='self']/@href"sl) == []
       assert length(SweetXml.xpath(xml, ~x"//entry/link[@rel='alternate']/@href"sl)) == 3
-      assert resp =~ FeedView.escape(object.data["content"])
+      assert resp =~ FeedView.escape(Pleroma.HTML.filter_tags(object.data["content"]))
       assert resp =~ FeedView.escape(object.data["summary"])
       assert resp =~ FeedView.escape(object.data["context"])
 
@@ -120,7 +120,7 @@ defmodule Pleroma.Web.Feed.UserControllerTest do
         |> SweetXml.xpath(~x"//item/title/text()"l)
 
       assert activity_titles == [~c"Won't, didn'...", ~c"2hu", ~c"2hu & as"]
-      assert resp =~ FeedView.escape(object.data["content"])
+      assert resp =~ FeedView.escape(Pleroma.HTML.filter_tags(object.data["content"]))
       assert resp =~ FeedView.escape(object.data["summary"])
       assert resp =~ FeedView.escape(object.data["context"])
 
@@ -177,6 +177,31 @@ defmodule Pleroma.Web.Feed.UserControllerTest do
       assert Enum.any?(content_values, fn content ->
                String.starts_with?(content, "&lt;script&gt;alert(&#39;feed&#39;)&lt;/script&gt;")
              end)
+    end
+
+    test "scrubs content and survives a missing publish time", %{
+      conn: conn,
+      object: object,
+      user: user
+    } do
+      data =
+        object.data
+        |> Map.put("content", "<script>alert('feed')</script><b>kept</b>")
+        |> Map.delete("published")
+
+      object
+      |> Ecto.Changeset.change(data: data)
+      |> Pleroma.Repo.update!()
+
+      for format <- ["atom", "rss"] do
+        response =
+          conn
+          |> get("/users/#{user.nickname}/feed.#{format}")
+          |> response(200)
+
+        refute response =~ ~r/(<|&lt;|&amp;lt;)script/
+        assert response =~ "kept"
+      end
     end
 
     test "does not expose sensitive attachments as enclosures", %{
@@ -319,7 +344,7 @@ defmodule Pleroma.Web.Feed.UserControllerTest do
         |> SweetXml.xpath(~x"//entry/title/text()"l)
 
       assert activity_titles == [~c"Won't, didn'...", ~c"2hu", ~c"2hu & as"]
-      assert resp =~ FeedView.escape(object.data["content"])
+      assert resp =~ FeedView.escape(Pleroma.HTML.filter_tags(object.data["content"]))
       assert resp =~ FeedView.escape(object.data["summary"])
       assert resp =~ FeedView.escape(object.data["context"])
       assert resp =~ encoded_title

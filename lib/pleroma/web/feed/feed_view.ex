@@ -27,10 +27,35 @@ defmodule Pleroma.Web.Feed.FeedView do
     %{
       activity: activity,
       object: object,
-      data: Map.get(object, :data),
+      data: object |> Map.get(:data) |> prepare_data(activity),
       actor: actor
     }
   end
+
+  # Feeds show the content like the Mastodon API does: scrubbed. Objects
+  # without a publish time fall back to the time the activity was stored.
+  defp prepare_data(%{} = data, activity) do
+    data
+    |> Map.update("content", nil, &scrub_content(&1, activity))
+    |> Map.put_new_lazy("published", fn -> stored_at(activity) end)
+    |> Map.update!("published", &(&1 || stored_at(activity)))
+  end
+
+  defp prepare_data(data, _activity), do: data
+
+  defp scrub_content(content, activity) when is_binary(content) do
+    Pleroma.Activity.HTML.get_cached_scrubbed_html_for_activity(
+      content,
+      Pleroma.HTML.get_scrubbers(),
+      activity,
+      "feed:content"
+    )
+  end
+
+  defp scrub_content(content, _activity), do: content
+
+  defp stored_at(%{inserted_at: %NaiveDateTime{} = inserted_at}),
+    do: inserted_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
 
   def most_recent_update(activities) do
     with %{updated_at: updated_at} <- List.first(activities) do
