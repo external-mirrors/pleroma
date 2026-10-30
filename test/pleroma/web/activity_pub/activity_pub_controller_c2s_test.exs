@@ -232,6 +232,20 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
       refute data["updated"] =~ "2999"
     end
 
+    test "rejects attachments that are not own uploads", %{conn: conn} = ctx do
+      [url] = upload(insert(:user))["url"]
+
+      object = %{
+        "id" => ctx.object_id,
+        "type" => "Note",
+        "content" => "with a picture",
+        "attachment" => [%{"type" => "Document", "url" => [url]}]
+      }
+
+      post_outbox(conn, ctx.user, update(object), 400)
+      assert Object.get_by_ap_id(ctx.object_id).data["content"] == "hello"
+    end
+
     test "keeps the vote counts of a local poll", %{conn: conn, user: user} do
       {:ok, activity} =
         CommonAPI.post(user, %{status: "poll", poll: %{options: ["a", "b"], expires_in: 600}})
@@ -352,6 +366,73 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
     test "allows a quote of an own private post", %{conn: conn} = ctx do
       result = post_outbox(conn, ctx.victim, note(%{"quoteUrl" => ctx.secret_id}), 201)
       assert Object.normalize(result["object"], fetch: false).data["quoteUrl"] == ctx.secret_id
+    end
+  end
+
+  describe "attachments and emoji of new posts" do
+    defp upload(user) do
+      file = %Plug.Upload{
+        content_type: "image/jpeg",
+        path: Path.absname("test/fixtures/image.jpg"),
+        filename: "an_image.jpg"
+      }
+
+      {:ok, upload} = Pleroma.Web.ActivityPub.ActivityPub.upload(file, actor: user.ap_id)
+      upload.data
+    end
+
+    defp stored_attachments(result),
+      do: Object.normalize(result["object"], fetch: false).data["attachment"]
+
+    test "accepts own uploads", %{conn: conn} do
+      user = insert(:user)
+      %{"url" => [%{"href" => href}]} = attachment = upload(user)
+
+      result = post_outbox(conn, user, note(%{"attachment" => [attachment]}), 201)
+      assert [%{"url" => [%{"href" => ^href}]}] = stored_attachments(result)
+    end
+
+    test "rejects other users' uploads and foreign URLs", %{conn: conn} do
+      user = insert(:user)
+      other_upload = upload(insert(:user))
+      [%{"href" => href}] = other_upload["url"]
+
+      for attachment <- [
+            other_upload,
+            %{"type" => "Document", "url" => href},
+            %{"type" => "Document", "url" => "https://evil.example/1.png"},
+            # an own upload id with someone else's file
+            Map.put(upload(user), "url", other_upload["url"])
+          ] do
+        post_outbox(conn, user, note(%{"attachment" => [attachment]}), 400)
+      end
+    end
+
+    test "rejects too many attachments and too long descriptions", %{conn: conn} do
+      clear_config([:instance, :max_media_attachments], 2)
+      clear_config([:instance, :description_limit], 20)
+      user = insert(:user)
+
+      attachments = for _ <- 1..3, do: upload(user)
+      post_outbox(conn, user, note(%{"attachment" => attachments}), 400)
+
+      long = Map.put(upload(user), "name", String.duplicate("n", 21))
+      post_outbox(conn, user, note(%{"attachment" => [long]}), 400)
+    end
+
+    test "accepts custom emoji with remote images", %{conn: conn} do
+      tag = emoji_tag(":blobcat:", "https://remote.example/blobcat.png")
+
+      result =
+        post_outbox(conn, insert(:user), note(%{"content" => ":blobcat:", "tag" => [tag]}), 201)
+
+      assert %{"blobcat" => "https://remote.example/blobcat.png"} =
+               Object.normalize(result["object"], fetch: false).data["emoji"]
+    end
+
+    test "rejects emoji with invalid names", %{conn: conn} do
+      tag = emoji_tag("<b>x</b> visit evil.example", "https://remote.example/x.png")
+      post_outbox(conn, insert(:user), note(%{"tag" => [tag]}), 400)
     end
   end
 end

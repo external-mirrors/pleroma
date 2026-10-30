@@ -227,6 +227,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
             |> CommonFixes.maybe_set_attributed_to_from_activity(update_activity)
             |> CommonFixes.maybe_add_language_from_activity(update_activity)
             |> validate(meta)},
+         :ok <- validate_local_update(object_data, meta),
          meta = maybe_put_update_object_data(meta, object_data),
          {:ok, update_activity} <-
            update_activity
@@ -236,7 +237,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
       {:ok, update_activity, meta}
     else
       {:object_validation, e} -> e
-      {:error, %Ecto.Changeset{} = e} -> {:error, e}
+      {:error, _} = error -> error
     end
   end
 
@@ -327,6 +328,15 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   end
 
   defp maybe_rebuild_local_update_object(object, _meta), do: object
+
+  defp validate_local_update(%{"id" => id} = object_data, meta) do
+    with true <- Keyword.get(meta, :local, false),
+         %Object{} = orig_object <- Object.get_by_ap_id(id) do
+      LocalObjectValidator.validate_update(object_data, orig_object)
+    else
+      _ -> :ok
+    end
+  end
 
   # Local Updates keep the embedded object, so MRF filters what gets stored
   # and federated. Remote Updates store the validated object.

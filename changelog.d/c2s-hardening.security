@@ -4,3 +4,4 @@ Only allow pinning own posts, and only public or unlisted ones for local users; 
 Validate the object of local Updates; the server builds the edit history and edit time and keeps poll results
 Hold new local polls to the poll limits and reject preset vote counts
 Reject local replies to and quotes of posts the author cannot see or quote
+Local posts and edits only accept own uploads as attachments, within the attachment and description limits, and emoji with shortcode names
