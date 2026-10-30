@@ -211,21 +211,10 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     end
   end
 
-  defp can_quote?(_draft, _object, visibility) when visibility in ~w(public unlisted local) do
-    true
-  end
-
-  defp can_quote?(draft, object, "private") do
-    draft.user.ap_id == object.data["actor"]
-  end
-
-  defp can_quote?(_, _, _) do
-    false
-  end
-
+  # Checked here too, because previews skip the pipeline.
   defp quoting_visibility(%__MODULE__{quote_post: %Activity{}} = draft) do
     with %Object{} = object <- Object.normalize(draft.quote_post, fetch: false),
-         true <- can_quote?(draft, object, Visibility.get_visibility(object)) do
+         true <- Visibility.quotable?(object, draft.user.ap_id) do
       draft
     else
       _ -> add_error(draft, dgettext("errors", "Cannot quote private message"))

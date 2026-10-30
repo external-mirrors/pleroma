@@ -323,4 +323,35 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
       end
     end
   end
+
+  describe "replies and quotes" do
+    setup do
+      victim = insert(:user)
+      {:ok, secret} = CommonAPI.post(victim, %{status: "secret", visibility: "private"})
+      %{victim: victim, secret_id: secret.data["object"]}
+    end
+
+    defp note(extra) do
+      object =
+        Map.merge(%{"type" => "Note", "content" => "hi", "to" => [@public], "cc" => []}, extra)
+
+      %{"type" => "Create", "object" => object}
+    end
+
+    test "rejects a reply to a post the user cannot see", %{conn: conn, secret_id: id} do
+      post_outbox(conn, insert(:user), note(%{"inReplyTo" => id}), 400)
+      assert Object.get_by_ap_id(id).data["repliesCount"] in [nil, 0]
+    end
+
+    test "rejects a quote of a private post of another user", %{conn: conn} = ctx do
+      {:ok, follower, _} = Pleroma.User.follow(insert(:user), ctx.victim)
+      post_outbox(conn, follower, note(%{"quoteUrl" => ctx.secret_id}), 400)
+      assert Object.get_by_ap_id(ctx.secret_id).data["quotesCount"] in [nil, 0]
+    end
+
+    test "allows a quote of an own private post", %{conn: conn} = ctx do
+      result = post_outbox(conn, ctx.victim, note(%{"quoteUrl" => ctx.secret_id}), 201)
+      assert Object.normalize(result["object"], fetch: false).data["quoteUrl"] == ctx.secret_id
+    end
+  end
 end

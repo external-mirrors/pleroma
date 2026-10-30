@@ -136,6 +136,16 @@ defmodule Pleroma.Web.ActivityPub.Visibility do
     Pleroma.Config.restrict_unauthenticated_access?(:activities, cfg_key)
   end
 
+  @doc "Whether the actor may quote the object: public posts, or own followers-only posts."
+  @spec quotable?(Object.t(), String.t()) :: boolean()
+  def quotable?(%Object{} = object, actor_ap_id) do
+    case get_visibility(object) do
+      visibility when visibility in ~w(public unlisted local) -> true
+      "private" -> object.data["actor"] == actor_ap_id
+      _ -> false
+    end
+  end
+
   def get_visibility(object) do
     to = object.data["to"] || []
     cc = object.data["cc"] || []
