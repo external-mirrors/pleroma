@@ -562,7 +562,10 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
   # The validator builds the rest of an edit from the stored object.
   defp fix_user_message(%User{}, %{"type" => "Update", "object" => object} = activity)
        when is_map(object) do
-    object = normalize_client_content(object)
+    object =
+      object
+      |> Map.drop(~w(source generator))
+      |> normalize_client_content()
 
     with :ok <- check_character_limit(object) do
       {:ok, Map.put(activity, "object", object)}
@@ -721,6 +724,11 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
         |> json(message)
 
       {:error, message} when is_binary(message) ->
+        conn
+        |> put_status(:bad_request)
+        |> json(message)
+
+      {:error, {:validate, {:error, message}}} when is_binary(message) ->
         conn
         |> put_status(:bad_request)
         |> json(message)

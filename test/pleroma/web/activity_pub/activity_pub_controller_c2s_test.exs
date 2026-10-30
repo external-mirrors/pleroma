@@ -224,10 +224,12 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
         "formerRepresentations" => forged
       }
 
+      object = Map.put(object, "source", %{"content" => "fake", "mediaType" => "text/plain"})
       post_outbox(conn, ctx.user, update(object), 201)
 
       data = Object.get_by_ap_id(ctx.object_id).data
       assert data["content"] == "now"
+      refute data["source"]["content"] == "fake"
       assert [%{"content" => "hello"}] = data["formerRepresentations"]["orderedItems"]
       refute data["updated"] =~ "2999"
     end
@@ -414,7 +416,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
       user = insert(:user)
 
       attachments = for _ <- 1..3, do: upload(user)
-      post_outbox(conn, user, note(%{"attachment" => attachments}), 400)
+      assert post_outbox(conn, user, note(%{"attachment" => attachments}), 400) =~ "attachments"
 
       long = Map.put(upload(user), "name", String.duplicate("n", 21))
       post_outbox(conn, user, note(%{"attachment" => [long]}), 400)
