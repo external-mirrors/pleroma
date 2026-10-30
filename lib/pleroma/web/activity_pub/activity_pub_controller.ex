@@ -7,6 +7,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
 
   alias Pleroma.Activity
   alias Pleroma.Delivery
+  alias Pleroma.Emoji
   alias Pleroma.HTML
   alias Pleroma.Object
   alias Pleroma.Object.Fetcher
@@ -554,7 +555,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
         "context" => client_object_context(object)
       })
 
-    with :ok <- check_character_limit(object) do
+    with :ok <- check_character_limit(object),
+         :ok <- check_emoji_names(object) do
       {:ok, Map.put(activity, "object", object)}
     end
   end
@@ -567,7 +569,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
       |> Map.drop(~w(source generator))
       |> normalize_client_content()
 
-    with :ok <- check_character_limit(object) do
+    with :ok <- check_character_limit(object),
+         :ok <- check_emoji_names(object) do
       {:ok, Map.put(activity, "object", object)}
     end
   end
@@ -633,6 +636,24 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
   end
 
   defp client_object_context(_object), do: Utils.generate_context_id()
+
+  # Clients may use emoji of other instances (remote images), but the names
+  # must be shortcodes. Installed emoji may have any name.
+  defp check_emoji_names(object) do
+    tag_names = for %{"type" => "Emoji", "name" => name} <- List.wrap(object["tag"]), do: name
+    names = Map.keys(if(is_map(object["emoji"]), do: object["emoji"], else: %{})) ++ tag_names
+
+    if Enum.all?(names, &valid_emoji_name?/1),
+      do: :ok,
+      else: {:error, "Invalid emoji name"}
+  end
+
+  defp valid_emoji_name?(name) when is_binary(name) do
+    name = String.trim(name, ":")
+    Emoji.custom?(":#{name}:") or Emoji.exist?(name)
+  end
+
+  defp valid_emoji_name?(_name), do: false
 
   defp check_character_limit(object) do
     length =

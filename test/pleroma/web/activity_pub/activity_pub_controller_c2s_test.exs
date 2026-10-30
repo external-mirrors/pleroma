@@ -437,7 +437,12 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
 
     test "rejects emoji with invalid names", %{conn: conn} do
       tag = emoji_tag("<b>x</b> visit evil.example", "https://remote.example/x.png")
-      post_outbox(conn, insert(:user), note(%{"tag" => [tag]}), 400)
+      user = insert(:user)
+      post_outbox(conn, user, note(%{"tag" => [tag]}), 400)
+
+      {:ok, post} = CommonAPI.post(user, %{status: "hi"})
+      object = %{"id" => post.data["object"], "type" => "Note", "content" => "x", "tag" => [tag]}
+      post_outbox(conn, user, %{"type" => "Update", "to" => [@public], "object" => object}, 400)
     end
   end
 

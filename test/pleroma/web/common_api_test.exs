@@ -2146,6 +2146,34 @@ defmodule Pleroma.Web.CommonAPITest do
       end
     end
 
+    test "a reply copies remote emoji with unusual names from the replied post's summary" do
+      for name <- ["blob+cat", "ねこ"] do
+        remote_emoji_uri = "https://remote.org/emoji.png"
+
+        note =
+          insert(:note,
+            data: %{
+              "summary" => ":#{name}:",
+              "emoji" => %{name => remote_emoji_uri},
+              "tag" => [
+                %{"type" => "Emoji", "name" => name, "icon" => %{"url" => remote_emoji_uri}}
+              ]
+            }
+          )
+
+        note_activity = insert(:note_activity, note: note)
+
+        assert {:ok, reply} =
+                 CommonAPI.post(insert(:user), %{
+                   status: "reply",
+                   spoiler_text: ":#{name}:",
+                   in_reply_to_id: note_activity.id
+                 })
+
+        assert reply.object.data["emoji"][name] == remote_emoji_uri
+      end
+    end
+
     test "editing a post that copied a remote title with remote emoji should keep that emoji" do
       remote_emoji_uri = "https://remote.org/emoji.png"
 

@@ -10,7 +10,6 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.LocalObjectValidator do
   """
 
   alias Pleroma.Config
-  alias Pleroma.Emoji
   alias Pleroma.Object
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator
@@ -24,8 +23,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.LocalObjectValidator do
 
     with :ok <- validate_in_reply_to(object, user),
          :ok <- validate_quote(object, user),
-         :ok <- validate_attachments(object, user, []),
-         :ok <- validate_emoji(object) do
+         :ok <- validate_attachments(object, user, []) do
       validate_type(object)
     end
   end
@@ -35,9 +33,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.LocalObjectValidator do
   def validate_update(%{"actor" => actor} = object, %Object{data: orig_data}) do
     known_hrefs = Enum.flat_map(List.wrap(orig_data["attachment"]), &hrefs/1)
 
-    with :ok <- validate_attachments(object, User.get_cached_by_ap_id(actor), known_hrefs) do
-      validate_emoji(object)
-    end
+    validate_attachments(object, User.get_cached_by_ap_id(actor), known_hrefs)
   end
 
   defp validate_type(%{"type" => "Question"} = question),
@@ -116,22 +112,4 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.LocalObjectValidator do
   end
 
   defp own_upload?(_attachment, _user), do: false
-
-  # Remote images are fine (clients use emoji of other instances), but the
-  # names must be shortcodes. Installed emoji may have any name.
-  defp validate_emoji(object) do
-    tag_names = for %{"type" => "Emoji", "name" => name} <- List.wrap(object["tag"]), do: name
-    names = Map.keys(object["emoji"] || %{}) ++ tag_names
-
-    if Enum.all?(names, &valid_emoji_name?/1),
-      do: :ok,
-      else: {:error, "Invalid emoji name"}
-  end
-
-  defp valid_emoji_name?(name) when is_binary(name) do
-    name = String.trim(name, ":")
-    Emoji.custom?(":#{name}:") or Emoji.exist?(name)
-  end
-
-  defp valid_emoji_name?(_name), do: false
 end
