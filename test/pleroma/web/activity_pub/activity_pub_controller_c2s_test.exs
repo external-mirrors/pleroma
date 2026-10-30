@@ -182,9 +182,12 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
     end
 
     test "the featured collection hides non-public posts that are already pinned" do
+      clear_config([:instance, :max_pinned_statuses], 2)
       alice = insert(:user)
       {:ok, private} = CommonAPI.post(alice, %{status: "followers", visibility: "private"})
+      {:ok, local} = CommonAPI.post(alice, %{status: "local only", visibility: "local"})
       {:ok, alice} = Pleroma.User.add_pinned_object_id(alice, private.data["object"])
+      {:ok, alice} = Pleroma.User.add_pinned_object_id(alice, local.data["object"])
 
       assert featured(alice) == []
     end

@@ -259,7 +259,7 @@ defmodule Pleroma.Web.ActivityPub.UserView do
       pinned_objects
       |> Enum.sort_by(fn {_, pinned_at} -> pinned_at end, &>=/2)
       |> Enum.map(fn {id, _} -> Object.get_cached_by_ap_id(id) end)
-      |> Enum.filter(&(&1 && Visibility.public?(&1)))
+      |> Enum.filter(&(&1 && Visibility.public?(&1) && !Visibility.local_public?(&1)))
       |> Enum.map(&ObjectView.render("object.json", %{object: &1}))
 
     %{
