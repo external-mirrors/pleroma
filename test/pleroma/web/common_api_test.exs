@@ -1866,6 +1866,24 @@ defmodule Pleroma.Web.CommonAPITest do
 
       assert {:error, "Already voted"} == CommonAPI.vote(object, other_user, [1])
     end
+
+    test "maps validator errors to readable messages" do
+      user = insert(:user)
+
+      {:ok, activity} =
+        CommonAPI.post(user, %{status: "?", poll: %{options: ["Yes", "No"], expires_in: 20}})
+
+      object = Object.normalize(activity, fetch: false)
+
+      assert {:error, "Poll's author can't vote"} == CommonAPI.vote(object, user, [0])
+
+      {:ok, object} =
+        object
+        |> Object.change(%{data: Map.put(object.data, "closed", "2000-01-01T00:00:00Z")})
+        |> Object.update_and_set_cache()
+
+      assert {:error, "Poll has already ended"} == CommonAPI.vote(object, insert(:user), [0])
+    end
   end
 
   describe "listen/2" do

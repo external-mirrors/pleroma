@@ -146,6 +146,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
            |> CommonFixes.maybe_set_attributed_to_from_activity(create_activity)
            |> CommonFixes.maybe_add_language_from_activity(create_activity)
            |> cast_and_apply_and_stringify_with_history(),
+         :ok <- validate_new_object(object_data, meta),
          meta = Keyword.put(meta, :object_data, object_data),
          {:ok, create_activity} <-
            create_activity
@@ -302,6 +303,12 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   end
 
   def validate_remote_limit(_), do: :ok
+
+  # Rules for new objects that depend on other objects or on the creator.
+  defp validate_new_object(%{"type" => "Answer"} = answer, _meta),
+    do: AnswerValidator.validate_vote(answer)
+
+  defp validate_new_object(_object, _meta), do: :ok
 
   defp validate_updated_actor(%{"object" => %{"type" => type} = actor}, meta)
        when type in actor_types() do

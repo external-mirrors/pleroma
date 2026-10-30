@@ -142,6 +142,54 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier.AnswerHandlingTest do
     end
   end
 
+  describe "incoming votes on local polls" do
+    setup do
+      user = insert(:user)
+
+      {:ok, activity} =
+        CommonAPI.post(user, %{
+          status: "suya...",
+          poll: %{options: ["suya", "suya.", "suya.."], expires_in: 600}
+        })
+
+      vote =
+        File.read!("test/fixtures/mastodon-vote.json")
+        |> Jason.decode!()
+        |> put_in(["to"], user.ap_id)
+        |> put_in(["object", "to"], user.ap_id)
+        |> put_in(["object", "inReplyTo"], activity.data["object"])
+
+      %{poll_id: activity.data["object"], vote: vote}
+    end
+
+    defp second_vote(vote, name) do
+      vote
+      |> put_in(["id"], vote["id"] <> "/2")
+      |> put_in(["object", "id"], vote["object"]["id"] <> "/2")
+      |> put_in(["object", "name"], name)
+    end
+
+    test "rejects a second vote on a single-choice poll", %{poll_id: poll_id, vote: vote} do
+      {:ok, _} = Transmogrifier.handle_incoming(vote)
+      assert {:error, _} = Transmogrifier.handle_incoming(second_vote(vote, "suya"))
+
+      assert [0, 0, 1] ==
+               Enum.map(Object.get_by_ap_id(poll_id).data["oneOf"], & &1["replies"]["totalItems"])
+    end
+
+    test "rejects votes for unknown options and on closed polls", %{poll_id: poll_id, vote: vote} do
+      assert {:error, _} = Transmogrifier.handle_incoming(put_in(vote, ["object", "name"], "x"))
+
+      object = Object.get_by_ap_id(poll_id)
+
+      object
+      |> Object.change(%{data: Map.put(object.data, "closed", "2000-01-01T00:00:00Z")})
+      |> Object.update_and_set_cache()
+
+      assert {:error, _} = Transmogrifier.handle_incoming(vote)
+    end
+  end
+
   test "outgoing, rewrites Answer to Note" do
     user = insert(:user)
 

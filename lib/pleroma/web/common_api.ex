@@ -372,35 +372,50 @@ defmodule Pleroma.Web.CommonAPI do
 
   @spec vote(Object.t(), User.t(), list()) :: {:ok, list(), Object.t()} | Pipeline.errors()
   def vote(%Object{data: %{"type" => "Question"}} = object, %User{} = user, choices) do
-    with :ok <- validate_not_author(object, user),
-         :ok <- validate_existing_votes(user, object),
-         {:ok, options, choices} <- normalize_and_validate_choices(choices, object) do
-      answer_activities =
-        Enum.map(choices, fn index ->
-          {:ok, answer_object, _meta} =
-            Builder.answer(user, object, Enum.at(options, index)["name"])
-
-          {:ok, activity_data, _meta} = Builder.create(user, answer_object, [])
-
-          {:ok, activity, _meta} =
-            activity_data
-            |> Map.put("cc", answer_object["cc"])
-            |> Map.put("context", answer_object["context"])
-            |> Pipeline.common_pipeline(local: true)
-
-          # TODO: Do preload of Pleroma.Object in Pipeline
-          Activity.normalize(activity.data)
-        end)
-
+    # The Answer validator checks each vote. A multiple-choice vote is several
+    # Answers, so "voted before" for the whole vote is checked here.
+    with :ok <- validate_existing_votes(user, object),
+         {:ok, options, choices} <- normalize_and_validate_choices(choices, object),
+         {:ok, answer_activities} <- create_answers(user, object, options, choices) do
       object = Object.get_cached_by_ap_id(object.data["id"])
       {:ok, answer_activities, object}
     end
   end
 
-  defp validate_not_author(%{data: %{"actor" => ap_id}}, %{ap_id: ap_id}),
-    do: {:error, dgettext("errors", "Poll's author can't vote")}
+  defp create_answers(user, object, options, choices) do
+    Enum.reduce_while(choices, {:ok, []}, fn index, {:ok, activities} ->
+      case create_answer(user, object, Enum.at(options, index)["name"]) do
+        {:ok, activity} -> {:cont, {:ok, activities ++ [activity]}}
+        error -> {:halt, error}
+      end
+    end)
+  end
 
-  defp validate_not_author(_, _), do: :ok
+  defp create_answer(user, object, name) do
+    {:ok, answer_object, _meta} = Builder.answer(user, object, name)
+    {:ok, activity_data, _meta} = Builder.create(user, answer_object, [])
+
+    activity_data
+    |> Map.put("cc", answer_object["cc"])
+    |> Map.put("context", answer_object["context"])
+    |> Pipeline.common_pipeline(local: true)
+    |> case do
+      # TODO: Do preload of Pleroma.Object in Pipeline
+      {:ok, activity, _meta} -> {:ok, Activity.normalize(activity.data)}
+      {:error, {:validate, {:error, changeset}}} -> {:error, vote_error_message(changeset)}
+      error -> error
+    end
+  end
+
+  defp vote_error_message(%Ecto.Changeset{errors: errors}) do
+    case errors[:inReplyTo] do
+      {"poll's author can't vote", _} -> dgettext("errors", "Poll's author can't vote")
+      {"poll has already ended", _} -> dgettext("errors", "Poll has already ended")
+      {"already voted", _} -> dgettext("errors", "Already voted")
+      {"is not a poll option", _} -> dgettext("errors", "Invalid indices")
+      _ -> dgettext("errors", "Could not vote")
+    end
+  end
 
   defp validate_existing_votes(%{ap_id: ap_id}, object) do
     if Utils.get_existing_votes(ap_id, object) == [] do

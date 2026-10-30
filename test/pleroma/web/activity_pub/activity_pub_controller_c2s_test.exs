@@ -72,4 +72,69 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
                Object.get_by_ap_id(id).data["reactions"]
     end
   end
+
+  describe "Answer (poll votes)" do
+    setup do
+      author = insert(:user)
+
+      {:ok, poll} =
+        CommonAPI.post(author, %{status: "?", poll: %{options: ["a", "b"], expires_in: 600}})
+
+      %{author: author, poll_id: poll.data["object"]}
+    end
+
+    defp vote(poll_id, author, name) do
+      %{
+        "type" => "Create",
+        "object" => %{
+          "type" => "Answer",
+          "name" => name,
+          "inReplyTo" => poll_id,
+          "to" => [author.ap_id],
+          "cc" => []
+        }
+      }
+    end
+
+    defp vote_counts(poll_id) do
+      Object.get_by_ap_id(poll_id).data["oneOf"]
+      |> Map.new(&{&1["name"], &1["replies"]["totalItems"]})
+    end
+
+    test "counts one vote per voter on a single-choice poll", ctx do
+      voter = insert(:user)
+      post_outbox(ctx.conn, voter, vote(ctx.poll_id, ctx.author, "a"), 201)
+      post_outbox(ctx.conn, voter, vote(ctx.poll_id, ctx.author, "a"), 400)
+      post_outbox(ctx.conn, voter, vote(ctx.poll_id, ctx.author, "b"), 400)
+
+      assert vote_counts(ctx.poll_id) == %{"a" => 1, "b" => 0}
+    end
+
+    test "rejects votes of the author, on unknown options and on closed polls", ctx do
+      post_outbox(ctx.conn, ctx.author, vote(ctx.poll_id, ctx.author, "a"), 400)
+      post_outbox(ctx.conn, insert(:user), vote(ctx.poll_id, ctx.author, "c"), 400)
+
+      object = Object.get_by_ap_id(ctx.poll_id)
+
+      object
+      |> Object.change(%{data: Map.put(object.data, "closed", "2000-01-01T00:00:00Z")})
+      |> Object.update_and_set_cache()
+
+      post_outbox(ctx.conn, insert(:user), vote(ctx.poll_id, ctx.author, "a"), 400)
+
+      assert vote_counts(ctx.poll_id) == %{"a" => 0, "b" => 0}
+    end
+
+    test "rejects votes on polls the voter cannot see", %{conn: conn, author: author} do
+      {:ok, poll} =
+        CommonAPI.post(author, %{
+          status: "?",
+          visibility: "private",
+          poll: %{options: ["a", "b"], expires_in: 600}
+        })
+
+      post_outbox(conn, insert(:user), vote(poll.data["object"], author, "a"), 400)
+      assert vote_counts(poll.data["object"]) == %{"a" => 0, "b" => 0}
+    end
+  end
 end
