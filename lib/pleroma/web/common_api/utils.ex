@@ -13,6 +13,7 @@ defmodule Pleroma.Web.CommonAPI.Utils do
   alias Pleroma.Object
   alias Pleroma.Repo
   alias Pleroma.User
+  alias Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI.ActivityDraft
@@ -156,13 +157,10 @@ defmodule Pleroma.Web.CommonAPI.Utils do
 
   def make_poll_data(%{poll: %{options: options, expires_in: expires_in}} = data)
       when is_list(options) do
-    limits = Config.get([:instance, :poll_limits])
-
     options = options |> Enum.uniq()
 
-    with :ok <- validate_poll_expiration(expires_in, limits),
-         :ok <- validate_poll_options_amount(options, limits),
-         :ok <- validate_poll_options_length(options, limits) do
+    with :ok <- QuestionValidator.validate_poll_expiration(expires_in),
+         :ok <- QuestionValidator.validate_poll_options(options) do
       {option_notes, emoji} =
         Enum.map_reduce(options, %{}, fn option, emoji ->
           note = %{
@@ -192,35 +190,6 @@ defmodule Pleroma.Web.CommonAPI.Utils do
 
   def make_poll_data(_data) do
     {:ok, {%{}, %{}}}
-  end
-
-  defp validate_poll_options_amount(options, %{max_options: max_options}) do
-    cond do
-      Enum.count(options) < 2 ->
-        {:error, "Poll must contain at least 2 options"}
-
-      Enum.count(options) > max_options ->
-        {:error, "Poll can't contain more than #{max_options} options"}
-
-      true ->
-        :ok
-    end
-  end
-
-  defp validate_poll_options_length(options, %{max_option_chars: max_option_chars}) do
-    if Enum.any?(options, &(String.length(&1) > max_option_chars)) do
-      {:error, "Poll options cannot be longer than #{max_option_chars} characters each"}
-    else
-      :ok
-    end
-  end
-
-  defp validate_poll_expiration(expires_in, %{min_expiration: min, max_expiration: max}) do
-    cond do
-      expires_in > max -> {:error, "Expiration date is too far in the future"}
-      expires_in < min -> {:error, "Expiration date is too soon"}
-      true -> :ok
-    end
   end
 
   def make_content_html(%ActivityDraft{} = draft) do

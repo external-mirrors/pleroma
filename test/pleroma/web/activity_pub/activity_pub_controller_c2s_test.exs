@@ -255,4 +255,72 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
       assert Enum.all?(stored["oneOf"], &(&1["replies"]["totalItems"] == 0))
     end
   end
+
+  describe "Create of a Question" do
+    setup do
+      clear_config([:instance, :poll_limits], %{
+        max_options: 4,
+        max_option_chars: 20,
+        min_expiration: 60,
+        max_expiration: 86_400
+      })
+    end
+
+    defp question(extra) do
+      closed = DateTime.utc_now() |> DateTime.add(3600) |> DateTime.to_iso8601()
+
+      object =
+        Map.merge(
+          %{
+            "type" => "Question",
+            "content" => "?",
+            "to" => [@public],
+            "cc" => [],
+            "closed" => closed,
+            "oneOf" => [option("a"), option("b")]
+          },
+          extra
+        )
+
+      %{"type" => "Create", "object" => object}
+    end
+
+    defp option(name, votes \\ 0),
+      do: %{
+        "type" => "Note",
+        "name" => name,
+        "replies" => %{"type" => "Collection", "totalItems" => votes}
+      }
+
+    test "accepts a poll within the limits", %{conn: conn} do
+      result = post_outbox(conn, insert(:user), question(%{}), 201)
+
+      assert %Object{data: %{"type" => "Question"}} =
+               Object.normalize(result["object"], fetch: false)
+    end
+
+    test "rejects polls over the limits", %{conn: conn} do
+      far = DateTime.utc_now() |> DateTime.add(86_400 * 365) |> DateTime.to_iso8601()
+
+      for extra <- [
+            %{"oneOf" => Enum.map(1..5, &option("opt#{&1}"))},
+            %{"oneOf" => [option("a"), option(String.duplicate("b", 21))]},
+            %{"oneOf" => [option("a")]},
+            %{"oneOf" => [option("a"), option("a")]},
+            %{"closed" => far},
+            %{"closed" => "2000-01-01T00:00:00Z"}
+          ] do
+        post_outbox(conn, insert(:user), question(extra), 400)
+      end
+    end
+
+    test "rejects polls with votes", %{conn: conn} do
+      for extra <- [
+            %{"oneOf" => [option("a", 1000), option("b")]},
+            %{"votersCount" => 12_345}
+          ] do
+        post_outbox(conn, insert(:user), question(extra), 400)
+      end
+    end
+  end
 end

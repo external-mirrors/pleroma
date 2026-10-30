@@ -92,4 +92,77 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator do
     |> CommonValidations.validate_any_presence([:oneOf, :anyOf])
     |> CommonValidations.validate_host_match()
   end
+
+  @doc """
+  Checks a new local poll: `[:instance, :poll_limits]` hold and nobody has
+  voted yet. Remote polls follow the limits of their own server.
+  """
+  @spec validate_local_poll(map()) :: :ok | {:error, String.t()}
+  def validate_local_poll(%{"type" => "Question"} = data) do
+    options = List.wrap(data["oneOf"]) ++ List.wrap(data["anyOf"])
+    names = Enum.map(options, & &1["name"])
+
+    with :ok <- validate_poll_options(names),
+         {_, true} <- {:unique, Enum.uniq(names) == names},
+         # The end time was computed a moment before validation.
+         :ok <- validate_poll_expiration(seconds_until(data["closed"]), 60),
+         {_, true} <- {:no_votes, no_votes?(data, options)} do
+      :ok
+    else
+      {:unique, _} -> {:error, "Poll options must be unique"}
+      {:no_votes, _} -> {:error, "New polls can't have votes"}
+      error -> error
+    end
+  end
+
+  @spec validate_poll_options([String.t()]) :: :ok | {:error, String.t()}
+  def validate_poll_options(options) do
+    %{max_options: max_options, max_option_chars: max_option_chars} = poll_limits()
+
+    cond do
+      Enum.count(options) < 2 ->
+        {:error, "Poll must contain at least 2 options"}
+
+      Enum.count(options) > max_options ->
+        {:error, "Poll can't contain more than #{max_options} options"}
+
+      Enum.any?(options, &(String.length(&1) > max_option_chars)) ->
+        {:error, "Poll options cannot be longer than #{max_option_chars} characters each"}
+
+      true ->
+        :ok
+    end
+  end
+
+  @spec validate_poll_expiration(integer() | nil, non_neg_integer()) ::
+          :ok | {:error, String.t()}
+  def validate_poll_expiration(expires_in, slack \\ 0)
+
+  def validate_poll_expiration(nil, _slack), do: {:error, "Poll must have an end time"}
+
+  def validate_poll_expiration(expires_in, slack) do
+    %{min_expiration: min, max_expiration: max} = poll_limits()
+
+    cond do
+      expires_in > max -> {:error, "Expiration date is too far in the future"}
+      expires_in < min - slack -> {:error, "Expiration date is too soon"}
+      true -> :ok
+    end
+  end
+
+  defp poll_limits, do: Pleroma.Config.get([:instance, :poll_limits])
+
+  defp seconds_until(closed) when is_binary(closed) do
+    case DateTime.from_iso8601(closed) do
+      {:ok, closed, _} -> DateTime.diff(closed, DateTime.utc_now())
+      _ -> nil
+    end
+  end
+
+  defp seconds_until(_), do: nil
+
+  defp no_votes?(data, options) do
+    data["votersCount"] in [nil, 0] and data["voters"] in [nil, []] and
+      Enum.all?(options, &(get_in(&1, ["replies", "totalItems"]) in [nil, 0]))
+  end
 end

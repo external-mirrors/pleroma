@@ -301,7 +301,18 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   defp validate_new_object(%{"type" => "Answer"} = answer, _meta),
     do: AnswerValidator.validate_vote(answer)
 
-  defp validate_new_object(_object, _meta), do: :ok
+  defp validate_new_object(object, meta) do
+    if Keyword.get(meta, :local, false) do
+      validate_new_local_object(object)
+    else
+      :ok
+    end
+  end
+
+  defp validate_new_local_object(%{"type" => "Question"} = question),
+    do: QuestionValidator.validate_local_poll(question)
+
+  defp validate_new_local_object(_object), do: :ok
 
   # The server owns the edit history, the edit time and the poll results of
   # local objects. Only the editable fields come from the new version.
