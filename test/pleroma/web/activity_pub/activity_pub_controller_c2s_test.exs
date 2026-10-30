@@ -137,4 +137,52 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
       assert vote_counts(poll.data["object"]) == %{"a" => 0, "b" => 0}
     end
   end
+
+  describe "Add (pins)" do
+    defp pin(user, object_id),
+      do: %{"type" => "Add", "target" => user.featured_address, "object" => object_id}
+
+    defp featured(user) do
+      build_conn()
+      |> put_req_header("accept", "application/activity+json")
+      |> get("/users/#{user.nickname}/collections/featured")
+      |> json_response(200)
+      |> Map.get("orderedItems")
+    end
+
+    test "rejects pins of other users' posts", %{conn: conn} do
+      bob = insert(:user)
+      alice = insert(:user)
+      {:ok, alice, bob} = Pleroma.User.follow(alice, bob)
+
+      {:ok, private} = CommonAPI.post(bob, %{status: "followers", visibility: "private"})
+      {:ok, dm} = CommonAPI.post(bob, %{status: "@#{alice.nickname} dm", visibility: "direct"})
+      {:ok, public} = CommonAPI.post(bob, %{status: "public"})
+
+      for post <- [private, dm, public] do
+        post_outbox(conn, alice, pin(alice, post.data["object"]), 400)
+      end
+
+      assert featured(alice) == []
+    end
+
+    test "pins only public or unlisted own posts", %{conn: conn} do
+      alice = insert(:user)
+      {:ok, private} = CommonAPI.post(alice, %{status: "followers", visibility: "private"})
+      {:ok, unlisted} = CommonAPI.post(alice, %{status: "unlisted", visibility: "unlisted"})
+
+      post_outbox(conn, alice, pin(alice, private.data["object"]), 400)
+      post_outbox(conn, alice, pin(alice, unlisted.data["object"]), 201)
+
+      assert [%{"content" => "unlisted"}] = featured(alice)
+    end
+
+    test "the featured collection hides non-public posts that are already pinned" do
+      alice = insert(:user)
+      {:ok, private} = CommonAPI.post(alice, %{status: "followers", visibility: "private"})
+      {:ok, alice} = Pleroma.User.add_pinned_object_id(alice, private.data["object"])
+
+      assert featured(alice) == []
+    end
+  end
 end

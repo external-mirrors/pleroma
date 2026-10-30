@@ -13,6 +13,7 @@ defmodule Pleroma.Web.ActivityPub.UserView do
   alias Pleroma.Web.ActivityPub.ObjectView
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.ActivityPub.Utils
+  alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.Endpoint
   alias Pleroma.Web.Router.Helpers
 
@@ -257,9 +258,9 @@ defmodule Pleroma.Web.ActivityPub.UserView do
     objects =
       pinned_objects
       |> Enum.sort_by(fn {_, pinned_at} -> pinned_at end, &>=/2)
-      |> Enum.map(fn {id, _} ->
-        ObjectView.render("object.json", %{object: Object.get_cached_by_ap_id(id)})
-      end)
+      |> Enum.map(fn {id, _} -> Object.get_cached_by_ap_id(id) end)
+      |> Enum.filter(&(&1 && Visibility.public?(&1)))
+      |> Enum.map(&ObjectView.render("object.json", %{object: &1}))
 
     %{
       "id" => featured_address,

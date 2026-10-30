@@ -588,9 +588,6 @@ defmodule Pleroma.Web.CommonAPI do
   def pin(id, %User{} = user) do
     with %Activity{} = activity <- create_activity_by_id(id),
          true <- activity_visible_to_actor(activity, user),
-         true <- activity_belongs_to_actor(activity, user.ap_id),
-         true <- object_type_is_allowed_for_pin(activity.object),
-         true <- activity_is_public(activity),
          {:ok, pin_data, _} <- Builder.pin(user, activity.object),
          {:ok, _pin, _} <-
            Pipeline.common_pipeline(pin_data,
@@ -600,7 +597,17 @@ defmodule Pleroma.Web.CommonAPI do
       {:ok, activity}
     else
       {:error, {:side_effects, error}} -> error
+      {:error, {:validate, {:error, changeset}}} -> {:error, pin_error(changeset)}
       error -> error
+    end
+  end
+
+  defp pin_error(%Ecto.Changeset{errors: errors}) do
+    case errors[:object] do
+      {"doesn't belong to the actor", _} -> :ownership_error
+      {"can't be pinned", _} -> :not_allowed
+      {"is not public", _} -> :non_public_error
+      _ -> :not_allowed
     end
   end
 
@@ -618,18 +625,6 @@ defmodule Pleroma.Web.CommonAPI do
       true
     else
       {:error, :visibility_error}
-    end
-  end
-
-  defp object_type_is_allowed_for_pin(%{data: %{"type" => type}}) do
-    with false <- type in ["Note", "Article", "Question"] do
-      {:error, :not_allowed}
-    end
-  end
-
-  defp activity_is_public(activity) do
-    with false <- Visibility.public?(activity) do
-      {:error, :non_public_error}
     end
   end
 

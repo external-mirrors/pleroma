@@ -10,7 +10,9 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AddRemoveValidator do
 
   require Pleroma.Constants
 
+  alias Pleroma.Object
   alias Pleroma.User
+  alias Pleroma.Web.ActivityPub.Visibility
 
   @primary_key false
 
@@ -26,7 +28,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AddRemoveValidator do
     end
   end
 
-  def cast_and_validate(data) do
+  def cast_and_validate(data, meta \\ []) do
     {:ok, actor} = User.get_or_fetch_by_ap_id(data["actor"])
 
     {:ok, actor} = maybe_refetch_user(actor)
@@ -34,7 +36,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AddRemoveValidator do
     data
     |> maybe_fix_data_for_mastodon(actor)
     |> cast_data()
-    |> validate_data(actor)
+    |> validate_data(actor, meta)
   end
 
   defp maybe_fix_data_for_mastodon(data, actor) do
@@ -49,13 +51,38 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AddRemoveValidator do
     cast(%__MODULE__{}, data, __schema__(:fields))
   end
 
-  defp validate_data(changeset, actor) do
+  defp validate_data(changeset, actor, meta) do
     changeset
     |> validate_required([:id, :target, :object, :actor, :type, :to, :cc])
     |> validate_inclusion(:type, ~w(Add Remove))
     |> validate_actor_presence()
     |> validate_collection_belongs_to_actor(actor)
     |> validate_object_presence()
+    |> validate_pinned_object(actor, meta)
+  end
+
+  # Remove stays possible for any object, so old pins can always be undone.
+  defp validate_pinned_object(%{changes: %{type: "Add"}} = changeset, actor, meta) do
+    validate_change(changeset, :object, fn :object, object_id ->
+      object = Object.get_cached_by_ap_id(object_id)
+
+      cond do
+        is_nil(object) -> [object: "is not an object"]
+        object.data["actor"] != actor.ap_id -> [object: "doesn't belong to the actor"]
+        meta[:local] -> validate_local_pin(object)
+        true -> []
+      end
+    end)
+  end
+
+  defp validate_pinned_object(changeset, _actor, _meta), do: changeset
+
+  defp validate_local_pin(%Object{data: %{"type" => type}} = object) do
+    cond do
+      type not in ~w(Note Article Question) -> [object: "can't be pinned"]
+      !Visibility.public?(object) -> [object: "is not public"]
+      true -> []
+    end
   end
 
   defp validate_collection_belongs_to_actor(changeset, actor) do

@@ -1,2 +1,3 @@
 Reject EmojiReact activities whose name is not a single emoji shortcode
 Enforce poll voting rules (visible, open poll, not the author, one vote per option) for all votes on local polls and all local votes
+Only allow pinning own posts, and only public or unlisted ones for local users; the featured collection skips non-public posts
