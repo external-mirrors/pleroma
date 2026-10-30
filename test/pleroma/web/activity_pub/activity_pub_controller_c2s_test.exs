@@ -539,6 +539,39 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
       post_outbox(conn, insert(:user), data, 201)
     end
 
+    test "Listen objects get the same normalization", %{conn: conn} do
+      user = insert(:user)
+
+      data = %{
+        "type" => "Listen",
+        "to" => [@public],
+        "cc" => [],
+        "object" => %{
+          "type" => "Audio",
+          "title" => "song",
+          "artist" => "band",
+          "name" => "<script>alert(1)</script>tune",
+          "to" => [@public],
+          "cc" => [],
+          "id" => "https://evil.example/objects/1",
+          "published" => "2001-01-01T00:00:00Z",
+          "url" => "https://phish.example/"
+        }
+      }
+
+      stored = stored(post_outbox(conn, user, data, 201))
+
+      assert stored["actor"] == user.ap_id
+      refute stored["id"] == "https://evil.example/objects/1"
+      refute stored["published"] =~ "2001"
+      refute stored["url"] == "https://phish.example/"
+      refute stored["name"] =~ "<script"
+
+      clear_config([:instance, :limit], 10)
+      data = put_in(data, ["object", "name"], String.duplicate("a", 20))
+      post_outbox(conn, user, data, 400)
+    end
+
     test "a bare object is a bad request and is not stored", %{conn: conn} do
       user = insert(:user)
       {:ok, post} = CommonAPI.post(user, %{status: "hi"})

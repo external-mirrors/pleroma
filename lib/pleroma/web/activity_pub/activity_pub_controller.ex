@@ -540,8 +540,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
   @server_set_fields ~w(published updated formerRepresentations replies source url
                         repliesCount quotesCount)
 
-  defp fix_user_message(%User{ap_id: actor}, %{"type" => "Create", "object" => object} = activity)
-       when is_map(object) do
+  defp fix_user_message(%User{ap_id: actor}, %{"type" => type, "object" => object} = activity)
+       when type in ["Create", "Listen"] and is_map(object) do
     object =
       object
       |> Transmogrifier.strip_internal_fields()

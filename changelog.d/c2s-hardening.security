@@ -4,7 +4,7 @@ Only allow pinning own posts, and only public or unlisted ones for local users; 
 Validate the object of local Updates; the server builds the edit history and edit time and keeps poll results
 Hold new local polls to the poll limits and reject preset vote counts
 Reject local replies to and quotes of posts the author cannot see or quote
-Local posts and edits only accept own uploads as attachments, within the attachment and description limits, and emoji with shortcode names
-C2S: the server sets publish time, context and other server-owned fields of new objects, scrubs their HTML and counts contentMap toward the character limit
+Local posts and edits only accept own uploads as attachments, within the attachment and description limits
+C2S: the server sets publish time, context and other server-owned fields of new objects (also Listen), scrubs their HTML, checks emoji names and counts contentMap toward the character limit
 Feeds scrub post content like the Mastodon API and no longer fail on posts without a publish time
 C2S: reject bare objects that are not wrapped in an activity
