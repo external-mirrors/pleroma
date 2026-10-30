@@ -401,18 +401,29 @@ defmodule Pleroma.Web.CommonAPI do
     |> Pipeline.common_pipeline(local: true)
     |> case do
       # TODO: Do preload of Pleroma.Object in Pipeline
-      {:ok, activity, _meta} -> {:ok, Activity.normalize(activity.data)}
-      {:error, {:validate, {:error, changeset}}} -> {:error, vote_error_message(changeset)}
-      error -> error
+      {:ok, activity, _meta} ->
+        {:ok, Activity.normalize(activity.data)}
+
+      {:error, {:validate, {:error, %Ecto.Changeset{} = cng}}} ->
+        {:error, vote_error_message(cng)}
+
+      _ ->
+        {:error, dgettext("errors", "Could not vote")}
     end
   end
 
   defp vote_error_message(%Ecto.Changeset{errors: errors}) do
-    case errors[:inReplyTo] do
-      {"poll's author can't vote", _} -> dgettext("errors", "Poll's author can't vote")
-      {"poll has already ended", _} -> dgettext("errors", "Poll has already ended")
-      {"already voted", _} -> dgettext("errors", "Already voted")
-      {"is not a poll option", _} -> dgettext("errors", "Invalid indices")
+    reason =
+      case errors[:inReplyTo] do
+        {_, opts} -> opts[:reason]
+        _ -> nil
+      end
+
+    case reason do
+      :author -> dgettext("errors", "Poll's author can't vote")
+      :closed -> dgettext("errors", "Poll has already ended")
+      :already_voted -> dgettext("errors", "Already voted")
+      :unknown_option -> dgettext("errors", "Invalid indices")
       _ -> dgettext("errors", "Could not vote")
     end
   end
@@ -434,7 +445,11 @@ defmodule Pleroma.Web.CommonAPI do
        do: {one_of, 1}
 
   defp normalize_and_validate_choices(choices, object) do
-    choices = Enum.map(choices, fn i -> if is_binary(i), do: String.to_integer(i), else: i end)
+    choices =
+      choices
+      |> Enum.map(fn i -> if is_binary(i), do: String.to_integer(i), else: i end)
+      |> Enum.uniq()
+
     {options, max_count} = get_options_and_max_count(object)
     count = Enum.count(options)
 
@@ -603,10 +618,10 @@ defmodule Pleroma.Web.CommonAPI do
   end
 
   defp pin_error(%Ecto.Changeset{errors: errors}) do
-    case errors[:object] do
-      {"doesn't belong to the actor", _} -> :ownership_error
-      {"can't be pinned", _} -> :not_allowed
-      {"is not public", _} -> :non_public_error
+    with {_, opts} <- errors[:object],
+         reason when not is_nil(reason) <- opts[:reason] do
+      reason
+    else
       _ -> :not_allowed
     end
   end

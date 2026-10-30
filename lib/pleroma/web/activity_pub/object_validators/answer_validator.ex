@@ -87,8 +87,11 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AnswerValidator do
 
     if local?(voter, poll) do
       case vote_error(answer, voter, poll) do
-        nil -> :ok
-        message -> {:error, answer |> cast_data() |> add_error(:inReplyTo, message)}
+        nil ->
+          :ok
+
+        {message, reason} ->
+          {:error, answer |> cast_data() |> add_error(:inReplyTo, message, reason: reason)}
       end
     else
       :ok
@@ -101,16 +104,16 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AnswerValidator do
 
   defp vote_error(answer, voter, %Object{data: %{"type" => "Question"}} = poll) do
     cond do
-      poll.data["actor"] == answer["actor"] -> "poll's author can't vote"
-      !Visibility.visible_for_user?(poll, voter) -> "is not visible to the voter"
-      closed?(poll) -> "poll has already ended"
-      answer["name"] not in option_names(poll) -> "is not a poll option"
-      voted?(answer, poll) -> "already voted"
+      poll.data["actor"] == answer["actor"] -> {"poll's author can't vote", :author}
+      !Visibility.visible_for_user?(poll, voter) -> {"is not visible to the voter", :invisible}
+      closed?(poll) -> {"poll has already ended", :closed}
+      answer["name"] not in option_names(poll) -> {"is not a poll option", :unknown_option}
+      voted?(answer, poll) -> {"already voted", :already_voted}
       true -> nil
     end
   end
 
-  defp vote_error(_answer, _voter, _poll), do: "is not a poll"
+  defp vote_error(_answer, _voter, _poll), do: {"is not a poll", :not_a_poll}
 
   defp option_names(%Object{data: data}) do
     (List.wrap(data["oneOf"]) ++ List.wrap(data["anyOf"]))

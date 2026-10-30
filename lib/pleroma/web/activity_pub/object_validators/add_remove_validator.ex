@@ -67,10 +67,17 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AddRemoveValidator do
       object = Object.get_cached_by_ap_id(object_id)
 
       cond do
-        is_nil(object) -> [object: "is not an object"]
-        object.data["actor"] != actor.ap_id -> [object: "doesn't belong to the actor"]
-        meta[:local] -> validate_local_pin(object)
-        true -> []
+        is_nil(object) ->
+          [object: {"is not an object", reason: :not_allowed}]
+
+        object.data["actor"] != actor.ap_id ->
+          [object: {"doesn't belong to the actor", reason: :ownership_error}]
+
+        meta[:local] ->
+          validate_local_pin(object)
+
+        true ->
+          []
       end
     end)
   end
@@ -79,8 +86,8 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.AddRemoveValidator do
 
   defp validate_local_pin(%Object{data: %{"type" => type}} = object) do
     cond do
-      type not in ~w(Note Article Question) -> [object: "can't be pinned"]
-      !Visibility.public?(object) -> [object: "is not public"]
+      type not in ~w(Note Article Question) -> [object: {"can't be pinned", reason: :not_allowed}]
+      !Visibility.public?(object) -> [object: {"is not public", reason: :non_public_error}]
       true -> []
     end
   end

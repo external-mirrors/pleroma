@@ -1867,6 +1867,19 @@ defmodule Pleroma.Web.CommonAPITest do
       assert {:error, "Already voted"} == CommonAPI.vote(object, other_user, [1])
     end
 
+    test "counts a repeated choice once" do
+      {:ok, activity} =
+        CommonAPI.post(insert(:user), %{
+          status: "?",
+          poll: %{options: ["a", "b"], expires_in: 20, multiple: true}
+        })
+
+      object = Object.normalize(activity, fetch: false)
+
+      assert {:ok, [_], object} = CommonAPI.vote(object, insert(:user), [0, 0])
+      assert [1, 0] == Enum.map(object.data["anyOf"], & &1["replies"]["totalItems"])
+    end
+
     test "maps validator errors to readable messages" do
       user = insert(:user)
 
