@@ -571,7 +571,9 @@ defmodule Pleroma.Web.CommonAPI do
          {:ok, update, _} <- Pipeline.common_pipeline(update_data, local: true) do
       {:ok, update}
     else
-      _ -> {:error, nil}
+      error ->
+        Logger.warning("Could not update #{orig_activity.id}: #{inspect(error)}")
+        {:error, nil}
     end
   end
 

@@ -224,6 +224,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
     with {_, {:ok, object_data, _}} <-
            {:object_validation,
             object
+            |> maybe_drop_local_history(meta)
             |> CommonFixes.maybe_set_attributed_to_from_activity(update_activity)
             |> CommonFixes.maybe_add_language_from_activity(update_activity)
             |> validate(meta)},
@@ -328,6 +329,16 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   end
 
   defp maybe_rebuild_local_update_object(object, _meta), do: object
+
+  # The server built the history of local objects from stored data, which
+  # older versions may not have validated.
+  defp maybe_drop_local_history(object, meta) do
+    if Keyword.get(meta, :local, false) do
+      Map.delete(object, "formerRepresentations")
+    else
+      object
+    end
+  end
 
   defp validate_local_update(%{"id" => id} = object_data, meta) do
     with true <- Keyword.get(meta, :local, false),

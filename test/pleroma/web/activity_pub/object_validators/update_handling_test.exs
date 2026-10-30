@@ -180,6 +180,17 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.UpdateHandlingTest do
       refute object["updated"] =~ "2999"
     end
 
+    test "a local Update does not validate the stored history again" do
+      user = insert(:user)
+      old_history = %{"type" => "OrderedCollection", "totalItems" => 1, "orderedItems" => [%{}]}
+      note = insert(:note, user: user, data: %{"formerRepresentations" => old_history})
+
+      {:ok, update, _} = Builder.update(user, Map.put(note.data, "content", "edited"))
+
+      assert {:ok, %{"object" => %{"content" => "edited"}}, _} =
+               ObjectValidator.validate(update, local: true)
+    end
+
     test "a local Update with an invalid object is rejected" do
       user = insert(:user)
       note = insert(:note, user: user)
