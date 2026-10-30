@@ -37,8 +37,7 @@ defmodule Pleroma.Web.Feed.FeedView do
   defp prepare_data(%{} = data, activity) do
     data
     |> Map.update("content", nil, &scrub_content(&1, activity))
-    |> Map.put_new_lazy("published", fn -> stored_at(activity) end)
-    |> Map.update!("published", &(&1 || stored_at(activity)))
+    |> Map.put("published", data["published"] || stored_at(activity))
   end
 
   defp prepare_data(data, _activity), do: data
