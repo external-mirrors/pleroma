@@ -29,6 +29,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
   alias Pleroma.Web.Plugs.OAuthScopesPlug
 
   require Logger
+  require Pleroma.Constants
 
   action_fallback(:errors)
 
@@ -665,6 +666,10 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
   # {:error, "Trying to fetch local resource"}
   defp check_allowed_action(%{ap_id: ap_id}, %{"type" => "Update", "object" => %{"id" => ap_id}}),
     do: {:error, "Updating profile is not currently supported in C2S"}
+
+  # Objects must come wrapped in a Create, or the pipeline would store them alone.
+  defp check_allowed_action(_, %{"type" => type}) when type in Pleroma.Constants.object_types(),
+    do: {:error, "Objects must be sent in a Create activity"}
 
   defp check_allowed_action(_, activity), do: {:ok, activity}
 

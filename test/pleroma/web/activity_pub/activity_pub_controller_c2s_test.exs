@@ -529,6 +529,23 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
       post_outbox(conn, insert(:user), data, 201)
     end
 
+    test "a bare object is a bad request and is not stored", %{conn: conn} do
+      user = insert(:user)
+      {:ok, post} = CommonAPI.post(user, %{status: "hi"})
+      count = Pleroma.Repo.aggregate(Object, :count)
+
+      data = %{
+        "type" => "Note",
+        "object" => post.data["object"],
+        "content" => "orphan",
+        "to" => [@public],
+        "cc" => []
+      }
+
+      post_outbox(conn, user, data, 400)
+      assert Pleroma.Repo.aggregate(Object, :count) == count
+    end
+
     test "a body without an object is a bad request", %{conn: conn} do
       post_outbox(conn, insert(:user), %{"type" => "Like"}, 400)
     end
