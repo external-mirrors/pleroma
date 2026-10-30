@@ -7,6 +7,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
 
   alias Pleroma.Activity
   alias Pleroma.Delivery
+  alias Pleroma.HTML
   alias Pleroma.Object
   alias Pleroma.Object.Fetcher
   alias Pleroma.User
@@ -532,33 +533,38 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
     |> json(err)
   end
 
+  # Fields the server sets for new local objects, like the Builder does for
+  # CommonAPI. Counters and internal fields are stripped as well.
+  @server_set_fields ~w(published updated formerRepresentations replies source url
+                        repliesCount quotesCount)
+
   defp fix_user_message(%User{ap_id: actor}, %{"type" => "Create", "object" => object} = activity)
        when is_map(object) do
-    length =
-      [object["content"], object["summary"], object["name"]]
-      |> Enum.filter(&is_binary(&1))
-      |> Enum.join("")
-      |> String.length()
+    object =
+      object
+      |> Transmogrifier.strip_internal_fields()
+      |> Map.drop(@server_set_fields)
+      |> normalize_client_content()
+      |> Map.merge(%{
+        "attributedTo" => actor,
+        "actor" => actor,
+        "id" => Utils.generate_object_id(),
+        "published" => Utils.make_date(),
+        "context" => client_object_context(object)
+      })
 
-    limit = Pleroma.Config.get([:instance, :limit])
-
-    if length < limit do
-      object =
-        object
-        |> Transmogrifier.strip_internal_fields()
-        |> Map.put("attributedTo", actor)
-        |> Map.put("actor", actor)
-        |> Map.put("id", Utils.generate_object_id())
-
+    with :ok <- check_character_limit(object) do
       {:ok, Map.put(activity, "object", object)}
-    else
-      {:error,
-       dgettext(
-         "errors",
-         "Character limit (%{limit} characters) exceeded, contains %{length} characters",
-         limit: limit,
-         length: length
-       )}
+    end
+  end
+
+  # The validator builds the rest of an edit from the stored object.
+  defp fix_user_message(%User{}, %{"type" => "Update", "object" => object} = activity)
+       when is_map(object) do
+    object = normalize_client_content(object)
+
+    with :ok <- check_character_limit(object) do
+      {:ok, Map.put(activity, "object", object)}
     end
   end
 
@@ -580,6 +586,70 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
 
   defp fix_user_message(%User{}, activity) do
     {:ok, activity}
+  end
+
+  defp normalize_client_content(object) do
+    object
+    |> apply_content_map()
+    |> scrub_client_html()
+  end
+
+  # contentMap would bypass the character limit, so it becomes the content.
+  defp apply_content_map(%{"content" => content} = object)
+       when is_binary(content) and content != "",
+       do: Map.delete(object, "contentMap")
+
+  defp apply_content_map(%{"contentMap" => %{} = content_map} = object) do
+    content = Enum.find_value(content_map, fn {_, value} -> is_binary(value) && value end)
+
+    object
+    |> Map.delete("contentMap")
+    |> Pleroma.Maps.put_if_present("content", content)
+  end
+
+  defp apply_content_map(object), do: Map.delete(object, "contentMap")
+
+  # An Answer's name must match the poll option as it is.
+  defp scrub_client_html(%{"type" => "Answer"} = object), do: object
+
+  defp scrub_client_html(object) do
+    Enum.reduce(~w(content summary name), object, fn field, object ->
+      case object[field] do
+        html when is_binary(html) -> Map.put(object, field, HTML.filter_tags(html))
+        _ -> object
+      end
+    end)
+  end
+
+  defp client_object_context(%{"inReplyTo" => in_reply_to}) when is_binary(in_reply_to) do
+    case Object.normalize(in_reply_to, fetch: false) do
+      %Object{data: %{"context" => context}} when is_binary(context) -> context
+      _ -> Utils.generate_context_id()
+    end
+  end
+
+  defp client_object_context(_object), do: Utils.generate_context_id()
+
+  defp check_character_limit(object) do
+    length =
+      [object["content"], object["summary"], object["name"]]
+      |> Enum.filter(&is_binary(&1))
+      |> Enum.join("")
+      |> String.length()
+
+    limit = Pleroma.Config.get([:instance, :limit])
+
+    if length <= limit do
+      :ok
+    else
+      {:error,
+       dgettext(
+         "errors",
+         "Character limit (%{limit} characters) exceeded, contains %{length} characters",
+         limit: limit,
+         length: length
+       )}
+    end
   end
 
   # We currently lack a Flag ObjectValidator since both CommonAPI and Transmogrifier
@@ -617,6 +687,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
         {:forbidden, "You can't interact with this object"}
     end
   end
+
+  defp validate_visibility(%User{}, _activity), do: {:error, "The activity has no object"}
 
   def update_outbox(
         %{assigns: %{user: %User{nickname: nickname, ap_id: actor} = user}} = conn,

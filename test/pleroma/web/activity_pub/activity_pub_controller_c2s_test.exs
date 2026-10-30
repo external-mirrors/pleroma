@@ -435,4 +435,102 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerC2STest do
       post_outbox(conn, insert(:user), note(%{"tag" => [tag]}), 400)
     end
   end
+
+  describe "server-set fields of new objects" do
+    defp stored(result), do: Object.normalize(result["object"], fetch: false).data
+
+    test "the server sets the publish time and drops edit fields", %{conn: conn} do
+      history = %{
+        "type" => "OrderedCollection",
+        "totalItems" => 1,
+        "orderedItems" => [%{"type" => "Note", "content" => "I never wrote this"}]
+      }
+
+      data =
+        note(%{
+          "published" => "2001-01-01T00:00:00Z",
+          "updated" => "2001-01-02T00:00:00Z",
+          "formerRepresentations" => history
+        })
+
+      stored = stored(post_outbox(conn, insert(:user), data, 201))
+
+      {:ok, published, _} = DateTime.from_iso8601(stored["published"])
+      assert DateTime.diff(DateTime.utc_now(), published) < 60
+      refute Map.has_key?(stored, "updated")
+      refute Map.has_key?(stored, "formerRepresentations")
+    end
+
+    test "a missing publish time is set", %{conn: conn} do
+      stored = stored(post_outbox(conn, insert(:user), note(%{}), 201))
+      assert is_binary(stored["published"])
+    end
+
+    test "drops url, source, replies and counters", %{conn: conn} do
+      data =
+        note(%{
+          "url" => "https://phish.example/",
+          "source" => %{"content" => "different source", "mediaType" => "text/plain"},
+          "replies" => for(i <- 1..5, do: "http://10.0.0.1:#{i}/internal"),
+          "repliesCount" => 999,
+          "quotesCount" => 999
+        })
+
+      stored = stored(post_outbox(conn, insert(:user), data, 201))
+
+      refute stored["url"] == "https://phish.example/"
+      refute Map.has_key?(stored, "source")
+      assert stored["replies"] in [nil, []]
+      assert stored["repliesCount"] in [nil, 0]
+      assert stored["quotesCount"] in [nil, 0]
+      assert all_enqueued(worker: Pleroma.Workers.RemoteFetcherWorker) == []
+    end
+
+    test "the context comes from the replied post, or is new", %{conn: conn} do
+      {:ok, op} = CommonAPI.post(insert(:user), %{status: "my thread"})
+      user = insert(:user)
+
+      injected = stored(post_outbox(conn, user, note(%{"context" => op.data["context"]}), 201))
+      refute injected["context"] == op.data["context"]
+
+      reply_data =
+        note(%{"context" => "https://evil.example/c", "inReplyTo" => op.data["object"]})
+
+      reply = stored(post_outbox(conn, user, reply_data, 201))
+      assert reply["context"] == op.data["context"]
+    end
+
+    test "scrubs HTML like the Mastodon API", %{conn: conn} do
+      html = "<script>alert(1)</script><a href=\"javascript:x\">x</a><b>ok</b>"
+
+      stored =
+        stored(
+          post_outbox(conn, insert(:user), note(%{"content" => html, "summary" => html}), 201)
+        )
+
+      for field <- ["content", "summary"] do
+        refute stored[field] =~ "<script"
+        refute stored[field] =~ "javascript:"
+      end
+    end
+
+    test "contentMap counts toward the character limit", %{conn: conn} do
+      clear_config([:instance, :limit], 100)
+      long = String.duplicate("a", 200)
+
+      data = %{
+        "type" => "Create",
+        "object" => %{"type" => "Note", "contentMap" => %{"en" => long}, "to" => [@public]}
+      }
+
+      post_outbox(conn, insert(:user), data, 400)
+
+      data = put_in(data, ["object", "content"], "short")
+      post_outbox(conn, insert(:user), data, 201)
+    end
+
+    test "a body without an object is a bad request", %{conn: conn} do
+      post_outbox(conn, insert(:user), %{"type" => "Like"}, 400)
+    end
+  end
 end
