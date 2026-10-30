@@ -34,6 +34,7 @@ defmodule Pleroma.EmojiTest do
       assert Emoji.custom?(":blobcat:")
       assert Emoji.custom?(":blob_cat-2:")
       assert Emoji.custom?(":blobcat@remote.example:")
+      assert Emoji.custom?(":blobcat@localhost:4000:")
       assert Emoji.custom?(":blobcat@.:")
 
       refute Emoji.custom?("blobcat")
