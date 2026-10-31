@@ -2248,8 +2248,10 @@ defmodule Pleroma.Web.MastodonAPI.StatusControllerTest do
     setup do: clear_config([:rate_limit, :statuses_actions], {60_000, 100})
     setup do: oauth_access(["write:statuses", "write:favourites"])
 
-    for {action, undo} <- [{"favourite", "unfavourite"}, {"reblog", "unreblog"}] do
-      test "#{action} is limited per status, not per user", %{conn: conn} do
+    for {action, undo} <- [{"favourite", "unfavourite"}, {"reblog", "unreblog"}],
+        strict <- [true, false] do
+      test "#{action} is limited per status, not per user (strict: #{strict})", %{conn: conn} do
+        clear_config([Pleroma.Web.ApiSpec.CastAndValidate, :strict], unquote(strict))
         conn = put_req_header(conn, "content-type", "application/json")
         statuses = insert_list(3, :note_activity)
 
