@@ -341,7 +341,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
            {:sender_exists, User.get_or_fetch_by_ap_id(params["actor"])},
          {:recipient_active, true} <- {:recipient_active, recipient.is_active},
          {:sender_active, true} <- {:sender_active, actor.is_active},
-         true <- Utils.recipient_in_message(recipient, actor, params),
          params <- Utils.maybe_splice_recipient(recipient.ap_id, params) do
       Federator.incoming_ap_doc(params)
       json(conn, "ok")
