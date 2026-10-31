@@ -1872,6 +1872,30 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
       assert Activity.get_by_ap_id(data["id"])
     end
 
+    test "it accepts activities that do not address the inbox owner", %{conn: conn} do
+      user = insert(:user)
+      actor = insert(:user, local: false)
+
+      data = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Follow",
+        "id" => "#{actor.ap_id}/follows/1",
+        "actor" => actor.ap_id,
+        "object" => user.ap_id,
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"]
+      }
+
+      conn =
+        conn
+        |> assign_valid_signature_for_actor(data["actor"])
+        |> put_req_header("content-type", "application/activity+json")
+        |> post("/users/#{user.nickname}/inbox", data)
+
+      assert "ok" == json_response(conn, 200)
+      ObanHelpers.perform(all_enqueued(worker: ReceiverWorker))
+      assert Activity.get_by_ap_id(data["id"])
+    end
+
     test "it returns an error when receiving an activity sent to a deactivated user", %{
       conn: conn,
       data: data
