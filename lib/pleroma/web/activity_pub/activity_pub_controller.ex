@@ -26,6 +26,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
   alias Pleroma.Web.Plugs.EnsureAuthenticatedPlug
   alias Pleroma.Web.Plugs.FederatingPlug
   alias Pleroma.Web.Plugs.OAuthScopesPlug
+  alias Pleroma.Web.Plugs.RateLimiter
 
   require Logger
 
@@ -65,6 +66,9 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubController do
     %{fallback: :proceed_unauthenticated, scopes: ["read:accounts"]}
     when action in [:followers, :following]
   )
+
+  # Shares the per-user bucket with Mastodon API status actions and emoji reactions.
+  plug(RateLimiter, [name: :statuses_actions] when action == :update_outbox)
 
   plug(Majic.Plug, [pool: Pleroma.MajicPool] when action in [:upload_media])
 

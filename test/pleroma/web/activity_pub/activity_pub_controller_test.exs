@@ -2709,6 +2709,43 @@ defmodule Pleroma.Web.ActivityPub.ActivityPubControllerTest do
 
       assert result == "Character limit (5 characters) exceeded, contains 11 characters"
     end
+
+    test "it is rate limited", %{conn: conn, activity: activity} do
+      clear_config([:rate_limit, :statuses_actions], {60_000, 2})
+      user = insert(:user)
+
+      conn =
+        conn
+        |> assign(:user, user)
+        |> put_req_header("content-type", "application/activity+json")
+
+      for _ <- 1..2 do
+        conn
+        |> post("/users/#{user.nickname}/outbox", activity)
+        |> json_response(201)
+      end
+
+      assert conn
+             |> post("/users/#{user.nickname}/outbox", activity)
+             |> json_response(429) == %{"error" => "Throttled"}
+    end
+
+    test "it shares the rate limit with the Mastodon API", %{activity: activity} do
+      clear_config([:rate_limit, :statuses_actions], {60_000, 2})
+      %{user: user, conn: conn} = oauth_access(["write"])
+
+      for _ <- 1..2 do
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/v1/statuses", %{status: "cofe"})
+        |> json_response(200)
+      end
+
+      assert conn
+             |> put_req_header("content-type", "application/activity+json")
+             |> post("/users/#{user.nickname}/outbox", activity)
+             |> json_response(429) == %{"error" => "Throttled"}
+    end
   end
 
   describe "/relay/followers" do
