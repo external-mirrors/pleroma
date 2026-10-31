@@ -148,14 +148,13 @@ defmodule Pleroma.Web.ActivityPub.MRF do
   @spec subdomains_regex([String.t()]) :: [Regex.t()]
   def subdomains_regex(domains) when is_list(domains) do
     for domain <- domains do
-      try do
-        target = String.replace(domain, "*.", "(.*\\.)*")
-        ~r<^#{target}$>i
-      rescue
-        e ->
-          Logger.error("MRF: Invalid subdomain Regex: #{domain}")
-          reraise e, __STACKTRACE__
-      end
+      {prefix, rest} =
+        case domain do
+          "*." <> rest -> {"(.*\\.)?", rest}
+          _ -> {"", domain}
+        end
+
+      ~r<^#{prefix}#{Regex.escape(rest)}$>i
     end
   end
 
