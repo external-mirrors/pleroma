@@ -51,7 +51,7 @@ Gentoo quite pointedly does not come with a cron daemon installed, and as such i
 # emaint sync -a
 ```
 
-* Emerge all required the required and suggested software in one go:
+* Emerge all the required and suggested software in one go:
 
 ```
 # emerge --ask dev-db/postgresql dev-lang/elixir dev-vcs/git www-servers/nginx app-crypt/certbot app-crypt/certbot-nginx dev-build/cmake sys-apps/file
@@ -59,34 +59,26 @@ Gentoo quite pointedly does not come with a cron daemon installed, and as such i
 
 If you would not like to install the optional packages, remove them from this line.
 
-If you're running this from a low-powered virtual machine, it should work though it will take some time. There were no issues on a VPS with a single core and 1GB of RAM; if you are using an even more limited device and run into issues, you can try creating a swapfile or use a more powerful machine running Gentoo to [cross build](https://wiki.gentoo.org/wiki/Cross_build_environment). If you have a wait ahead of you, now would be a good time to take a break, stretch a bit, refresh your beverage of choice and/or get a snack, and reply to Arch users' posts with "I use Gentoo btw" as we do.
+If you're running this from a low-powered virtual machine, it should work though it will take some time. There were no issues on a VPS with a single core and 2GB of RAM; if you are using an even more limited device and run into issues, you can try creating a swapfile or use a more powerful machine running Gentoo to [create a binary package](https://wiki.gentoo.org/wiki/Binary_package_guide). If you have a wait ahead of you, now would be a good time to take a break, stretch a bit, refresh your beverage of choice and/or get a snack, and reply to Arch users' posts with "I use Gentoo btw" as we do.
 
-### Install PostgreSQL
+### Setup PostgreSQL
 
 [Gentoo  Wiki article](https://wiki.gentoo.org/wiki/PostgreSQL) as well as [PostgreSQL QuickStart](https://wiki.gentoo.org/wiki/PostgreSQL/QuickStart) might be worth a quick glance, as the way Gentoo handles postgres is slightly unusual, with built in capability to have two different databases running for testing and live or whatever other purpouse. While it is still straightforward to install, it does mean that the version numbers used in this guide might change for future updates, so keep an eye out for the output you get from `emerge` to ensure you are using the correct ones.
-
-* Install postgresql if you have not done so already:
-
-```
-# emerge --ask dev-db/postgresql
-```
-
-Ensure that `/etc/conf.d/postgresql-11` has the encoding you want (it defaults to UTF8 which is probably what you want) and make any adjustments to the data directory if you find it necessary. Be sure to adjust the number at the end depending on what version of postgres you actually installed.
 
 * Initialize the database cluster
 
 The output from emerging postgresql should give you a command for initializing the postgres database. The default slot should be indicated in this command, ensure that it matches the command below.
 
 ```
-# emerge --config dev-db/postgresql:11
+# emerge --config dev-db/postgresql:18
 ```
 
-* Start postgres and enable the system service
+* Enable PostgreSQL service and start it. Match the version number with the PostgreSQL you've installed (likely the default slot).
 
 ```
-# /etc/init.d/postgresql-11 start
-# rc-update add postgresql-11 default
- ```
+# rc-update add postgresql-18
+# rc-service postgresql-18 start
+```
 
 ### A note on licenses, the AGPL, and deployment procedures
 
@@ -94,7 +86,9 @@ If you do not plan to make any modifications to your Pleroma instance, cloning d
 
 Not only does this make it much easier to deploy changes you make, as you can commit and pull from upstream and all that good stuff from the comfort of your local machine then simply `git pull` on your instance server when you're ready to deploy, it also ensures you are compliant with the Affero General Public Licence that Pleroma is licenced under, which stipulates that all network services provided with modified AGPL code must publish their changes on a publicly available internet service and for free. It also makes it much easier to ask for help from and provide help to your fellow Pleroma admins if your public repo always reflects what you are running because it is part of your deployment procedure.
 
-### Install media / graphics packages (optional, see [`docs/installation/optional/media_graphics_packages.md`](docs/installation/optional/media_graphics_packages.md))
+### Install media / graphics packages (optional)
+
+See [Optional software packages needed for specific functionality](optional/media_graphics_packages.md) for details.
 
 ```
 # emerge --ask media-video/ffmpeg media-gfx/imagemagick media-libs/exiftool
@@ -229,23 +223,19 @@ Replace all instances of `example.tld` with your instance's public URL. If for w
 
 Pay special attention to the line that begins with `ssl_ecdh_curve`. It is stongly advised to comment that line out so that OpenSSL will use its full capabilities, and it is also possible you are running OpenSSL 1.0.2 necessitating that you do this.
 
-* (Strongly recommended) serve media on another domain
-
-Refer to the [Hardening your instance](../configuration/hardening.md) document on how to serve media on another domain. We STRONGLY RECOMMEND you to do this to minimize attack vectors.
-
 * Enable and start nginx:
 
 ```
 # rc-update add nginx default
-# /etc/init.d/nginx start
+# rc-service nginx start
 ```
 
-If you are using certbot, it is HIGHLY recommend you set up a cron job that renews your certificate, and that you install the suggested `certbot-nginx` plugin. If you don't do these things, you only have yourself to blame when your instance breaks suddenly because you forgot about it.
+If you are using certbot, it is HIGHLY recommended you set up a cron job that renews your certificate, and that you install the suggested `certbot-nginx` plugin. If you don't do these things, you only have yourself to blame when your instance breaks suddenly because you forgot about it.
 
 First, ensure that the command you will be installing into your crontab works.
 
 ```
-# /usr/bin/certbot renew --nginx
+# certbot renew --nginx
 ```
 
 Assuming not much time has passed since you got certbot working a few steps ago, you should get a message for all domains you installed certificates for saying `Cert not yet due for renewal`.
@@ -284,7 +274,7 @@ Even if you are using S3, Pleroma needs someplace to store media posted on your 
 
 ```
 # rc-update add pleroma default
-# /etc/init.d/pleroma start
+# rc-service pleroma start
 ```
 
 #### Create your first user
