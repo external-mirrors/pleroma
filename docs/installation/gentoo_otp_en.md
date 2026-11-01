@@ -193,7 +193,7 @@ Pay special attention to the line that begins with `ssl_ecdh_curve`. It is stong
 
 ```
 # rc-update add nginx default
-# /etc/init.d/nginx start
+# rc-service nginx start
 ```
 
 If you are using certbot, it is HIGHLY recommended you set up a cron job that renews your certificate, and that you install the suggested `certbot-nginx` plugin. If you don't do these things, you only have yourself to blame when your instance breaks suddenly because you forgot about it.
