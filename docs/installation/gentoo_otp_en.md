@@ -201,7 +201,7 @@ If you are using certbot, it is HIGHLY recommended you set up a cron job that re
 First, ensure that the command you will be installing into your crontab works.
 
 ```
-# /usr/bin/certbot renew --nginx
+# certbot renew --nginx
 ```
 
 Assuming not much time has passed since you got certbot working a few steps ago, you should get a message for all domains you installed certificates for saying `Cert not yet due for renewal`.
