@@ -125,7 +125,7 @@ defmodule Pleroma.Constants do
   )
 
   const(object_types,
-    do: ~w[Event Question Answer Audio Video Image Article Note Page ChatMessage]
+    do: ~w[Event Question Answer Audio Video Image Article Note Page ChatMessage ActorStatus]
   )
 
   # basic regex, just there to weed out potential mistakes

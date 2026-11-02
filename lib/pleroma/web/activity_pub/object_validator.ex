@@ -19,6 +19,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   alias Pleroma.Object.Containment
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ObjectValidators.AcceptRejectValidator
+  alias Pleroma.Web.ActivityPub.ObjectValidators.ActorStatusValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.AddRemoveValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.AnnounceValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.AnswerValidator
@@ -115,7 +116,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
         %{"type" => "Create", "object" => %{"type" => objtype} = object} = create_activity,
         meta
       )
-      when objtype in ~w[Question Answer Audio Video Image Event Article Note Page] do
+      when objtype in ~w[Question Answer Audio Video Image Event Article Note Page ActorStatus] do
     with {:ok, object_data} <-
            object
            |> CommonFixes.maybe_set_attributed_to_from_activity(create_activity)
@@ -132,7 +133,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   end
 
   def validate(%{"type" => type} = object, meta)
-      when type in ~w[Event Question Audio Video Image Article Note Page] do
+      when type in ~w[Event Question Audio Video Image Article Note Page ActorStatus] do
     validator =
       case type do
         "Event" -> EventValidator
@@ -143,6 +144,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
         "Article" -> ArticleNotePageValidator
         "Note" -> ArticleNotePageValidator
         "Page" -> ArticleNotePageValidator
+        "ActorStatus" -> ActorStatusValidator
       end
 
     with {:ok, object} <-
@@ -276,7 +278,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
     EventValidator.cast_and_apply(object)
   end
 
-  def cast_and_apply(%{"type" => type} = object) when type in ~w[Article Note Page] do
+  def cast_and_apply(%{"type" => type} = object) when type in ~w[Article Note Page ActorStatus] do
     ArticleNotePageValidator.cast_and_apply(object)
   end
 
