@@ -393,4 +393,28 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
       }
     }
   end
+
+  def uploaded_media_operation do
+    %Operation{
+      tags: ["Media"],
+      summary: "List uploaded media",
+      security: [%{"oAuth" => ["read:accounts"]}],
+      operationId: "PleromaAPI.UtilController.uploaded_media",
+      responses: %{
+        200 =>
+          Operation.response("Success", "application/json", %Schema{
+            type: :object,
+            properties: %{
+              aliases: %Schema{
+                type: :array,
+                items: %Schema{type: :string},
+                example: ["foo@example.org"]
+              }
+            }
+          }),
+        400 => Operation.response("Error", "application/json", ApiError),
+        403 => Operation.response("Error", "application/json", ApiError)
+      }
+    }
+  end
 end

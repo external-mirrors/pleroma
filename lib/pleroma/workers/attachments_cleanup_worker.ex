@@ -17,6 +17,7 @@ defmodule Pleroma.Workers.AttachmentsCleanupWorker do
           "object" => %{"data" => %{"attachment" => [_ | _] = attachments, "actor" => actor}}
         }
       }) do
+
     if Pleroma.Config.get([:instance, :cleanup_attachments], false) do
       attachments
       |> Enum.flat_map(fn item -> Enum.map(item["url"], & &1["href"]) end)
@@ -24,6 +25,41 @@ defmodule Pleroma.Workers.AttachmentsCleanupWorker do
       |> prepare_objects(actor, Enum.map(attachments, & &1["name"]))
       |> filter_objects
       |> do_clean
+    end
+
+    {:ok, :success}
+  end
+
+  def perform(%Job{
+        args: %{
+          "op" => "cleanup_attachments",
+          "object" => %{"data" => %{ "type" => "Document", "url" => [%{"href" => href}]}} = object_data
+        }
+      }) do
+
+    if Pleroma.Config.get([:instance, :cleanup_attachments], false) do
+      clean_href = %URI{ URI.parse(href) | query: nil } |> URI.to_string()
+
+      same_attachment_count = Pleroma.Upload.list_duplicate_attachments(object_data)
+
+      # No copies of this attachment in the database
+      if same_attachment_count == 0 do
+        attachment_post_ids = Pleroma.Upload.list_objects_with_attachment(clean_href)
+        # No posts with this attachment, either
+        if attachment_post_ids == [] do
+          base_url =
+             String.trim_trailing(
+               Pleroma.Upload.base_url(),
+               "/"
+             )
+
+        uploader = Pleroma.Config.get([Pleroma.Upload, :uploader])
+
+        clean_href
+        |> String.trim_leading("#{base_url}")
+        |> uploader.delete_file()
+      end
+      end
     end
 
     {:ok, :success}
@@ -61,6 +97,8 @@ defmodule Pleroma.Workers.AttachmentsCleanupWorker do
   # we should delete 1 object for any given attachment, but don't delete
   # files if there are more than 1 object for it
   defp filter_objects(objects) do
+    IO.inspect(objects)
+
     Enum.reduce(objects, {[], []}, fn {href, %{id: id, count: count}}, {ids, hrefs} ->
       with 1 <- count do
         {ids ++ [id], hrefs ++ [href]}

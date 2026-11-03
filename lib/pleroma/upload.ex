@@ -34,9 +34,15 @@ defmodule Pleroma.Upload do
 
   """
   alias Ecto.UUID
+  alias Pleroma.Repo
+  alias Pleroma.Object
   alias Pleroma.Maps
+  alias Pleroma.Pagination
   alias Pleroma.Utils.URIEncoding
   alias Pleroma.Web.ActivityPub.Utils
+
+  import Ecto.Query
+
   require Logger
 
   @type source ::
@@ -300,5 +306,39 @@ defmodule Pleroma.Upload do
       _ ->
         public_endpoint || upload_base_url
     end
+  end
+
+  def list_duplicate_attachments(%{"id" => id, "url" => [%{"href" => href}]}) do
+    clean_href = %URI{ URI.parse(href) | query: nil } |> URI.to_string()
+
+    same_attachment_count =
+      from(
+        o in Object,
+        where: fragment("STARTS_WITH((?)->'url'->0->>'href', (?))", o.data, ^clean_href) and fragment("(?)->>'id' <> (?)", o.data, ^id),
+      ) |> Repo.all()
+  end
+
+  def list_objects_with_attachment(href) do
+    clean_href = %URI{ URI.parse(href) | query: nil } |> URI.to_string()
+
+    # Ugly as sin, but I could not figure out a better way to do this in ecto
+    # This tries to find any objects with this attachment
+    # This DOES NOT handle chat messages and SKIPS them, because they have attachments as an object instead of an array
+    Repo.query!(
+        """
+            SELECT * FROM
+            (SELECT objects.data->>'id' AS id, jsonb_array_elements(objects.data->'attachment') as json_attachments FROM objects WHERE jsonb_typeof(objects.data->'attachment') = 'array')
+            WHERE STARTS_WITH(json_attachments->'url'->0->>'href', $1)
+        """,
+        [clean_href]
+    ).rows |> Enum.map(&List.first(&1))
+  end
+
+  def list_uploaded_by(user, offset, limit) do
+    from(obj in Object,
+         where: fragment("(?)->>'type' = ?", obj.data, "Document") and fragment("(?)->>'actor' = ?", obj.data, ^user.ap_id),
+         order_by: [desc: obj.id]
+    )
+    |> Pagination.fetch_paginated(%{"offset" => offset, "limit" => limit}, :offset)
   end
 end
