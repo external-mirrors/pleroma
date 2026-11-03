@@ -79,6 +79,7 @@ defmodule Pleroma.Web.MastodonAPI.MediaController do
     end
   end
 
+  @doc "DELETE /api/v1/media/:id"
   def delete(
         %{
           assigns: %{user: user},
@@ -88,11 +89,17 @@ defmodule Pleroma.Web.MastodonAPI.MediaController do
       ) do
     with %Object{} = object <- Object.get_by_id(id),
          :ok <- Object.authorize_access(object, user),
+         href <- object.data["url"] |> List.first |> Map.get("href"),
+         {:used, []} <- {:used, Pleroma.Upload.list_objects_with_attachment(href)},
          {:ok, _, _} <- Object.delete(object) do
-
       conn
       |> put_resp_header("content-type", "text/plain")
       |> send_resp(200, "")
+    else
+      {:used, list} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Refusing to delete attachment that is still used by #{Enum.count(list)} objects"})
     end
   end
 

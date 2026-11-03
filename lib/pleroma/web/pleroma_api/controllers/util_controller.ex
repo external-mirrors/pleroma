@@ -286,7 +286,12 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
       Pleroma.Upload.list_uploaded_by(user, 0, 50)
       |> Enum.map(
         fn %Pleroma.Object{ id: id, data: %{ "url" => [ mediaUrl ], "name" => name }, inserted_at: uploaded } ->
-          Map.merge(%{ id: id, uploaded: uploaded, name: name }, mediaUrl) |> Map.drop(["type"]) end
+          %{
+            uploaded: uploaded, attachment: %{
+              description: name, id: to_string(id), url: mediaUrl["href"], pleroma: %{ mime_type: mediaUrl["mediaType"] }, type: "unknown"
+            }
+          }
+        end
       )
 
     json(conn, result)

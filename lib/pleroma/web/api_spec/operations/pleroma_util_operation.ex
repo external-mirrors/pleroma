@@ -397,7 +397,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
   def uploaded_media_operation do
     %Operation{
       tags: ["Media"],
-      summary: "List uploaded media",
+      summary: "List media uploaded by the current user",
       security: [%{"oAuth" => ["read:accounts"]}],
       operationId: "PleromaAPI.UtilController.uploaded_media",
       responses: %{
@@ -411,9 +411,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
                 example: ["foo@example.org"]
               }
             }
-          }),
-        400 => Operation.response("Error", "application/json", ApiError),
-        403 => Operation.response("Error", "application/json", ApiError)
+          })
       }
     }
   end
