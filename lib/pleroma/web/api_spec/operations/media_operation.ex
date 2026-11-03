@@ -83,7 +83,8 @@ defmodule Pleroma.Web.ApiSpec.MediaOperation do
       security: [%{"oAuth" => ["write:media"]}],
       parameters: [id_param()],
       responses: %{
-        200 => Operation.response("Media", "application/json", Attachment),
+        200 => Operation.response("Media", "text/plain", nil),
+        400 => Operation.response("Media", "application/json", ApiError)
       }
     }
   end
