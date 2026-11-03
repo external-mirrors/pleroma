@@ -11,6 +11,7 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
   alias Pleroma.Emoji
   alias Pleroma.Healthcheck
   alias Pleroma.User
+  alias Pleroma.Pagination
   alias Pleroma.Utils.URIEncoding
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.Auth.WrapperAuthenticator, as: Authenticator
@@ -38,7 +39,8 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
     OAuthScopesPlug,
     %{scopes: ["read:accounts"]}
     when action in [
-           :list_aliases
+           :list_aliases,
+           :uploaded_media
          ]
   )
 
@@ -273,5 +275,20 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
     conn
     |> put_status(:service_unavailable)
     |> json(info)
+  end
+
+  def uploaded_media(
+        %{assigns: %{user: user}} = conn,
+        _
+      ) do
+
+    result =
+      Pleroma.Upload.list_uploaded_by(user, 0, 50)
+      |> Enum.map(
+        fn %Pleroma.Object{ id: id, data: %{ "url" => [ mediaUrl ], "name" => name }, inserted_at: uploaded } ->
+          Map.merge(%{ id: id, uploaded: uploaded, name: name }, mediaUrl) |> Map.drop(["type"]) end
+      )
+
+    json(conn, result)
   end
 end

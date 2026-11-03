@@ -7,6 +7,7 @@ defmodule Pleroma.Web.MastodonAPI.MediaController do
 
   alias Pleroma.Object
   alias Pleroma.User
+  alias Pleroma.Repo
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.Plugs.OAuthScopesPlug
 
@@ -78,13 +79,51 @@ defmodule Pleroma.Web.MastodonAPI.MediaController do
     end
   end
 
+  def delete(
+        %{
+          assigns: %{user: user},
+          private: %{open_api_spex: %{params: %{id: id}}}
+        } = conn,
+        _
+      ) do
+    with %Object{} = object <- Object.get_by_id(id),
+         :ok <- Object.authorize_access(object, user),
+         {:ok, _, _} <- Object.delete(object) do
+
+      conn
+      |> put_resp_header("content-type", "text/plain")
+      |> send_resp(200, "")
+    end
+  end
+
   def update(conn, data), do: show(conn, data)
 
   @doc "GET /api/v1/media/:id"
-  def show(%{assigns: %{user: user}, private: %{open_api_spex: %{params: %{id: id}}}} = conn, _) do
+  def show(%{assigns: %{user: user}, private: %{open_api_spex: %{params: %{id: id, attachment_usage: attachment_usage}}}} = conn, _) do
     with %Object{data: data, id: object_id} = object <- Object.get_by_id(id),
          :ok <- Object.authorize_access(object, user) do
+
       attachment_data = Map.put(data, "id", object_id)
+      attachment_data =
+        if attachment_usage do
+          href = data["url"] |> List.first |> Map.get("href")
+          used_in_objects = Pleroma.Upload.list_objects_with_attachment(href)
+
+          attachment_duplicates =
+            Pleroma.Upload.list_duplicate_attachments(object.data)
+            |> Enum.group_by(& if &1.data["actor"] == user.ap_id, do: :own, else: :other)
+            |> Map.new(fn {key, val} -> {key, length(val)} end)
+
+          put_in(
+            attachment_data["usage"],
+            %{
+              objects: used_in_objects,
+              duplicates: attachment_duplicates
+            }
+          )
+        else
+          attachment_data
+        end
 
       render(conn, "attachment.json", %{attachment: attachment_data})
     end

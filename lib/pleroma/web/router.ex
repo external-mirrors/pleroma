@@ -583,6 +583,8 @@ defmodule Pleroma.Web.Router do
     put("/aliases", UtilController, :add_alias)
     get("/aliases", UtilController, :list_aliases)
     delete("/aliases", UtilController, :delete_alias)
+
+    get("/uploaded_media", UtilController, :uploaded_media)
   end
 
   scope "/api/pleroma", Pleroma.Web.PleromaAPI do
@@ -803,6 +805,7 @@ defmodule Pleroma.Web.Router do
     post("/media", MediaController, :create)
     get("/media/:id", MediaController, :show)
     put("/media/:id", MediaController, :update)
+    delete("/media/:id", MediaController, :delete)
 
     get("/notifications", NotificationController, :index)
     get("/notifications/:id", NotificationController, :show)

@@ -8,6 +8,7 @@ defmodule Pleroma.Web.ApiSpec.MediaOperation do
   alias Pleroma.Web.ApiSpec.Helpers
   alias Pleroma.Web.ApiSpec.Schemas.ApiError
   alias Pleroma.Web.ApiSpec.Schemas.Attachment
+  alias Pleroma.Web.ApiSpec.Schemas.BooleanLike
 
   def open_api_operation(action) do
     operation = String.to_existing_atom("#{action}_operation")
@@ -73,6 +74,20 @@ defmodule Pleroma.Web.ApiSpec.MediaOperation do
     }
   end
 
+  def delete_operation do
+    %Operation{
+      tags: ["Media attachments"],
+      summary: "Delete attachment",
+      description: "Deletes an attachment.",
+      operationId: "MediaController.delete",
+      security: [%{"oAuth" => ["write:media"]}],
+      parameters: [id_param()],
+      responses: %{
+        200 => Operation.response("Media", "application/json", Attachment),
+      }
+    }
+  end
+
   defp update_request do
     %Schema{
       title: "MediaUpdateRequest",
@@ -101,7 +116,15 @@ defmodule Pleroma.Web.ApiSpec.MediaOperation do
       tags: ["Media attachments"],
       summary: "Attachment",
       operationId: "MediaController.show",
-      parameters: [id_param()],
+      parameters: [
+        id_param(),
+        Operation.parameter(
+          :attachment_usage,
+          :query,
+          %Schema{type: :boolean, default: false},
+          "Whether to include known usages of attachment"
+        )
+      ],
       security: [%{"oAuth" => ["read:media"]}],
       responses: %{
         200 => Operation.response("Media", "application/json", Attachment),
