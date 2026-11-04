@@ -343,8 +343,7 @@ defmodule Pleroma.Upload do
       where:
         fragment("(?)->>'type' = ?", obj.data, "Document") and
           fragment("(?)->>'actor' = ?", obj.data, ^user.ap_id),
-      order_by: [desc: obj.id]
-    )
-    |> Pagination.fetch_paginated(%{"offset" => offset, "limit" => limit}, :offset)
+      order_by: [desc: obj.id], limit: ^limit, offset: ^offset
+    ) |> Repo.all()
   end
 end
