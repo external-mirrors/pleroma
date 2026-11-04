@@ -10,8 +10,8 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
   alias Pleroma.Config
   alias Pleroma.Emoji
   alias Pleroma.Healthcheck
-  alias Pleroma.User
   alias Pleroma.Pagination
+  alias Pleroma.User
   alias Pleroma.Utils.URIEncoding
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.Auth.WrapperAuthenticator, as: Authenticator
@@ -285,7 +285,7 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
       Pleroma.Upload.list_uploaded_by(user, offset, 50)
       |> Enum.map(fn %Pleroma.Object{
                        id: id,
-                       data: %{"url" => [mediaUrl], "name" => name},
+                       data: %{"url" => [media_url], "name" => name},
                        inserted_at: uploaded
                      } ->
         %{
@@ -293,8 +293,8 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
           attachment: %{
             description: name,
             id: to_string(id),
-            url: mediaUrl["href"],
-            pleroma: %{mime_type: mediaUrl["mediaType"]},
+            url: media_url["href"],
+            pleroma: %{mime_type: media_url["mediaType"]},
             type: "unknown"
           }
         }
