@@ -117,7 +117,8 @@ defmodule Pleroma.Web.MastodonAPI.InstanceViewTest do
     "pleroma:get:main/ostatus",
     "pleroma:group_actors",
     "pleroma:bookmark_folders",
-    "pleroma:block_expiration"
+    "pleroma:block_expiration",
+    "pleroma:user_media_management"
   ]
 
   @configurable_features [
