@@ -417,7 +417,9 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
               type: :object,
               properties: %{
                 uploaded: %Schema{
-                  type: :string, description: "Date and time when the attachment was uploaded", format: :"date-time"
+                  type: :string,
+                  description: "Date and time when the attachment was uploaded",
+                  format: :"date-time"
                 },
                 attachment: Attachment
               }

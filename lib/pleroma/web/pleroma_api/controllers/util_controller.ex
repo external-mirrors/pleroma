@@ -278,21 +278,27 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
   end
 
   def uploaded_media(
-        %{assigns: %{user: user}, private: %{open_api_spex: %{params: %{ offset: offset }}}} = conn,
+        %{assigns: %{user: user}, private: %{open_api_spex: %{params: %{offset: offset}}}} = conn,
         _
       ) do
-
     result =
       Pleroma.Upload.list_uploaded_by(user, offset, 50)
-      |> Enum.map(
-        fn %Pleroma.Object{ id: id, data: %{ "url" => [ mediaUrl ], "name" => name }, inserted_at: uploaded } ->
-          %{
-            uploaded: uploaded, attachment: %{
-              description: name, id: to_string(id), url: mediaUrl["href"], pleroma: %{ mime_type: mediaUrl["mediaType"] }, type: "unknown"
-            }
+      |> Enum.map(fn %Pleroma.Object{
+                       id: id,
+                       data: %{"url" => [mediaUrl], "name" => name},
+                       inserted_at: uploaded
+                     } ->
+        %{
+          uploaded: uploaded,
+          attachment: %{
+            description: name,
+            id: to_string(id),
+            url: mediaUrl["href"],
+            pleroma: %{mime_type: mediaUrl["mediaType"]},
+            type: "unknown"
           }
-        end
-      )
+        }
+      end)
 
     json(conn, result)
   end
