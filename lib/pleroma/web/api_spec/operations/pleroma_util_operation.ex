@@ -7,6 +7,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
   alias OpenApiSpex.Schema
   alias Pleroma.Web.ApiSpec.Schemas.ApiError
   alias Pleroma.Web.ApiSpec.Schemas.BooleanLike
+  alias Pleroma.Web.ApiSpec.Schemas.Attachment
 
   import Pleroma.Web.ApiSpec.Helpers
 
@@ -396,19 +397,29 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
 
   def uploaded_media_operation do
     %Operation{
-      tags: ["Media"],
+      tags: ["Media attachments"],
       summary: "List media uploaded by the current user",
       security: [%{"oAuth" => ["read:accounts"]}],
       operationId: "PleromaAPI.UtilController.uploaded_media",
+      parameters: [
+        Operation.parameter(
+          :offset,
+          :query,
+          %Schema{type: :integer, default: 0},
+          "Offset for uploaded media pagination"
+        )
+      ],
       responses: %{
         200 =>
           Operation.response("Success", "application/json", %Schema{
-            type: :object,
-            properties: %{
-              aliases: %Schema{
-                type: :array,
-                items: %Schema{type: :string},
-                example: ["foo@example.org"]
+            type: :array,
+            items: %Schema{
+              type: :object,
+              properties: %{
+                uploaded: %Schema{
+                  type: :string, description: "Date and time when the attachment was uploaded", format: :"date-time"
+                },
+                attachment: Attachment
               }
             }
           })
