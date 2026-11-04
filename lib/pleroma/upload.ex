@@ -34,10 +34,10 @@ defmodule Pleroma.Upload do
 
   """
   alias Ecto.UUID
-  alias Pleroma.Repo
-  alias Pleroma.Object
   alias Pleroma.Maps
+  alias Pleroma.Object
   alias Pleroma.Pagination
+  alias Pleroma.Repo
   alias Pleroma.Utils.URIEncoding
   alias Pleroma.Web.ActivityPub.Utils
 
@@ -326,11 +326,13 @@ defmodule Pleroma.Upload do
 
     # Ugly as sin, but I could not figure out a better way to do this in ecto
     # This tries to find any objects with this attachment
-    # This DOES NOT handle chat messages and SKIPS them, because they have attachments as an object instead of an array
+    # This DOES NOT handle chat messages and SKIPS them,
+    # because they have attachments as an object instead of an array
     Repo.query!(
       """
           SELECT * FROM
-          (SELECT objects.data->>'id' AS id, jsonb_array_elements(objects.data->'attachment') as json_attachments FROM objects WHERE jsonb_typeof(objects.data->'attachment') = 'array')
+          (SELECT objects.data->>'id' AS id, jsonb_array_elements(objects.data->'attachment') as json_attachments FROM objects
+              WHERE jsonb_typeof(objects.data->'attachment') = 'array')
           WHERE STARTS_WITH(json_attachments->'url'->0->>'href', $1)
       """,
       [clean_href]
@@ -343,7 +345,10 @@ defmodule Pleroma.Upload do
       where:
         fragment("(?)->>'type' = ?", obj.data, "Document") and
           fragment("(?)->>'actor' = ?", obj.data, ^user.ap_id),
-      order_by: [desc: obj.id], limit: ^limit, offset: ^offset
-    ) |> Repo.all()
+      order_by: [desc: obj.id],
+      limit: ^limit,
+      offset: ^offset
+    )
+    |> Repo.all()
   end
 end

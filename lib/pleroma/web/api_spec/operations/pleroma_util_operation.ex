@@ -6,8 +6,8 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
   alias OpenApiSpex.Operation
   alias OpenApiSpex.Schema
   alias Pleroma.Web.ApiSpec.Schemas.ApiError
-  alias Pleroma.Web.ApiSpec.Schemas.BooleanLike
   alias Pleroma.Web.ApiSpec.Schemas.Attachment
+  alias Pleroma.Web.ApiSpec.Schemas.BooleanLike
 
   import Pleroma.Web.ApiSpec.Helpers
 
