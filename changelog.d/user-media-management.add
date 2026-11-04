@@ -1,0 +1,1 @@
+Added information about duplicates and usage when fetching attachments and allow to delete said attachments via `DELETE /api/v1/media/:id`
