@@ -1,0 +1,13 @@
+{
+  "actor": "http://localhost:4001/users/nick192",
+  "attachment": [],
+  "attributedTo": "http://localhost:4001/users/nick192",
+  "content": "Eating corndog on the history route!",
+  "context": "http://localhost:4001/contexts/7badba5a-6ee2-43d2-a483-9351b3c122d4",
+  "conversation": "http://localhost:4001/contexts/7badba5a-6ee2-43d2-a483-9351b3c122d4",
+  "id": "http://localhost:4001/objects/26be0f38-5ea0-420f-8304-59803f234a81",
+  "published": "2026-11-07T23:48:37.434303Z",
+  "tag": [],
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "type": "ActorStatus"
+}

@@ -1734,6 +1734,20 @@ defmodule Pleroma.Web.CommonAPITest do
     end
   end
 
+  describe "actor_status/2" do
+    test "returns valid activity" do
+      user = insert(:user)
+      content = "Pleroma-tan eating corndog on the historic route!"
+
+      {:ok, activity} = CommonAPI.actor_status(user, %{content: content})
+
+      object = Object.normalize(activity, fetch: false)
+
+      assert object.data["content"] == content
+      assert Visibility.get_visibility(activity) == "public"
+    end
+  end
+
   describe "get_user/1" do
     test "gets user by ap_id" do
       user = insert(:user)

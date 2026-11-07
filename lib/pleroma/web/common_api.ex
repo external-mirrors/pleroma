@@ -511,6 +511,13 @@ defmodule Pleroma.Web.CommonAPI do
     end
   end
 
+  @spec actor_status(User.t(), map()) :: {:ok, Activity.t()} | {:error, any()}
+  def actor_status(user, %{content: _} = data) do
+    with {:ok, draft} <- ActivityDraft.actor_status(user, data) do
+      ActivityPub.actor_status(draft.changes)
+    end
+  end
+
   @spec pin(String.t(), User.t()) :: {:ok, Activity.t()} | Pipeline.errors()
   def pin(id, %User{} = user) do
     with %Activity{} = activity <- create_activity_by_id(id),

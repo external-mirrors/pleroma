@@ -102,6 +102,29 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     %{draft | object: object}
   end
 
+  def actor_status(user, params) do
+    user
+    |> new(params)
+    |> visibility()
+    |> to_and_cc()
+    |> actor_status_object()
+    |> with_valid(&changes/1)
+    |> validate()
+  end
+
+  defp actor_status_object(%__MODULE__{} = draft) do
+    object =
+      %{}
+      |> Map.put("content", Map.get(draft.params, :content))
+      |> Map.put("type", "ActorStatus")
+      # ActorStatus does not support audience scoping
+      |> Map.put("to", ["https://www.w3.org/ns/activitystreams#Public"])
+      # Internal to Pleroma, not used by FEP-82f6
+      |> Map.put("actor", draft.user.ap_id)
+
+    %{draft | object: object}
+  end
+
   defp put_params(%__MODULE__{} = draft, params) do
     params = Map.put_new(params, :in_reply_to_status_id, params[:in_reply_to_id])
     %{draft | params: params}

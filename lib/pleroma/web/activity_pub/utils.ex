@@ -26,6 +26,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   require Pleroma.Constants
 
   @supported_object_types [
+    "ActorStatus",
     "Article",
     "Note",
     "Event",
@@ -727,6 +728,20 @@ defmodule Pleroma.Web.ActivityPub.Utils do
       "object" => params.object,
       "published" => published,
       "context" => params.context
+    }
+    |> Map.merge(additional)
+  end
+
+  #### ActorStatus-related helpers
+  def make_actor_status_data(params, additional) do
+    published = params.published || make_date()
+
+    %{
+      "type" => "Create",
+      "to" => params.to |> Enum.uniq(),
+      "actor" => params.actor.ap_id,
+      "object" => params.object,
+      "published" => published
     }
     |> Map.merge(additional)
   end

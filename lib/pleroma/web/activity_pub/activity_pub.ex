@@ -361,6 +361,26 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     end
   end
 
+  @spec actor_status(map()) :: {:ok, Activity.t()} | {:error, any()}
+  def actor_status(%{to: to, actor: actor, object: object} = params) do
+    additional = params[:additional] || %{}
+    # only accept false as false value
+    local = !(params[:local] == false)
+    published = params[:published]
+
+    actor_status_data =
+      make_actor_status_data(
+        %{to: to, actor: actor, object: object, published: published},
+        additional
+      )
+
+    with {:ok, activity} <- insert(actor_status_data, local),
+         _ <- notify_and_stream(activity),
+         :ok <- maybe_federate(activity) do
+      {:ok, activity}
+    end
+  end
+
   @spec unfollow(User.t(), User.t(), String.t() | nil, boolean()) ::
           {:ok, Activity.t()} | nil | {:error, any()}
   def unfollow(follower, followed, activity_id \\ nil, local \\ true) do

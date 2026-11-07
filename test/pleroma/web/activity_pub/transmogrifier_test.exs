@@ -240,6 +240,27 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       assert Object.normalize(activity)
     end
 
+    test "it accepts actor statuses (Pleroma-created)" do
+      user = insert(:user)
+
+      object =
+        File.read!("test/fixtures/actor_status/pleroma-created.json")
+        |> Jason.decode!()
+        |> Map.replace!("actor", user.ap_id)
+        |> Map.replace!("attributedTo", user.ap_id)
+
+      message = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Create",
+        "actor" => user.ap_id,
+        "object" => object
+      }
+
+      assert {:ok, activity} = Transmogrifier.handle_incoming(message)
+
+      assert Object.normalize(activity)
+    end
+
     test "doesn't allow remote edits to fake local likes" do
       # as a spot check for no internal fields getting injected
       now = DateTime.utc_now()
