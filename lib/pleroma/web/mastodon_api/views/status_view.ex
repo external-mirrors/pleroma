@@ -658,7 +658,6 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
     pleroma =
       %{mime_type: media_type}
       |> Maps.put_if_present(:name, name)
-      |> Maps.put_if_present(:usage, attachment["usage"])
 
     %{
       id: attachment_id,

@@ -428,4 +428,28 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
       }
     }
   end
+
+  def uploaded_media_usage_operation do
+    %Operation{
+      tags: ["Media attachments"],
+      summary: "Show usage information of specified attachment",
+      operationId: "PleromaAPI.UtilController.uploaded_media_usage",
+      parameters: [
+        Operation.parameter(:id, :path, :string, "The ID of the Attachment entity")
+      ],
+      security: [%{"oAuth" => ["read:media"]}],
+      responses: %{
+        200 =>
+          Operation.response("Media", "application/json", %Schema{
+            type: :object,
+            example: %{
+              objects: ["id1", "id2"],
+              duplicates: %{own: 1, other: 1}
+            }
+          }),
+        429 =>
+          Operation.response("Media", "text/plain", %Schema{type: :string, example: "Throttled"})
+      }
+    }
+  end
 end

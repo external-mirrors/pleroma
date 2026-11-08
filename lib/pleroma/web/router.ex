@@ -585,6 +585,7 @@ defmodule Pleroma.Web.Router do
     delete("/aliases", UtilController, :delete_alias)
 
     get("/uploaded_media", UtilController, :uploaded_media)
+    get("/uploaded_media/:id", UtilController, :uploaded_media_usage)
   end
 
   scope "/api/pleroma", Pleroma.Web.PleromaAPI do

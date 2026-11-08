@@ -10,7 +10,7 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
   alias Pleroma.Config
   alias Pleroma.Emoji
   alias Pleroma.Healthcheck
-  alias Pleroma.Pagination
+  alias Pleroma.Object
   alias Pleroma.User
   alias Pleroma.Utils.URIEncoding
   alias Pleroma.Web.ActivityPub.ActivityPub
@@ -40,8 +40,14 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
     %{scopes: ["read:accounts"]}
     when action in [
            :list_aliases,
-           :uploaded_media
+           :uploaded_media,
+           :uploaded_media_usage
          ]
+  )
+
+  plug(
+    Pleroma.Web.Plugs.RateLimiter,
+    [name: :uploaded_media_usage] when action == :uploaded_media_usage
   )
 
   defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.PleromaUtilOperation
@@ -277,6 +283,7 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
     |> json(info)
   end
 
+  @doc "GET /api/pleroma/uploaded_media"
   def uploaded_media(
         %{assigns: %{user: user}, private: %{open_api_spex: %{params: %{offset: offset}}}} = conn,
         _
@@ -301,5 +308,30 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
       end)
 
     json(conn, result)
+  end
+
+  @doc "GET /api/pleroma/uploaded_media/:id"
+  def uploaded_media_usage(
+        %{
+          assigns: %{user: user},
+          private: %{open_api_spex: %{params: %{id: id}}}
+        } = conn,
+        _
+      ) do
+    with %Object{data: data, id: object_id} = object <- Object.get_by_id(id),
+         :ok <- Object.authorize_access(object, user) do
+      href = data["url"] |> List.first() |> Map.get("href")
+      used_in_objects = Pleroma.Upload.list_objects_with_attachment(href)
+
+      attachment_duplicates =
+        Pleroma.Upload.list_duplicate_attachments(object.data)
+        |> Enum.group_by(&if &1.data["actor"] == user.ap_id, do: :own, else: :other)
+        |> Map.new(fn {key, val} -> {key, length(val)} end)
+
+      json(conn, %{
+        objects: used_in_objects,
+        duplicates: attachment_duplicates
+      })
+    end
   end
 end
