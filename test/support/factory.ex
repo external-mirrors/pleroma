@@ -222,6 +222,23 @@ defmodule Pleroma.Factory do
     }
   end
 
+  def actor_status_factory do
+    user = insert(:user)
+    content = sequence(:content, &"Watching lain episode #{&1}")
+
+    data = %{
+      "id" => Pleroma.Web.ActivityPub.Utils.generate_activity_id(),
+      "type" => "ActorStatus",
+      "attributedTo" => user.ap_id,
+      "content" => content,
+      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+
+    %Pleroma.Object{
+      data: data
+    }
+  end
+
   def direct_note_factory do
     user2 = insert(:user, local: false, inbox: "http://example.com/inbox")
 

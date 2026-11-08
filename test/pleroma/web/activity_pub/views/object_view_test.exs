@@ -144,4 +144,24 @@ defmodule Pleroma.Web.ActivityPub.ObjectViewTest do
     assert result["object"]["type"] == "Audio"
     assert result["@context"]
   end
+
+  test "renders an actor status object" do
+    actor_status = insert(:actor_status)
+
+    result = ObjectView.render("object.json", %{object: actor_status})
+
+    assert result["id"] == actor_status.data["id"]
+    assert result["type"] == "ActorStatus"
+    assert result["attributedTo"] == actor_status.data["attributedTo"]
+    assert result["content"] == actor_status.data["content"]
+    assert result["published"] == actor_status.data["published"]
+    assert result["@context"]
+
+    [result_context] =
+      result["@context"]
+      |> Enum.filter(&is_map/1)
+
+    assert result_context["sm"] =~ "http://smithereen.software/ns#"
+    assert result_context["ActorStatus"] =~ "sm:ActorStatus"
+  end
 end

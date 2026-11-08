@@ -181,7 +181,9 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
                  "http://localhost:4001/schemas/litepub-0.1.jsonld",
                  %{
                    "@language" => "und",
-                   "htmlMfm" => "https://w3id.org/fep/c16b#htmlMfm"
+                   "htmlMfm" => "https://w3id.org/fep/c16b#htmlMfm",
+                   "ActorStatus" => "sm:ActorStatus",
+                   "sm" => "http://smithereen.software/ns#"
                  }
                ]
              }
@@ -194,7 +196,9 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
                  "http://localhost:4001/schemas/litepub-0.1.jsonld",
                  %{
                    "@language" => "pl",
-                   "htmlMfm" => "https://w3id.org/fep/c16b#htmlMfm"
+                   "htmlMfm" => "https://w3id.org/fep/c16b#htmlMfm",
+                   "ActorStatus" => "sm:ActorStatus",
+                   "sm" => "http://smithereen.software/ns#"
                  }
                ]
              }

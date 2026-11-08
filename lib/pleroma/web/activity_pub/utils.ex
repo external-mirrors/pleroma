@@ -122,7 +122,9 @@ defmodule Pleroma.Web.ActivityPub.Utils do
         "#{Endpoint.url()}/schemas/litepub-0.1.jsonld",
         %{
           "@language" => get_language(data),
-          "htmlMfm" => "https://w3id.org/fep/c16b#htmlMfm"
+          "htmlMfm" => "https://w3id.org/fep/c16b#htmlMfm",
+          "sm" => "http://smithereen.software/ns#",
+          "ActorStatus" => "sm:ActorStatus"
         }
       ]
     }
