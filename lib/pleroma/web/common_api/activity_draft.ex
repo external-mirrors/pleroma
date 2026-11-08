@@ -4,6 +4,7 @@
 
 defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   alias Pleroma.Activity
+  alias Pleroma.Config
   alias Pleroma.Conversation.Participation
   alias Pleroma.Language.LanguageDetector
   alias Pleroma.Object
@@ -107,15 +108,27 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     |> new(params)
     |> visibility()
     |> to_and_cc()
+    |> with_valid(&actor_status_content/1)
     |> actor_status_object()
     |> with_valid(&changes/1)
     |> validate()
   end
 
+  defp actor_status_content(%__MODULE__{} = draft) do
+    content = Map.get(draft.params, :content)
+    limit = Config.get([:instance, :actor_status_limit])
+
+    if String.length(content) <= limit do
+      %{draft | content_html: content}
+    else
+      add_error(draft, dgettext("errors", "Actor status length exceeds limit"))
+    end
+  end
+
   defp actor_status_object(%__MODULE__{} = draft) do
     object =
       %{}
-      |> Map.put("content", Map.get(draft.params, :content))
+      |> Map.put("content", draft.content_html)
       |> Map.put("type", "ActorStatus")
       # ActorStatus does not support audience scoping
       |> Map.put("to", ["https://www.w3.org/ns/activitystreams#Public"])

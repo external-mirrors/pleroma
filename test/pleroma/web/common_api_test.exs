@@ -1746,6 +1746,14 @@ defmodule Pleroma.Web.CommonAPITest do
       assert object.data["content"] == content
       assert Visibility.get_visibility(activity) == "public"
     end
+
+    test "enforces local limit for length" do
+      clear_config([:instance, :actor_status_limit], 100)
+
+      user = insert(:user)
+
+      assert {:error, _} = CommonAPI.actor_status(user, %{content: String.duplicate("a", 101)})
+    end
   end
 
   describe "get_user/1" do
