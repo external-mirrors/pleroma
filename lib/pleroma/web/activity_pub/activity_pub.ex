@@ -108,6 +108,9 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   defp increase_quotes_count_if_quote(_create_data), do: :noop
 
+  defp add_actor_status_to_user(actor, activity),
+    do: User.add_actor_status_object_id(actor, activity.object.id)
+
   @object_types ~w[ChatMessage Question Answer Audio Video Image Event Article Note Page ActorStatus]
   @impl true
   def persist(%{"type" => type} = object, meta) when type in @object_types do
@@ -374,10 +377,14 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
         additional
       )
 
-    with {:ok, activity} <- insert(actor_status_data, local),
+    with {_, {:ok, activity}} <- {:insert, insert(actor_status_data, local)},
+         {_, {:ok, _}} <- {:user_update, add_actor_status_to_user(actor, activity)},
          _ <- notify_and_stream(activity),
          :ok <- maybe_federate(activity) do
       {:ok, activity}
+    else
+      {:user_update, {:error, _}} -> {:error, "Failed to change actor status for user"}
+      {_, e} -> e
     end
   end
 

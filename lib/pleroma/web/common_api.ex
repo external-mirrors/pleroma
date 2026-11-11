@@ -511,6 +511,10 @@ defmodule Pleroma.Web.CommonAPI do
     end
   end
 
+  # TODO: Migrate to ActivityPub.Builder and Common Pipeline blockers:
+  # - no id for object created in Builder.create -> Validator fail
+  # - no published put into object in Builder.create -> Validator fail
+  # Both can be moved into ActivityDraft I guess, but kinda ugly.
   @spec actor_status(User.t(), map()) :: {:ok, Activity.t()} | {:error, any()}
   def actor_status(user, %{content: _} = data) do
     with {:ok, draft} <- ActivityDraft.actor_status(user, data) do

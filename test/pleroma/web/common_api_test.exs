@@ -1747,6 +1747,22 @@ defmodule Pleroma.Web.CommonAPITest do
       assert Visibility.get_visibility(activity) == "public"
     end
 
+    test "updates the user" do
+      user = insert(:user)
+      content = "Pleroma-tan eating corndog on the historic route!"
+
+      {:ok, activity} = CommonAPI.actor_status(user, %{content: content})
+
+      object = Object.normalize(activity, fetch: false)
+
+      assert object.data["content"] == content
+      assert Visibility.get_visibility(activity) == "public"
+
+      updated_user = User.get_cached_by_ap_id(user.ap_id)
+
+      assert updated_user.actor_status_id == object.id
+    end
+
     test "enforces local limit for length" do
       clear_config([:instance, :actor_status_limit], 100)
 

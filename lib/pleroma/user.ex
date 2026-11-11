@@ -163,6 +163,7 @@ defmodule Pleroma.User do
     field(:birthday, :date)
     field(:show_birthday, :boolean, default: false)
     field(:language, :string)
+    field(:actor_status_id, :integer, default: nil)
 
     embeds_one(
       :notification_settings,
@@ -535,7 +536,8 @@ defmodule Pleroma.User do
         :accepts_chat_messages,
         :pinned_objects,
         :birthday,
-        :show_birthday
+        :show_birthday,
+        :actor_status_id
       ]
     )
     |> cast(params, [:name], empty_values: [])
@@ -598,7 +600,8 @@ defmodule Pleroma.User do
         :accepts_chat_messages,
         :disclose_client,
         :birthday,
-        :show_birthday
+        :show_birthday,
+        :actor_status_id
       ]
     )
     |> validate_min_age()
@@ -2964,5 +2967,29 @@ defmodule Pleroma.User do
 
   def following_hashtag?(%User{} = user, %Hashtag{} = hashtag) do
     not is_nil(HashtagFollow.get(user, hashtag))
+  end
+
+  @spec add_actor_status_object_id(User.t(), integer()) ::
+          {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  def add_actor_status_object_id(%User{} = user, object_id) when is_integer(object_id) do
+    if user.actor_status_id == object_id do
+      user
+      |> change()
+      |> add_error(:actor_status_id, "Status already set to this object")
+    else
+      user
+      |> cast(%{actor_status_id: object_id}, [:actor_status_id])
+      |> update_and_set_cache()
+    end
+  end
+
+  @spec remove_actor_status(User.t()) :: {:ok, User.t()} | {:error, term()}
+  def remove_actor_status(%User{} = user) do
+    user
+    |> cast(
+      nil,
+      [:actor_status_id]
+    )
+    |> update_and_set_cache()
   end
 end

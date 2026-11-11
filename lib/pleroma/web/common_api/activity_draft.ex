@@ -134,6 +134,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
       |> Map.put("to", ["https://www.w3.org/ns/activitystreams#Public"])
       # Internal to Pleroma, not used by FEP-82f6
       |> Map.put("actor", draft.user.ap_id)
+      |> Map.put("id", Pleroma.Web.ActivityPub.Utils.generate_activity_id())
 
     %{draft | object: object}
   end

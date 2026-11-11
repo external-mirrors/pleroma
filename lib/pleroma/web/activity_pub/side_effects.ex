@@ -205,46 +205,65 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   def handle(%{data: %{"type" => "Create"}} = activity, meta) do
     with {:ok, object, meta} <- handle_object_creation(meta[:object_data], activity, meta),
          %User{} = user <- User.get_cached_by_ap_id(activity.data["actor"]) do
-      {:ok, notifications} = Notification.create_notifications(activity)
-      {:ok, _user} = ActivityPub.increase_note_count_if_public(user, object)
-      {:ok, _user} = ActivityPub.update_last_status_at_if_public(user, object)
+      case object.data["type"] do
+        "ActorStatus" ->
+          with {:ok, _user} <- User.add_actor_status_object_id(user, object.id) do
+            {:ok, activity, meta}
+          else
+            {:error, %Ecto.Changeset{} = changeset} ->
+              if changeset.errors[:actor_status_id] do
+                {:error, :actor_status_already_set}
+              else
+                {:error, changeset}
+              end
 
-      if in_reply_to = object.data["type"] != "Answer" && object.data["inReplyTo"] do
-        Object.increase_replies_count(in_reply_to)
+            {:error, :object_not_found} ->
+              {:error, :actor_status_object_not_found}
+          end
+
+        # Generic for the rest for now supported Object types a Create is valid on.
+        _ ->
+          {:ok, notifications} = Notification.create_notifications(activity)
+          {:ok, _user} = ActivityPub.increase_note_count_if_public(user, object)
+          {:ok, _user} = ActivityPub.update_last_status_at_if_public(user, object)
+
+          if in_reply_to = object.data["type"] != "Answer" && object.data["inReplyTo"] do
+            Object.increase_replies_count(in_reply_to)
+          end
+
+          if quote_url = object.data["quoteUrl"] do
+            Object.increase_quotes_count(quote_url)
+          end
+
+          reply_depth = (meta[:depth] || 0) + 1
+
+          # FIXME: Force inReplyTo to replies
+          if Pleroma.Web.Federator.allowed_thread_distance?(reply_depth) and
+               object.data["replies"] != nil do
+            for reply_id <- object.data["replies"] do
+              Pleroma.Workers.RemoteFetcherWorker.new(%{
+                "op" => "fetch_remote",
+                "id" => reply_id,
+                "depth" => reply_depth
+              })
+              |> Oban.insert()
+            end
+          end
+
+          Pleroma.Web.RichMedia.Card.get_by_activity(activity)
+
+          Pleroma.Search.add_to_index(Map.put(activity, :object, object))
+
+          Utils.maybe_handle_group_posts(activity)
+
+          meta =
+            meta
+            |> add_notifications(notifications)
+
+          ap_streamer().stream_out(activity)
+
+          {:ok, activity, meta}
       end
-
-      if quote_url = object.data["quoteUrl"] do
-        Object.increase_quotes_count(quote_url)
-      end
-
-      reply_depth = (meta[:depth] || 0) + 1
-
-      # FIXME: Force inReplyTo to replies
-      if Pleroma.Web.Federator.allowed_thread_distance?(reply_depth) and
-           object.data["replies"] != nil do
-        for reply_id <- object.data["replies"] do
-          Pleroma.Workers.RemoteFetcherWorker.new(%{
-            "op" => "fetch_remote",
-            "id" => reply_id,
-            "depth" => reply_depth
-          })
-          |> Oban.insert()
-        end
-      end
-
-      Pleroma.Web.RichMedia.Card.get_by_activity(activity)
-
-      Pleroma.Search.add_to_index(Map.put(activity, :object, object))
-
-      Utils.maybe_handle_group_posts(activity)
-
-      meta =
-        meta
-        |> add_notifications(notifications)
-
-      ap_streamer().stream_out(activity)
-
-      {:ok, activity, meta}
     else
       e -> Repo.rollback(e)
     end
@@ -316,23 +335,31 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
           with {_, {:ok, deleted_object, _activity}} <- {:object, Object.delete(deleted_object)},
                {_, actor} when is_binary(actor) <- {:actor, deleted_object.data["actor"]},
                {_, %User{} = user} <- {:user, User.get_cached_by_ap_id(actor)} do
-            User.remove_pinned_object_id(user, deleted_object.data["id"])
+            case deleted_object.data["type"] do
+              "ActorStatus" ->
+                {:ok, _user} = User.remove_actor_status(user)
 
-            {:ok, user} = ActivityPub.decrease_note_count_if_public(user, deleted_object)
+                :ok
 
-            if in_reply_to = deleted_object.data["inReplyTo"] do
-              Object.decrease_replies_count(in_reply_to)
+              _ ->
+                User.remove_pinned_object_id(user, deleted_object.data["id"])
+
+                {:ok, user} = ActivityPub.decrease_note_count_if_public(user, deleted_object)
+
+                if in_reply_to = deleted_object.data["inReplyTo"] do
+                  Object.decrease_replies_count(in_reply_to)
+                end
+
+                if quote_url = deleted_object.data["quoteUrl"] do
+                  Object.decrease_quotes_count(quote_url)
+                end
+
+                MessageReference.delete_for_object(deleted_object)
+
+                ap_streamer().stream_out(object)
+                ap_streamer().stream_out_participations(deleted_object, user)
+                :ok
             end
-
-            if quote_url = deleted_object.data["quoteUrl"] do
-              Object.decrease_quotes_count(quote_url)
-            end
-
-            MessageReference.delete_for_object(deleted_object)
-
-            ap_streamer().stream_out(object)
-            ap_streamer().stream_out_participations(deleted_object, user)
-            :ok
           else
             {:actor, _} ->
               @logger.error("The object doesn't have an actor: #{inspect(deleted_object)}")
@@ -358,8 +385,13 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
 
     if result == :ok do
       # Only remove from index when deleting actual objects, not users or anything else
-      with %Pleroma.Object{} <- deleted_object do
-        Pleroma.Search.remove_from_index(deleted_object)
+      with %Pleroma.Object{} <- deleted_object,
+           type <- deleted_object.data["type"],
+           true <- type in Pleroma.Constants.object_types() do
+        # Actor statuse aren't added to the search index.
+        if type != "ActorStatus" do
+          Pleroma.Search.remove_from_index(deleted_object)
+        end
       end
 
       {:ok, object, meta}
