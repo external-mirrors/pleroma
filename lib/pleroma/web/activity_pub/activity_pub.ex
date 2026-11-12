@@ -491,6 +491,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       )
     )
     |> exclude_poll_votes(opts)
+    |> exclude_actor_statuses(opts)
     |> exclude_id(opts)
     |> order_by([activity], desc: activity.id)
   end
@@ -1422,6 +1423,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
   defp restrict_rule(query, _), do: query
 
+  # TODO: Possibly rewrite to a list specified by a caller instead
+  # to avoid code duplication.
   defp exclude_poll_votes(query, %{include_poll_votes: true}), do: query
 
   defp exclude_poll_votes(query, _) do
@@ -1440,6 +1443,18 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     if has_named_binding?(query, :object) do
       from([activity, object: o] in query,
         where: fragment("not(?->>'type' = ?)", o.data, "ChatMessage")
+      )
+    else
+      query
+    end
+  end
+
+  defp exclude_actor_statuses(query, %{include_actor_statuses: true}), do: query
+
+  defp exclude_actor_statuses(query, _) do
+    if has_named_binding?(query, :object) do
+      from([activity, object: o] in query,
+        where: fragment("not(?->>'type' = ?)", o.data, "ActorStatus")
       )
     else
       query
@@ -1592,6 +1607,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       |> maybe_restrict_deactivated_users(opts)
       |> exclude_poll_votes(opts)
       |> exclude_chat_messages(opts)
+      |> exclude_actor_statuses(opts)
       |> exclude_invisible_actors(opts)
       |> exclude_visibility(opts)
 
