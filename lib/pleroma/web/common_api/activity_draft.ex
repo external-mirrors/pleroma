@@ -9,6 +9,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   alias Pleroma.Language.LanguageDetector
   alias Pleroma.Object
   alias Pleroma.Web.ActivityPub.Builder
+  alias Pleroma.Web.ActivityPub.Utils, as: ActivityPubUtils
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.CommonAPI.Utils
@@ -128,13 +129,14 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   defp actor_status_object(%__MODULE__{} = draft) do
     object =
       %{}
+      |> Map.put("id", ActivityPubUtils.generate_object_id())
       |> Map.put("content", draft.content_html)
       |> Map.put("type", "ActorStatus")
       # ActorStatus does not support audience scoping
       |> Map.put("to", ["https://www.w3.org/ns/activitystreams#Public"])
       # Internal to Pleroma, not used by FEP-82f6
       |> Map.put("actor", draft.user.ap_id)
-      |> Map.put("id", Pleroma.Web.ActivityPub.Utils.generate_activity_id())
+      |> Map.put("published", ActivityPubUtils.make_date())
 
     %{draft | object: object}
   end

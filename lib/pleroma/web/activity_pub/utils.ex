@@ -734,20 +734,6 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     |> Map.merge(additional)
   end
 
-  #### ActorStatus-related helpers
-  def make_actor_status_data(params, additional) do
-    published = params.published || make_date()
-
-    %{
-      "type" => "Create",
-      "to" => params.to |> Enum.uniq(),
-      "actor" => params.actor.ap_id,
-      "object" => params.object,
-      "published" => published
-    }
-    |> Map.merge(additional)
-  end
-
   #### Flag-related helpers
   @spec make_flag_data(map(), map()) :: map()
   def make_flag_data(

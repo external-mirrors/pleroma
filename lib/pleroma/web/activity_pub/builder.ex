@@ -173,6 +173,11 @@ defmodule Pleroma.Web.ActivityPub.Builder do
      }, []}
   end
 
+  # Used by FEP-82f6 Actor Status
+  @spec create(ActivityDraft.t()) :: {:ok, map(), []}
+  def create(%ActivityDraft{} = draft), do: create(draft.user, draft.object, draft.to)
+
+  @spec create(User.t(), map(), list()) :: {:ok, map(), []}
   def create(actor, object, recipients) do
     context =
       if is_map(object) do
