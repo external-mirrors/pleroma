@@ -109,6 +109,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     |> new(params)
     |> visibility()
     |> to_and_cc()
+    |> context()
     |> with_valid(&actor_status_content/1)
     |> actor_status_object()
     |> with_valid(&changes/1)
@@ -130,6 +131,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
     object =
       %{}
       |> Map.put("id", ActivityPubUtils.generate_object_id())
+      |> Map.put("context", draft.context)
       |> Map.put("content", draft.content_html)
       |> Map.put("type", "ActorStatus")
       # ActorStatus does not support audience scoping
