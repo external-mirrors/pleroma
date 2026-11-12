@@ -5,7 +5,9 @@
 defmodule Pleroma.Web.MastodonAPI.AccountView do
   use Pleroma.Web, :view
 
+  alias Pleroma.Activity
   alias Pleroma.FollowingRelationship
+  alias Pleroma.Object
   alias Pleroma.User
   alias Pleroma.UserNote
   alias Pleroma.UserRelationship
@@ -289,6 +291,21 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
 
     accepts_chat_messages = Pleroma.Chat.enabled?() and user.accepts_chat_messages
 
+    # TODO: Simplify
+    actor_status_content =
+      with false <- is_nil(user.actor_status_id),
+           actor_status_object <- Object.get_by_id(user.actor_status_id),
+           actor_status_activity <-
+             Activity.get_create_by_object_ap_id_with_object(actor_status_object.data["id"]) do
+        Activity.HTML.get_cached_stripped_html_for_activity(
+          actor_status_activity.object.data["content"],
+          actor_status_activity,
+          "pleromaapi:actor_status"
+        )
+      else
+        _ -> ""
+      end
+
     %{
       id: to_string(user.id),
       username: username_from_nickname(user.nickname),
@@ -325,6 +342,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
       # Note: it's insecure to output :email but fully-qualified nickname may serve as safe stub
       fqn: User.full_nickname(user),
       pleroma: %{
+        actor_status_content: actor_status_content,
         ap_id: user.ap_id,
         also_known_as: user.also_known_as,
         is_confirmed: user.is_confirmed,
