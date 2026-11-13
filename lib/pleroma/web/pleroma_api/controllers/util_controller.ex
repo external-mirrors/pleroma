@@ -16,6 +16,7 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.Auth.WrapperAuthenticator, as: Authenticator
   alias Pleroma.Web.CommonAPI
+  alias Pleroma.Web.MastodonAPI.StatusView
   alias Pleroma.Web.Plugs.OAuthScopesPlug
 
   plug(Pleroma.Web.ApiSpec.CastAndValidate, replace_params: false)
@@ -290,21 +291,8 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
       ) do
     result =
       Pleroma.Upload.list_uploaded_by(user, offset, 50)
-      |> Enum.map(fn %Pleroma.Object{
-                       id: id,
-                       data: %{"url" => [media_url], "name" => name},
-                       inserted_at: uploaded
-                     } ->
-        %{
-          uploaded: uploaded,
-          attachment: %{
-            description: name,
-            id: to_string(id),
-            url: media_url["href"],
-            pleroma: %{mime_type: media_url["mediaType"]},
-            type: "unknown"
-          }
-        }
+      |> Enum.map(fn %Pleroma.Object{id: id, data: data, inserted_at: uploaded} ->
+        %{uploaded: uploaded, attachment: StatusView.render("attachment.json", %{attachment: data})}
       end)
 
     json(conn, result)

@@ -746,7 +746,8 @@ config :pleroma, :rate_limit,
   status_id_action: {60_000, 3},
   password_reset: {1_800_000, 5},
   account_confirmation_resend: {8_640_000, 5},
-  ap_routes: {60_000, 15}
+  ap_routes: {60_000, 15},
+  uploaded_media_usage: {60_000, 5}
 
 config :pleroma, Pleroma.Workers.PurgeExpiredActivity, enabled: true, min_lifetime: 600
 

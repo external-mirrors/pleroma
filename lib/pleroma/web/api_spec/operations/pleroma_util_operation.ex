@@ -437,7 +437,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
       parameters: [
         Operation.parameter(:id, :path, :string, "The ID of the Attachment entity")
       ],
-      security: [%{"oAuth" => ["read:media"]}],
+      security: [%{"oAuth" => ["read:accounts"]}],
       responses: %{
         200 =>
           Operation.response("Media", "application/json", %Schema{
