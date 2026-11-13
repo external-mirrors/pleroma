@@ -311,14 +311,24 @@ defmodule Pleroma.Upload do
   def list_duplicate_attachments(%{"id" => id, "url" => [%{"href" => href}]}) do
     clean_href = %URI{URI.parse(href) | query: nil} |> URI.to_string()
 
+    # The ugly || syntax has to be used, because;
+    # 1. Cannot insert parameters into strings in postgres
+    # 2. Cannot use string interpolation, as ecto prohibits it
+    # #. Cannot use jsonb_path_exists because it is much slower than @? for some reason
     same_attachment_count =
       from(
         o in Object,
         where:
-          fragment("STARTS_WITH((?)->'url'->0->>'href', (?))", o.data, ^clean_href) and
-            fragment("(?)->>'id' <> (?)", o.data, ^id)
+          fragment(
+            """
+            (?) @\\? ('($.attachment[*].url[*] \\? (@.href starts with "' || (?) || '")) \\? ($.id <> "' || (?) || '")')::jsonpath
+            """,
+            o.data,
+            ^clean_href,
+            ^id
+          )
       )
-      |> Repo.all()
+      |> Repo.all(timeout: :infinity)
   end
 
   def list_objects_with_attachment(href) do
@@ -326,16 +336,13 @@ defmodule Pleroma.Upload do
 
     # Ugly as sin, but I could not figure out a better way to do this in ecto
     # This tries to find any objects with this attachment
-    # This DOES NOT handle chat messages and SKIPS them,
-    # because they have attachments as an object instead of an array
+    # Contrary to what it may seem like, it does in fact work with ChatMessages somehow
     Repo.query!(
       """
-          SELECT * FROM
-          (SELECT objects.data->>'id' AS id, jsonb_array_elements(objects.data->'attachment') as json_attachments FROM objects
-              WHERE jsonb_typeof(objects.data->'attachment') = 'array')
-          WHERE STARTS_WITH(json_attachments->'url'->0->>'href', $1)
+      SELECT objects.data->>'id' FROM objects WHERE objects.data->'attachment' @? ('$[*].url[*] ? (@.href starts with "' || $1 || '")')::jsonpath
       """,
-      [clean_href]
+      [clean_href],
+      timeout: :infinity
     ).rows
     |> Enum.map(&List.first(&1))
   end

@@ -292,7 +292,10 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
     result =
       Pleroma.Upload.list_uploaded_by(user, offset, 50)
       |> Enum.map(fn %Pleroma.Object{id: id, data: data, inserted_at: uploaded} ->
-        %{uploaded: uploaded, attachment: StatusView.render("attachment.json", %{attachment: data})}
+        %{
+          uploaded: uploaded,
+          attachment: StatusView.render("attachment.json", %{attachment: data})
+        }
       end)
 
     json(conn, result)

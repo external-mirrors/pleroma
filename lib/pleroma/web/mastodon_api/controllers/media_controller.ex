@@ -87,7 +87,8 @@ defmodule Pleroma.Web.MastodonAPI.MediaController do
         } = conn,
         _
       ) do
-    with {:is_attachment, %Object{data: %{"type" => "Document", "mediaType" => _}} = object} <- {:is_attachment, Object.get_by_id(id)},
+    with {:is_attachment, %Object{data: %{"type" => "Document", "mediaType" => _}} = object} <-
+           {:is_attachment, Object.get_by_id(id)},
          {:auth, :ok} <- {:auth, Object.authorize_access(object, user)},
          href <- object.data["url"] |> List.first() |> Map.get("href"),
          {:used, []} <- {:used, Pleroma.Upload.list_objects_with_attachment(href)},
@@ -102,14 +103,17 @@ defmodule Pleroma.Web.MastodonAPI.MediaController do
         |> json(%{
           error: "Refusing to delete attachment that is still used by #{Enum.count(list)} objects"
         })
+
       {:is_attachment, _} ->
         conn
         |> put_status(:bad_request)
         |> json(%{error: "Refusing to delete an object that is not an attachment"})
+
       {:auth, _} ->
         conn
         |> put_status(:forbidden)
         |> json(%{error: "Not authorized to delete the attachment"})
+
       e ->
         conn
         |> put_status(:bad_request)
