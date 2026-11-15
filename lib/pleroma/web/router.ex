@@ -696,6 +696,8 @@ defmodule Pleroma.Web.Router do
       delete("/bookmark_folders/:id", BookmarkFolderController, :delete)
 
       get("/outgoing_follow_requests", FollowRequestController, :outgoing)
+
+      post("/actor_status", ActorStatusController, :create)
     end
 
     scope [] do

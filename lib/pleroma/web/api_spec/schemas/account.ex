@@ -114,7 +114,8 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Account do
             description: "Favicon image of the user's instance"
           },
           avatar_description: %Schema{type: :string, deprecated: true},
-          header_description: %Schema{type: :string, deprecated: true}
+          header_description: %Schema{type: :string, deprecated: true},
+          actor_status_content: %Schema{type: :string}
         }
       },
       source: %Schema{
@@ -211,7 +212,8 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Account do
         "settings_store" => %{
           "pleroma-fe" => %{}
         },
-        "birthday" => "2001-02-12"
+        "birthday" => "2001-02-12",
+        "actor_status_content" => "No matter where you are, everybody's connected."
       },
       "source" => %{
         "fields" => [],

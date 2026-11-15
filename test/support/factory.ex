@@ -231,11 +231,33 @@ defmodule Pleroma.Factory do
       "type" => "ActorStatus",
       "attributedTo" => user.ap_id,
       "content" => content,
-      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
+      "published" => DateTime.utc_now() |> DateTime.to_iso8601(),
+      # Pleroma internal
+      "actor" => user.ap_id,
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"]
     }
 
     %Pleroma.Object{
       data: data
+    }
+  end
+
+  def actor_status_activity_factory do
+    actor_status = insert(:actor_status)
+
+    data = %{
+      "id" => Pleroma.Web.ActivityPub.Utils.generate_activity_id(),
+      "type" => "Create",
+      "to" => actor_status.data["to"],
+      "actor" => actor_status.data["actor"],
+      "object" => actor_status.data["id"],
+      "context" => actor_status.data["content"]
+    }
+
+    %Pleroma.Activity{
+      data: data,
+      actor: data["actor"],
+      recipients: data["to"]
     }
   end
 
