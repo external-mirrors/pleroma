@@ -2986,10 +2986,7 @@ defmodule Pleroma.User do
   @spec remove_actor_status(User.t()) :: {:ok, User.t()} | {:error, term()}
   def remove_actor_status(%User{} = user) do
     user
-    |> cast(
-      nil,
-      [:actor_status_id]
-    )
+    |> change(actor_status_id: nil)
     |> update_and_set_cache()
   end
 end

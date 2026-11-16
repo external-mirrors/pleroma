@@ -45,6 +45,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
   end
 
   @deletable_types ~w{
+    ActorStatus
     Answer
     Article
     Audio
@@ -56,6 +57,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.DeleteValidator do
     Tombstone
     Video
   }
+
   defp validate_data(cng) do
     cng
     |> validate_required([:id, :type, :actor, :to, :cc, :object])
