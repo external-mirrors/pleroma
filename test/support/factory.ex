@@ -222,8 +222,8 @@ defmodule Pleroma.Factory do
     }
   end
 
-  def actor_status_factory do
-    user = insert(:user)
+  def actor_status_factory(attrs \\ %{}) do
+    user = attrs[:user] || insert(:user)
     content = sequence(:content, &"Watching lain episode #{&1}")
 
     data = %{
@@ -242,8 +242,9 @@ defmodule Pleroma.Factory do
     }
   end
 
-  def actor_status_activity_factory do
-    actor_status = insert(:actor_status)
+  def actor_status_activity_factory(attrs \\ %{}) do
+    user = attrs[:user] || insert(:user)
+    actor_status = insert(:actor_status, user: user)
 
     data = %{
       "id" => Pleroma.Web.ActivityPub.Utils.generate_activity_id(),

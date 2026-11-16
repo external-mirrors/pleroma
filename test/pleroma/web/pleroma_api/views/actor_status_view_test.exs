@@ -6,6 +6,7 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusViewTest do
   use Pleroma.DataCase, async: true
 
   alias Pleroma.Object
+  alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.PleromaAPI.ActorStatusView
 
   import Pleroma.Factory
@@ -17,5 +18,15 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusViewTest do
     status = ActorStatusView.render("show.json", activity: activity)
 
     assert status.actor_status_content == object.data["content"]
+  end
+
+  test "successfully renders a Delete activity for Actor Status" do
+    user = insert(:user)
+    {:ok, _create_activity} = CommonAPI.actor_status(user, %{content: "Delet this!"})
+    {:ok, delete_activity} = CommonAPI.delete_actor_status(user)
+
+    status = ActorStatusView.render("show.json", activity: delete_activity)
+
+    assert status.actor_status_content == ""
   end
 end
