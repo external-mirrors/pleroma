@@ -2983,6 +2983,17 @@ defmodule Pleroma.User do
     end
   end
 
+  @spec get_actor_status_object_id(User.t()) :: {:ok, integer()} | {:error, :not_found}
+  def get_actor_status_object_id(%User{ap_id: ap_id}) do
+    with {_, %User{} = user} <- {:user, User.get_cached_by_ap_id(ap_id)},
+         {_, false} <- {:id, is_nil(user.actor_status_id)} do
+      {:ok, user.actor_status_id}
+    else
+      {:user, nil} -> {:error, :not_found}
+      {:id, true} -> {:error, :not_found}
+    end
+  end
+
   @spec remove_actor_status(User.t()) :: {:ok, User.t()} | {:error, term()}
   def remove_actor_status(%User{} = user) do
     user

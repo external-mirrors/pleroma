@@ -1772,6 +1772,23 @@ defmodule Pleroma.Web.CommonAPITest do
     end
   end
 
+  describe "delete_actor_status/1" do
+    test "deletes actor status and updates user" do
+      user = insert(:user)
+      {:ok, activity} = CommonAPI.actor_status(user, %{content: "delet this!"})
+      object = Object.normalize(activity, fetch: false)
+      updated_user1 = User.get_cached_by_ap_id(user.ap_id)
+
+      assert updated_user1.actor_status_id == object.id
+
+      {:ok, _activity} = CommonAPI.delete_actor_status(updated_user1)
+      updated_user2 = User.get_cached_by_ap_id(user.ap_id)
+
+      refute updated_user2.actor_status_id
+      assert %Object{data: %{"type" => "Tombstone"}} = Object.get_by_id(object.id)
+    end
+  end
+
   describe "get_user/1" do
     test "gets user by ap_id" do
       user = insert(:user)

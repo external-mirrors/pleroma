@@ -522,6 +522,17 @@ defmodule Pleroma.Web.CommonAPI do
     end
   end
 
+  def delete_actor_status(user) do
+    with {:ok, object_id} <- User.get_actor_status_object_id(user),
+         %Object{} = object <- Object.get_by_id(object_id),
+         {:ok, delete_data, _} <- Builder.delete(user, object.data["id"]),
+         {:ok, activity, _} <- Pipeline.common_pipeline(delete_data, local: true) do
+      {:ok, activity}
+    else
+      e -> e
+    end
+  end
+
   @spec pin(String.t(), User.t()) :: {:ok, Activity.t()} | Pipeline.errors()
   def pin(id, %User{} = user) do
     with %Activity{} = activity <- create_activity_by_id(id),
