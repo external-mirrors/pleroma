@@ -11,7 +11,6 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
   alias Pleroma.HTML
   alias Pleroma.Object
   alias Pleroma.Web.CommonAPI
-  alias Pleroma.Web.CommonAPI.Utils
   alias Pleroma.Web.MastodonAPI.AccountView
 
   def render("show.json", %{activity: %Activity{data: %{"type" => "Create"}} = activity} = opts) do
@@ -19,12 +18,10 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
     content = object.data["content"] |> HTML.strip_tags() || ""
 
     user = CommonAPI.get_user(activity.data["actor"])
-    created_at = Utils.to_masto_date(object.data["published"])
 
     %{
       id: activity.id,
       account: AccountView.render("show.json", %{user: user, for: opts[:for]}),
-      created_at: created_at,
       actor_status_content: content
     }
   end
