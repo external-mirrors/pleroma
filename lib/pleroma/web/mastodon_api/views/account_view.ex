@@ -293,7 +293,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
 
     # TODO: Simplify
     actor_status_content =
-      with false <- is_nil(user.actor_status_id),
+      with true <- Pleroma.Config.get([:instance, :actor_statuses]),
+           false <- is_nil(user.actor_status_id),
            actor_status_object <- Object.get_by_id(user.actor_status_id),
            actor_status_activity <-
              Activity.get_create_by_object_ap_id_with_object(actor_status_object.data["id"]) do

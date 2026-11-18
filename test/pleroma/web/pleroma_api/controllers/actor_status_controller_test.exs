@@ -56,5 +56,25 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusControllerTest do
       updated_user = Pleroma.User.get_by_ap_id(user.ap_id)
       refute updated_user.actor_status_id
     end
+
+    test "returns error if disabled without creating status" do
+      clear_config([:instance, :actor_statuses], false)
+
+      user = insert(:user)
+      %{conn: conn} = oauth_access(["write:accounts"], user: user)
+
+      refute user.actor_status_id
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/v1/pleroma/actor_status", %{"content" => "Shouldn't work"})
+
+      assert %{"error" => "Unsupported feature"} =
+               json_response_and_validate_schema(conn, 400)
+
+      updated_user = Pleroma.User.get_by_ap_id(user.ap_id)
+      refute updated_user.actor_status_id
+    end
   end
 end

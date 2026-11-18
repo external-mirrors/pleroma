@@ -17,19 +17,25 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusController do
   def create(%{assigns: %{user: user}, body_params: %{content: content} = params} = conn, _) do
     # A create request with empty content is treated as a request to delete the current status.
     # Similar to how MastoAPI account notes work.
-    res =
-      case content do
-        "" -> CommonAPI.delete_actor_status(user)
-        _ -> CommonAPI.actor_status(user, params)
-      end
+    if Pleroma.Config.get([:instance, :actor_statuses]) do
+      res =
+        case content do
+          "" -> CommonAPI.delete_actor_status(user)
+          _ -> CommonAPI.actor_status(user, params)
+        end
 
-    with {:ok, activity} <- res do
-      render(conn, "show.json", activity: activity, for: user)
+      with {:ok, activity} <- res do
+        render(conn, "show.json", activity: activity, for: user)
+      else
+        {:error, message} ->
+          conn
+          |> put_status(:bad_request)
+          |> json(%{"error" => message})
+      end
     else
-      {:error, message} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{"error" => message})
+      conn
+      |> put_status(:bad_request)
+      |> json(%{"error" => "Unsupported feature"})
     end
   end
 end

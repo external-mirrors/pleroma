@@ -132,7 +132,8 @@ defmodule Pleroma.Web.MastodonAPI.InstanceViewTest do
     "safe_dm_mentions",
     "exposable_reactions",
     "profile_directory",
-    "pleroma:language_detection"
+    "pleroma:language_detection",
+    "pleroma:actor_statuses"
   ]
   @configurable_features_flags [
     [:activitypub, :blockers_visible],
@@ -143,7 +144,8 @@ defmodule Pleroma.Web.MastodonAPI.InstanceViewTest do
     [:instance, :allow_relay],
     [:instance, :safe_dm_mentions],
     [:instance, :show_reactions],
-    [:instance, :profile_directory]
+    [:instance, :profile_directory],
+    [:instance, :actor_statuses]
   ]
 
   # Filters out values from one layer deep nested Maps.
