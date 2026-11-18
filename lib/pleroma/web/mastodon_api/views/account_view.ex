@@ -390,6 +390,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
        ) do
     data
     |> Kernel.put_in([:source, :privacy], user.default_scope)
+    |> Kernel.put_in([:source, :pleroma, :language], user.language)
     |> Kernel.put_in([:source, :pleroma, :show_role], user.show_role)
     |> Kernel.put_in([:source, :pleroma, :no_rich_text], user.no_rich_text)
     |> Kernel.put_in([:source, :pleroma, :show_birthday], user.show_birthday)
