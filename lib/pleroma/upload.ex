@@ -319,32 +319,35 @@ defmodule Pleroma.Upload do
       from(
         o in Object,
         where:
-          fragment(
-            """
-            (?) @\\? ('($.attachment[*].url[*] \\? (@.href starts with "' || (?) || '")) \\? ($.id <> "' || (?) || '")')::jsonpath
-            """,
-            o.data,
-            ^clean_href,
-            ^id
-          )
+          o.data["type"] == "Document" and
+            fragment(
+              """
+              (?) @\\? ('($.url[*] \\? (@.href starts with "' || (?) || '")) \\? ($.id <> "' || (?) || '")')::jsonpath
+              """,
+              o.data,
+              ^clean_href,
+              ^id
+            )
       )
       |> Repo.all(timeout: :infinity)
   end
 
-  def list_objects_with_attachment(href) do
+  def list_objects_with_media_href(href, actor_filter \\ nil) do
     clean_href = %URI{URI.parse(href) | query: nil} |> URI.to_string()
 
     # Ugly as sin, but I could not figure out a better way to do this in ecto
     # This tries to find any objects with this attachment
     # Contrary to what it may seem like, it does in fact work with ChatMessages somehow
-    Repo.query!(
-      """
-      SELECT objects.data->>'id' FROM objects WHERE objects.data->'attachment' @? ('$[*].url[*] ? (@.href starts with "' || $1 || '")')::jsonpath
-      """,
-      [clean_href],
-      timeout: :infinity
-    ).rows
-    |> Enum.map(&List.first(&1))
+    result =
+      Repo.query!(
+        """
+        SELECT objects.data->>'id',objects.data->>'actor' FROM objects WHERE objects.data->'attachment' @? ('$[*].url[*] ? (@.href starts with "' || $1 || '")')::jsonpath
+        """,
+        [clean_href],
+        timeout: :infinity
+      ).rows
+      |> Enum.filter(fn [_, actor] -> is_nil(actor_filter) or actor == actor_filter end)
+      |> Enum.map(&List.first(&1))
   end
 
   def list_uploaded_by(user, offset, limit) do

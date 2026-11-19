@@ -91,7 +91,7 @@ defmodule Pleroma.Web.MastodonAPI.MediaController do
            {:is_attachment, Object.get_by_id(id)},
          {:auth, :ok} <- {:auth, Object.authorize_access(object, user)},
          href <- object.data["url"] |> List.first() |> Map.get("href"),
-         {:used, []} <- {:used, Pleroma.Upload.list_objects_with_attachment(href)},
+         {:used, []} <- {:used, Pleroma.Upload.list_objects_with_media_href(href, user.ap_id)},
          {:ok, _, _} <- Object.delete(object) do
       conn
       |> put_resp_header("content-type", "text/plain")

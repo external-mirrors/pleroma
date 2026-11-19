@@ -312,7 +312,7 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
     with %Object{data: data, id: object_id} = object <- Object.get_by_id(id),
          :ok <- Object.authorize_access(object, user) do
       href = data["url"] |> List.first() |> Map.get("href")
-      used_in_objects = Pleroma.Upload.list_objects_with_attachment(href)
+      used_in_objects = Pleroma.Upload.list_objects_with_media_href(href, user.ap_id)
 
       attachment_duplicates =
         Pleroma.Upload.list_duplicate_attachments(object.data)

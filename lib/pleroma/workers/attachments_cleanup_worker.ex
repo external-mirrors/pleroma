@@ -32,18 +32,19 @@ defmodule Pleroma.Workers.AttachmentsCleanupWorker do
   def perform(%Job{
         args: %{
           "op" => "cleanup_attachments",
-          "object" =>
-            %{"data" => %{"type" => "Document", "url" => [%{"href" => href}]}} = object_data
+          "object" => %{
+            "data" => %{"type" => "Document", "url" => [%{"href" => href}]} = object_data
+          }
         }
       }) do
     if Pleroma.Config.get([:instance, :cleanup_attachments], false) do
       clean_href = %URI{URI.parse(href) | query: nil} |> URI.to_string()
 
-      same_attachment_count = Pleroma.Upload.list_duplicate_attachments(object_data)
+      same_attachment_objects = Pleroma.Upload.list_duplicate_attachments(object_data)
 
       # No copies of this attachment in the database
-      if same_attachment_count == [] do
-        attachment_post_ids = Pleroma.Upload.list_objects_with_attachment(clean_href)
+      if same_attachment_objects == [] do
+        attachment_post_ids = Pleroma.Upload.list_objects_with_media_href(clean_href)
         # No posts with this attachment, either
         if attachment_post_ids == [] do
           base_url =
