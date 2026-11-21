@@ -291,7 +291,7 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
       ) do
     result =
       Pleroma.Upload.list_uploaded_by(user, offset, 50)
-      |> Enum.map(fn %Pleroma.Object{id: id, data: data, inserted_at: uploaded} ->
+      |> Enum.map(fn %Pleroma.Object{data: data, inserted_at: uploaded} ->
         %{
           uploaded: uploaded,
           attachment: StatusView.render("attachment.json", %{attachment: data})
@@ -309,7 +309,7 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
         } = conn,
         _
       ) do
-    with %Object{data: data, id: object_id} = object <- Object.get_by_id(id),
+    with %Object{data: data} = object <- Object.get_by_id(id),
          :ok <- Object.authorize_access(object, user) do
       href = data["url"] |> List.first() |> Map.get("href")
       used_in_objects = Pleroma.Upload.list_objects_with_media_href(href, user.ap_id)
@@ -320,7 +320,8 @@ defmodule Pleroma.Web.PleromaAPI.UtilController do
         |> Map.new(fn {key, val} -> {key, length(val)} end)
 
       json(conn, %{
-        objects: used_in_objects,
+        objects: used_in_objects.objects,
+        scheduled: used_in_objects.scheduled,
         duplicates: attachment_duplicates
       })
     end

@@ -36,7 +36,6 @@ defmodule Pleroma.Upload do
   alias Ecto.UUID
   alias Pleroma.Maps
   alias Pleroma.Object
-  alias Pleroma.Pagination
   alias Pleroma.Repo
   alias Pleroma.Utils.URIEncoding
   alias Pleroma.Web.ActivityPub.Utils
@@ -315,21 +314,20 @@ defmodule Pleroma.Upload do
     # 1. Cannot insert parameters into strings in postgres
     # 2. Cannot use string interpolation, as ecto prohibits it
     # #. Cannot use jsonb_path_exists because it is much slower than @? for some reason
-    same_attachment_count =
-      from(
-        o in Object,
-        where:
-          o.data["type"] == "Document" and
-            fragment(
-              """
-              (?) @\\? ('($.url[*] \\? (@.href starts with "' || (?) || '")) \\? ($.id <> "' || (?) || '")')::jsonpath
-              """,
-              o.data,
-              ^clean_href,
-              ^id
-            )
-      )
-      |> Repo.all(timeout: :infinity)
+    from(
+      o in Object,
+      where:
+        o.data["type"] == "Document" and
+          fragment(
+            """
+            (?) @\\? ('($.url[*] \\? (@.href starts with "' || (?) || '")) \\? ($.id <> "' || (?) || '")')::jsonpath
+            """,
+            o.data,
+            ^clean_href,
+            ^id
+          )
+    )
+    |> Repo.all(timeout: :infinity)
   end
 
   def list_objects_with_media_href(href, actor_filter \\ nil) do
@@ -338,7 +336,7 @@ defmodule Pleroma.Upload do
     # Ugly as sin, but I could not figure out a better way to do this in ecto
     # This tries to find any objects with this attachment
     # Contrary to what it may seem like, it does in fact work with ChatMessages somehow
-    result =
+    result_objects =
       Repo.query!(
         """
         SELECT objects.data->>'id',objects.data->>'actor' FROM objects WHERE objects.data->'attachment' @? ('$[*].url[*] ? (@.href starts with "' || $1 || '")')::jsonpath
@@ -347,7 +345,21 @@ defmodule Pleroma.Upload do
         timeout: :infinity
       ).rows
       |> Enum.filter(fn [_, actor] -> is_nil(actor_filter) or actor == actor_filter end)
-      |> Enum.map(&List.first(&1))
+      |> Enum.map(&List.first/1)
+
+    result_scheduled =
+      Pleroma.Repo.query!(
+        """
+        SELECT scheduled_activities.id, jsonb_path_query_first(scheduled_activities.params->'media_attachments', '$[*].actor') FROM scheduled_activities
+        WHERE scheduled_activities.params->'media_attachments' @? ('$[*].url[*] ? (@.href starts with "' || $1 || '")')::jsonpath
+        """,
+        [clean_href],
+        timeout: :infinity
+      ).rows
+      |> Enum.filter(fn [_, actor] -> is_nil(actor_filter) or actor == actor_filter end)
+      |> Enum.map(&List.first/1)
+
+    %{objects: result_objects, scheduled: result_scheduled}
   end
 
   def list_uploaded_by(user, offset, limit) do

@@ -6,7 +6,6 @@ defmodule Pleroma.Web.MastodonAPI.MediaController do
   use Pleroma.Web, :controller
 
   alias Pleroma.Object
-  alias Pleroma.Repo
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.Plugs.OAuthScopesPlug
@@ -91,17 +90,26 @@ defmodule Pleroma.Web.MastodonAPI.MediaController do
            {:is_attachment, Object.get_by_id(id)},
          {:auth, :ok} <- {:auth, Object.authorize_access(object, user)},
          href <- object.data["url"] |> List.first() |> Map.get("href"),
-         {:used, []} <- {:used, Pleroma.Upload.list_objects_with_media_href(href, user.ap_id)},
+         {:used, %{objects: [], scheduled: []}} <-
+           {:used, Pleroma.Upload.list_objects_with_media_href(href, user.ap_id)},
          {:ok, _, _} <- Object.delete(object) do
       conn
       |> put_resp_header("content-type", "text/plain")
       |> send_resp(200, "")
     else
-      {:used, list} ->
+      {:used, %{objects: obj_used, scheduled: sched_used}} ->
+        errors =
+          [
+            if(obj_used != [], do: "#{Enum.count(obj_used)} objects", else: nil),
+            if(obj_used != [], do: "#{Enum.count(sched_used)} scheduled posts", else: nil)
+          ]
+          |> Enum.filter(&is_binary/1)
+          |> Enum.join(" and ")
+
         conn
         |> put_status(:bad_request)
         |> json(%{
-          error: "Refusing to delete attachment that is still used by #{Enum.count(list)} objects"
+          error: "Refusing to delete attachment that is still used by #{errors}"
         })
 
       {:is_attachment, _} ->

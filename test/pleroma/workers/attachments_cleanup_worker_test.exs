@@ -10,7 +10,6 @@ defmodule Pleroma.Workers.AttachmentsCleanupWorkerTest do
   import Mox
 
   alias Pleroma.Tests.ObanHelpers
-  # alias Pleroma.Workers.AttachmentsCleanupWorker
   alias Pleroma.UnstubbedConfigMock, as: ConfigMock
   alias Pleroma.Object
 
@@ -162,6 +161,37 @@ defmodule Pleroma.Workers.AttachmentsCleanupWorkerTest do
 
       ObanHelpers.perform_all()
       assert File.exists?(upload_path)
+    end
+
+    test "uploaded media is refused to be deleted when attached to a scheduled activity", %{
+      conn: conn,
+      image: image
+    } do
+      result =
+        conn
+        |> put_req_header("content-type", "multipart/form-data")
+        |> post("/api/v1/media", %{"file" => image})
+        |> json_response_and_validate_schema(:ok)
+
+      scheduled_at =
+        NaiveDateTime.add(NaiveDateTime.utc_now(), :timer.minutes(120), :millisecond)
+        |> NaiveDateTime.to_iso8601()
+        |> Kernel.<>("Z")
+
+      assert %{"scheduled_at" => _} =
+               conn
+               |> put_req_header("content-type", "application/json")
+               |> post("/api/v1/statuses", %{
+                 "status" => "scheduled",
+                 "scheduled_at" => scheduled_at,
+                 "media_ids" => [result["id"]]
+               })
+               |> json_response_and_validate_schema(200)
+
+      assert %{"error" => _} =
+               conn
+               |> delete("/api/v1/media/#{result["id"]}")
+               |> json_response(400)
     end
   end
 end

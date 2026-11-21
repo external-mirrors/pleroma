@@ -44,9 +44,11 @@ defmodule Pleroma.Workers.AttachmentsCleanupWorker do
 
       # No copies of this attachment in the database
       if same_attachment_objects == [] do
-        attachment_post_ids = Pleroma.Upload.list_objects_with_media_href(clean_href)
         # No posts with this attachment, either
-        if attachment_post_ids == [] do
+        if match?(
+             %{objects: [], scheduled: []},
+             Pleroma.Upload.list_objects_with_media_href(clean_href)
+           ) do
           base_url =
             String.trim_trailing(
               Pleroma.Upload.base_url(),
