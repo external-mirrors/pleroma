@@ -8,10 +8,11 @@ defmodule Pleroma.Workers.AttachmentsCleanupWorkerTest do
   use Oban.Testing, repo: Pleroma.Repo
 
   import Mox
+  import Pleroma.Factory
 
+  alias Pleroma.Object
   alias Pleroma.Tests.ObanHelpers
   alias Pleroma.UnstubbedConfigMock, as: ConfigMock
-  alias Pleroma.Object
 
   describe "attachment deletion" do
     setup do: oauth_access(["write:media", "write:statuses"])
@@ -161,6 +162,27 @@ defmodule Pleroma.Workers.AttachmentsCleanupWorkerTest do
 
       ObanHelpers.perform_all()
       assert File.exists?(upload_path)
+    end
+
+    test "uploaded media is refused to be deleted when a chat message it is attached to still exists",
+         %{conn: %{assigns: %{user: user}} = conn, image: image} do
+      result =
+        conn
+        |> put_req_header("content-type", "multipart/form-data")
+        |> post("/api/v1/media", %{"file" => image})
+        |> json_response_and_validate_schema(:ok)
+
+      recipient = insert(:user)
+
+      assert {:ok, _} =
+               Pleroma.Web.CommonAPI.post_chat_message(user, recipient, "",
+                 media_id: result["id"]
+               )
+
+      assert %{"error" => _} =
+               conn
+               |> delete("/api/v1/media/#{result["id"]}")
+               |> json_response(400)
     end
 
     test "uploaded media is refused to be deleted when attached to a scheduled activity", %{
