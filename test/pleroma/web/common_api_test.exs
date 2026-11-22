@@ -1784,6 +1784,21 @@ defmodule Pleroma.Web.CommonAPITest do
 
       assert object.data["content"] == expected
     end
+
+    test "it linkifies" do
+      user = insert(:user)
+      tagged_user = insert(:user, local: false)
+      content = "https://example.com @#{tagged_user.nickname}"
+
+      expected =
+        "<a href=\"https://example.com\" rel=\"ugc\">https://example.com</a> <span class=\"h-card\"><a class=\"u-url mention\" data-user=\"#{tagged_user.id}\" href=\"#{tagged_user.ap_id}\" rel=\"ugc\">@<span>#{tagged_user.nickname}</span></a></span>"
+
+      {:ok, activity} = CommonAPI.actor_status(user, %{content: content})
+
+      object = Object.normalize(activity, fetch: false)
+
+      assert object.data["content"] == expected
+    end
   end
 
   describe "delete_actor_status/1" do
