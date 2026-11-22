@@ -261,6 +261,39 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       assert Object.normalize(activity)
     end
 
+    test "it rewrites Remove activity for ActorStatus objects to Delete and deletes it" do
+      user = insert(:user, ap_id: "https://example.social/users/1")
+
+      object =
+        File.read!("test/fixtures/actor_status/fep-82f6-example.json")
+        |> Jason.decode!()
+
+      create_message = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Create",
+        "actor" => user.ap_id,
+        "object" => object
+      }
+
+      assert {:ok, create_activity} = Transmogrifier.handle_incoming(create_message)
+      assert Object.normalize(create_activity)
+
+      object_id = object["id"]
+      id = Pleroma.Web.ActivityPub.Utils.generate_activity_id()
+
+      remove_message = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Remove",
+        "id" => id,
+        "actor" => user.ap_id,
+        "object" => object_id
+      }
+
+      assert {:ok, delete_activity} = Transmogrifier.handle_incoming(remove_message)
+      assert %Activity{data: %{"type" => "Delete"}} = Activity.normalize(delete_activity)
+      assert %Object{data: %{"type" => "Tombstone"}} = Object.normalize(object_id, fetch: false)
+    end
+
     test "doesn't allow remote edits to fake local likes" do
       # as a spot check for no internal fields getting injected
       now = DateTime.utc_now()

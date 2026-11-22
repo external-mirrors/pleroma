@@ -687,11 +687,36 @@ defmodule Pleroma.Web.ActivityPub.Transmogrifier do
   end
 
   defp handle_incoming_normalized(%{"type" => type} = data, _options)
-       when type in ~w{Like EmojiReact Announce Add Remove} do
+       when type in ~w{Like EmojiReact Announce Add} do
     with :ok <- ObjectValidator.fetch_actor_and_object(data),
          {:ok, activity, _meta} <-
            Pipeline.common_pipeline(data, local: false) do
       {:ok, activity}
+    else
+      e -> {:error, e}
+    end
+  end
+
+  defp handle_incoming_normalized(%{"type" => "Remove", "object" => object_ap_id} = data, options)
+       when is_binary(object_ap_id) do
+    with {:ok, %User{}} <- ObjectValidator.fetch_actor(data),
+         %Object{} = object <- Object.normalize(object_ap_id) do
+      # Smithereen does not implement statusHistory nor Remove(ActorStatus),
+      # so rewrite the Activity to Delete, which has the same side-effects in this scenario.
+      case object.data["type"] do
+        "ActorStatus" ->
+          data
+          |> Map.replace("type", "Delete")
+          |> handle_incoming_normalized(options)
+
+        _ ->
+          with {:ok, activity, _meta} <-
+                 Pipeline.common_pipeline(data, local: false) do
+            {:ok, activity}
+          else
+            e -> {:error, e}
+          end
+      end
     else
       e -> {:error, e}
     end
