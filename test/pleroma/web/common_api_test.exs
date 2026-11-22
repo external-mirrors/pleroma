@@ -1770,6 +1770,20 @@ defmodule Pleroma.Web.CommonAPITest do
 
       assert {:error, _} = CommonAPI.actor_status(user, %{content: String.duplicate("a", 101)})
     end
+
+    test "sanitizes content" do
+      user = insert(:user)
+      content = "A test post & <a href='javascript:alert(1)'>evil content</a> :)"
+
+      expected =
+        "A test post &amp; &lt;a href=&#39;javascript:alert(1)'>evil content&lt;/a&gt; :)"
+
+      {:ok, activity} = CommonAPI.actor_status(user, %{content: content})
+
+      object = Object.normalize(activity, fetch: false)
+
+      assert object.data["content"] == expected
+    end
   end
 
   describe "delete_actor_status/1" do

@@ -117,7 +117,11 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   end
 
   defp actor_status_content(%__MODULE__{} = draft) do
-    content = Map.get(draft.params, :content)
+    {content, _, _} =
+      draft.params
+      |> Map.get(:content)
+      |> Utils.format_input("text/plain")
+
     limit = Config.get([:instance, :actor_status_limit])
 
     if String.length(content) <= limit do
