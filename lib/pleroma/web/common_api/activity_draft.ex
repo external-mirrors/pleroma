@@ -117,14 +117,11 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   end
 
   defp actor_status_content(%__MODULE__{} = draft) do
-    {content, _, _} =
-      draft.params
-      |> Map.get(:content)
-      |> Utils.format_input("text/plain")
-
+    raw_content = Map.get(draft.params, :content)
+    {content, _, _} = Utils.format_input(raw_content, "text/plain")
     limit = Config.get([:instance, :actor_status_limit])
 
-    if String.length(content) <= limit do
+    if String.length(raw_content) <= limit do
       %{draft | content_html: content}
     else
       add_error(draft, dgettext("errors", "Actor status length exceeds limit"))
