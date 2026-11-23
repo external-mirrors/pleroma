@@ -25,8 +25,8 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusControllerTest do
         })
 
       assert %{
-               "actor_status_content" => "Hello, Navi!",
-               "account" => %{"pleroma" => %{"actor_status_content" => ^content}}
+               "actor_status" => %{"content" => ^content},
+               "account" => %{"pleroma" => %{"actor_status" => %{"content" => ^content}}}
              } = json_response_and_validate_schema(conn, 200)
 
       updated_user = Pleroma.User.get_by_ap_id(user.ap_id)
@@ -49,8 +49,8 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusControllerTest do
         })
 
       assert %{
-               "actor_status_content" => "",
-               "account" => %{"pleroma" => %{"actor_status_content" => ""}}
+               "actor_status" => %{"content" => ""},
+               "account" => %{"pleroma" => %{"actor_status" => %{"content" =>""}}}
              } = json_response_and_validate_schema(conn, 200)
 
       updated_user = Pleroma.User.get_by_ap_id(user.ap_id)

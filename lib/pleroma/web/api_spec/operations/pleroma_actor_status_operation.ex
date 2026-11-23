@@ -24,7 +24,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaActorStatusOperation do
       deprecated: false,
       requestBody: request_body("Parameters", create_request(), required: true),
       responses: %{
-        200 => Operation.response("Scrobble", "application/json", scrobble()),
+        200 => Operation.response("Scrobble", "application/json", actor_status()),
         400 => Operation.response("Error", "application/json", ApiError)
       }
     }
@@ -43,20 +43,25 @@ defmodule Pleroma.Web.ApiSpec.PleromaActorStatusOperation do
     }
   end
 
-  defp scrobble do
+  defp actor_status do
     %Schema{
       type: :object,
       properties: %{
         id: %Schema{type: :string},
         account: Account,
         created_at: %Schema{type: :string, format: :"date-time"},
-        actor_status_content: %Schema{type: :string}
+        actor_status: %Schema{
+          type: :object,
+          properties: %{
+            content: %Schema{type: :string}
+          }
+        }
       },
       example: %{
         "id" => "1234",
         "account" => Account.schema().example,
         "created_at" => "1998-07-06T12:40:45.000Z",
-        "actor_status_content" => "No matter where you are, everybody's connected."
+        "actor_status" => %{"content" => "No matter where you are, everybody's connected."}
       }
     }
   end

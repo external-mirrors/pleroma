@@ -101,7 +101,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         accepts_chat_messages: nil,
         avatar_description: "",
         header_description: "",
-        actor_status_content: ""
+        actor_status: %{content: ""}
       }
     }
 
@@ -369,7 +369,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         accepts_chat_messages: nil,
         avatar_description: "",
         header_description: "",
-        actor_status_content: ""
+        actor_status: %{content: ""}
       }
     }
 

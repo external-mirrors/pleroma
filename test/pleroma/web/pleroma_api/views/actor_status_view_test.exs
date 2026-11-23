@@ -17,7 +17,7 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusViewTest do
 
     status = ActorStatusView.render("show.json", activity: activity)
 
-    assert status.actor_status_content == object.data["content"]
+    assert status.actor_status.content == object.data["content"]
   end
 
   test "successfully renders a Delete activity for Actor Status" do
@@ -27,6 +27,6 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusViewTest do
 
     status = ActorStatusView.render("show.json", activity: delete_activity)
 
-    assert status.actor_status_content == ""
+    assert status.actor_status.content == ""
   end
 end

@@ -22,7 +22,9 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
     %{
       id: activity.id,
       account: AccountView.render("show.json", %{user: user, for: opts[:for]}),
-      actor_status_content: content
+      actor_status: %{
+        content: content
+      }
     }
   end
 
@@ -32,7 +34,9 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
     %{
       id: activity.id,
       account: AccountView.render("show.json", %{user: user, for: opts[:for]}),
-      actor_status_content: ""
+      actor_status: %{
+        content: ""
+      }
     }
   end
 end

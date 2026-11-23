@@ -307,6 +307,8 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         _ -> ""
       end
 
+    actor_status = %{content: actor_status_content}
+
     %{
       id: to_string(user.id),
       username: username_from_nickname(user.nickname),
@@ -343,7 +345,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
       # Note: it's insecure to output :email but fully-qualified nickname may serve as safe stub
       fqn: User.full_nickname(user),
       pleroma: %{
-        actor_status_content: actor_status_content,
+        actor_status: actor_status,
         ap_id: user.ap_id,
         also_known_as: user.also_known_as,
         is_confirmed: user.is_confirmed,
