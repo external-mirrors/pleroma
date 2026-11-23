@@ -14,6 +14,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
   alias Pleroma.Utils.URIEncoding
   alias Pleroma.Web.CommonAPI.Utils
   alias Pleroma.Web.MastodonAPI.AccountView
+  alias Pleroma.Web.MastodonAPI.StatusView
   alias Pleroma.Web.MediaProxy
 
   def render("index.json", %{users: users} = opts) do
@@ -292,10 +293,16 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     accepts_chat_messages = Pleroma.Chat.enabled?() and user.accepts_chat_messages
 
     # TODO: Simplify
-    actor_status_content =
+    actor_status_object =
       with true <- Pleroma.Config.get([:instance, :actor_statuses]),
-           false <- is_nil(user.actor_status_id),
-           actor_status_object <- Object.get_by_id(user.actor_status_id),
+           false <- is_nil(user.actor_status_id) do
+        Object.get_by_id(user.actor_status_id)
+      else
+        _ -> nil
+      end
+
+    actor_status_content =
+      with false <- is_nil(actor_status_object),
            actor_status_activity <-
              Activity.get_create_by_object_ap_id_with_object(actor_status_object.data["id"]) do
         Activity.HTML.get_cached_stripped_html_for_activity(
@@ -307,7 +314,12 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         _ -> ""
       end
 
-    actor_status = %{content: actor_status_content}
+    actor_status_emoji =
+      if !is_nil(actor_status_object),
+        do: StatusView.build_emojis(actor_status_object.data["emoji"]),
+        else: []
+
+    actor_status = %{content: actor_status_content, emojis: actor_status_emoji}
 
     %{
       id: to_string(user.id),

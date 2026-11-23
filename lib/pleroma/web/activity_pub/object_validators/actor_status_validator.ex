@@ -29,6 +29,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidators.ActorStatusValidator do
         field(:content, :string)
         field(:published, ObjectValidators.DateTime)
         field(:attributedTo, ObjectValidators.ObjectID)
+        field(:emoji, ObjectValidators.Emoji, default: %{})
       end
     end
   end

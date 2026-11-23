@@ -12,6 +12,7 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
   alias Pleroma.Object
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.MastodonAPI.AccountView
+  alias Pleroma.Web.MastodonAPI.StatusView
 
   def render("show.json", %{activity: %Activity{data: %{"type" => "Create"}} = activity} = opts) do
     object = Object.normalize(activity, fetch: false)
@@ -23,7 +24,8 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
       id: activity.id,
       account: AccountView.render("show.json", %{user: user, for: opts[:for]}),
       actor_status: %{
-        content: content
+        content: content,
+        emojis: StatusView.build_emojis(object.data["emoji"])
       }
     }
   end
@@ -35,7 +37,8 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
       id: activity.id,
       account: AccountView.render("show.json", %{user: user, for: opts[:for]}),
       actor_status: %{
-        content: ""
+        content: "",
+        emojis: []
       }
     }
   end

@@ -1799,6 +1799,16 @@ defmodule Pleroma.Web.CommonAPITest do
 
       assert object.data["content"] == expected
     end
+
+    test "works with custom emojis" do
+      user = insert(:user)
+      content = "A status with :firefox:"
+
+      {:ok, activity} = CommonAPI.actor_status(user, %{content: content})
+      object = Object.normalize(activity, fetch: false)
+
+      assert ["firefox"] = Map.keys(object.data["emoji"])
+    end
   end
 
   describe "delete_actor_status/1" do

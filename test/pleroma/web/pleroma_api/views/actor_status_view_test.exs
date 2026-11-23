@@ -18,6 +18,7 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusViewTest do
     status = ActorStatusView.render("show.json", activity: activity)
 
     assert status.actor_status.content == object.data["content"]
+    assert status.actor_status.emojis == []
   end
 
   test "successfully renders a Delete activity for Actor Status" do
@@ -28,5 +29,18 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusViewTest do
     status = ActorStatusView.render("show.json", activity: delete_activity)
 
     assert status.actor_status.content == ""
+    assert status.actor_status.emojis == []
+  end
+
+  test "successfully renders a Create activity with emojis" do
+    user = insert(:user)
+    {:ok, activity} = CommonAPI.actor_status(user, %{content: "A post with :firefox: :blank:"})
+
+    status = ActorStatusView.render("show.json", activity: activity)
+    emojis = status.actor_status.emojis
+
+    for emoji <- ["firefox", "blank"] do
+      assert Enum.any?(emojis, fn %{shortcode: shortcode} -> shortcode == emoji end)
+    end
   end
 end

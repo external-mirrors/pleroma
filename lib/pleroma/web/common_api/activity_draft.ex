@@ -118,11 +118,12 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
 
   defp actor_status_content(%__MODULE__{} = draft) do
     raw_content = Map.get(draft.params, :content)
+    emoji = Pleroma.Emoji.Formatter.get_emoji_map(raw_content)
     {content, _, _} = Utils.format_input(raw_content, "text/plain")
     limit = Config.get([:instance, :actor_status_limit])
 
     if String.length(raw_content) <= limit do
-      %{draft | content_html: content}
+      %{draft | content_html: content, emoji: emoji}
     else
       add_error(draft, dgettext("errors", "Actor status length exceeds limit"))
     end
@@ -134,6 +135,7 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
       |> Map.put("id", ActivityPubUtils.generate_object_id())
       |> Map.put("context", draft.context)
       |> Map.put("content", draft.content_html)
+      |> Map.put("emoji", draft.emoji)
       |> Map.put("type", "ActorStatus")
       # ActorStatus does not support audience scoping
       |> Map.put("to", ["https://www.w3.org/ns/activitystreams#Public"])
