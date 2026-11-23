@@ -444,7 +444,8 @@ defmodule Pleroma.Web.ApiSpec.PleromaUtilOperation do
             type: :object,
             example: %{
               objects: ["id1", "id2"],
-              duplicates: %{own: 1, other: 1}
+              duplicates: %{own: 1, other: 1},
+              scheduled: ["id1", "id2"]
             }
           }),
         429 =>
