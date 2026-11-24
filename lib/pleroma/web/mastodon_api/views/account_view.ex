@@ -308,13 +308,11 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         nil
       end
 
+    # Activity.get_cached_stripped_html_for_activity does not allow modifying the HTML
+    # before stripping it, resulting in lost newlines.
     actor_status_content =
       if !is_nil(actor_status_activity) do
-        Activity.HTML.get_cached_stripped_html_for_activity(
-          actor_status_activity.object.data["content"],
-          actor_status_activity,
-          "pleromaapi:actor_status_content"
-        )
+        Pleroma.Web.Metadata.Utils.scrub_html(actor_status_activity.object.data["content"], "\n")
       else
         ""
       end

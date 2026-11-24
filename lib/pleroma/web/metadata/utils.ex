@@ -42,15 +42,17 @@ defmodule Pleroma.Web.Metadata.Utils do
     |> Formatter.truncate(max_length, omission)
   end
 
-  def scrub_html(content) when is_binary(content) do
+  def scrub_html(content, br_replacement \\ " ")
+
+  def scrub_html(content, br_replacement) when is_binary(content) do
     content
     # html content comes from DB already encoded, decode first and scrub after
     |> HtmlEntities.decode()
-    |> String.replace(~r/<br\s?\/?>/, " ")
+    |> String.replace(~r/<br\s?\/?>/, br_replacement)
     |> HTML.strip_tags()
   end
 
-  def scrub_html(content), do: content
+  def scrub_html(content, _), do: content
 
   def user_name_string(user) do
     "#{user.name} " <>

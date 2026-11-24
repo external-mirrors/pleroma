@@ -13,10 +13,11 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
   alias Pleroma.Web.CommonAPI
   alias Pleroma.Web.MastodonAPI.AccountView
   alias Pleroma.Web.MastodonAPI.StatusView
+  alias Pleroma.Web.Metadata.Utils
 
   def render("show.json", %{activity: %Activity{data: %{"type" => "Create"}} = activity} = opts) do
     object = Object.normalize(activity, fetch: false)
-    content = object.data["content"] |> HTML.strip_tags() || ""
+    content = object.data["content"] |> Utils.scrub_html("\n") || ""
     raw_content = object.data["content"] |> HTML.filter_tags() || ""
 
     user = CommonAPI.get_user(activity.data["actor"])
