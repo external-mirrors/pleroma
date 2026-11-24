@@ -301,18 +301,34 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         _ -> nil
       end
 
+    actor_status_activity =
+      if !is_nil(actor_status_object) do
+        Activity.get_create_by_object_ap_id_with_object(actor_status_object.data["id"])
+      else
+        nil
+      end
+
     actor_status_content =
-      with false <- is_nil(actor_status_object),
-           actor_status_activity <-
-             Activity.get_create_by_object_ap_id_with_object(actor_status_object.data["id"]) do
+      if !is_nil(actor_status_activity) do
+        Activity.HTML.get_cached_stripped_html_for_activity(
+          actor_status_activity.object.data["content"],
+          actor_status_activity,
+          "pleromaapi:actor_status_content"
+        )
+      else
+        ""
+      end
+
+    actor_status_raw_content =
+      if !is_nil(actor_status_activity) do
         Activity.HTML.get_cached_scrubbed_html_for_activity(
           actor_status_activity.object.data["content"],
           User.html_filter_policy(opts[:for]),
           actor_status_activity,
-          "pleromaapi:actor_status"
+          "pleromaapi:actor_status_raw_content"
         )
       else
-        _ -> ""
+        ""
       end
 
     actor_status_emoji =
@@ -320,7 +336,11 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
         do: StatusView.build_emojis(actor_status_object.data["emoji"]),
         else: []
 
-    actor_status = %{content: actor_status_content, emojis: actor_status_emoji}
+    actor_status = %{
+      content: actor_status_content,
+      raw_content: actor_status_raw_content,
+      emojis: actor_status_emoji
+    }
 
     %{
       id: to_string(user.id),

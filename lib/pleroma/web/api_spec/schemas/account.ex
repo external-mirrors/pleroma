@@ -118,7 +118,9 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Account do
           actor_status: %Schema{
             type: :object,
             properties: %{
-              content: %Schema{type: :string}
+              content: %Schema{type: :string},
+              raw_content: %Schema{type: :string},
+              emojis: %Schema{type: :array}
             }
           }
         }
@@ -218,7 +220,11 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Account do
           "pleroma-fe" => %{}
         },
         "birthday" => "2001-02-12",
-        "actor_status" => %{"content" => "No matter where you are, everybody's connected."}
+        "actor_status" => %{
+          "content" => "No matter where you are, everybody's connected.",
+          "raw_content" => "No matter where you are, everybody's connected.",
+          "emojis" => []
+        }
       },
       "source" => %{
         "fields" => [],

@@ -16,7 +16,8 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
 
   def render("show.json", %{activity: %Activity{data: %{"type" => "Create"}} = activity} = opts) do
     object = Object.normalize(activity, fetch: false)
-    content = object.data["content"] |> HTML.filter_tags() || ""
+    content = object.data["content"] |> HTML.strip_tags() || ""
+    raw_content = object.data["content"] |> HTML.filter_tags() || ""
 
     user = CommonAPI.get_user(activity.data["actor"])
 
@@ -25,6 +26,7 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
       account: AccountView.render("show.json", %{user: user, for: opts[:for]}),
       actor_status: %{
         content: content,
+        raw_content: raw_content,
         emojis: StatusView.build_emojis(object.data["emoji"])
       }
     }
@@ -38,6 +40,7 @@ defmodule Pleroma.Web.PleromaAPI.ActorStatusView do
       account: AccountView.render("show.json", %{user: user, for: opts[:for]}),
       actor_status: %{
         content: "",
+        raw_content: "",
         emojis: []
       }
     }

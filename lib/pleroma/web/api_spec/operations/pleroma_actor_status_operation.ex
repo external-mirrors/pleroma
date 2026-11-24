@@ -61,7 +61,11 @@ defmodule Pleroma.Web.ApiSpec.PleromaActorStatusOperation do
         "id" => "1234",
         "account" => Account.schema().example,
         "created_at" => "1998-07-06T12:40:45.000Z",
-        "actor_status" => %{"content" => "No matter where you are, everybody's connected."}
+        "actor_status" => %{
+          "content" => "No matter where you are, everybody's connected.",
+          "raw_content" => "No matter where you are, everybody's connected.",
+          "emojis" => []
+        }
       }
     }
   end
