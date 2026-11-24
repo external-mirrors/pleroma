@@ -305,8 +305,9 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
       with false <- is_nil(actor_status_object),
            actor_status_activity <-
              Activity.get_create_by_object_ap_id_with_object(actor_status_object.data["id"]) do
-        Activity.HTML.get_cached_stripped_html_for_activity(
+        Activity.HTML.get_cached_scrubbed_html_for_activity(
           actor_status_activity.object.data["content"],
+          User.html_filter_policy(opts[:for]),
           actor_status_activity,
           "pleromaapi:actor_status"
         )
