@@ -117,7 +117,11 @@ defmodule Pleroma.Web.CommonAPI.ActivityDraft do
   end
 
   defp actor_status_content(%__MODULE__{} = draft) do
-    raw_content = Map.get(draft.params, :content)
+    raw_content =
+      draft.params
+      |> Map.get(:content)
+      |> String.trim()
+
     emoji = Pleroma.Emoji.Formatter.get_emoji_map(raw_content)
     {content, _, _} = Utils.format_input(raw_content, "text/plain")
     limit = Config.get([:instance, :actor_status_limit])
