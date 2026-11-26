@@ -609,11 +609,6 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
           description:
             "Whether the user agrees to the local rules, terms, and policies. These should be presented to the user in order to allow them to consent before setting this parameter to TRUE."
         },
-        locale: %Schema{
-          type: :string,
-          nullable: true,
-          description: "The language of the confirmation email that will be sent"
-        },
         # Pleroma-specific properties:
         fullname: %Schema{type: :string, nullable: true, description: "Full name"},
         bio: %Schema{type: :string, description: "Bio", nullable: true, default: ""},
@@ -760,6 +755,11 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
         #     language: %Schema{type: :string}
         #   }
         # },
+        language: %Schema{
+          type: :string,
+          nullable: true,
+          description: "User's preferred language for emails"
+        },
 
         # Pleroma-specific fields
         no_rich_text: %Schema{

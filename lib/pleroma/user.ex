@@ -598,7 +598,8 @@ defmodule Pleroma.User do
         :accepts_chat_messages,
         :disclose_client,
         :birthday,
-        :show_birthday
+        :show_birthday,
+        :language
       ]
     )
     |> validate_min_age()
